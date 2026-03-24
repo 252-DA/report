@@ -1,0 +1,282 @@
+\section{Kiểm thử hệ thống}
+
+\subsection{Kế hoạch kiểm thử}
+
+\subsubsection{Mục tiêu}
+
+\begin{itemize}
+    \item Xác minh tất cả các chức năng đã đặc tả (FR-01 đến FR-05) hoạt động
+          đúng theo tiêu chí chấp nhận.
+    \item Đánh giá hệ thống đáp ứng các yêu cầu phi tính năng (NFR-01 đến NFR-06).
+    \item Đánh giá chất lượng nội dung AI sinh ra (Summary và Quiz).
+    \item Xác định các điểm yếu cần cải thiện trước Giai đoạn 2.
+\end{itemize}
+
+\subsubsection{Phương pháp}
+
+\begin{table}[H]
+    \centering
+    \caption{Các phương pháp kiểm thử được áp dụng.}
+    \label{tab:test-methods}
+    \begin{tabular}{p{3.5cm}p{4.5cm}p{6.5cm}}
+        \toprule
+        \textbf{Phương pháp} & \textbf{Công cụ} & \textbf{Phạm vi} \\
+        \midrule
+        Unit Testing & \texttt{pytest}, \texttt{unittest.mock} &
+            Từng module (Chunker, Parser, Adapter). \\
+        Integration Testing & \texttt{pytest} + Docker Compose &
+            Luồng end-to-end thực tế. \\
+        Black-box Testing & Thủ công theo test case & FR-01 đến FR-05. \\
+        Load Testing & \texttt{locust} & NFR-01 (hiệu năng). \\
+        AI Quality Evaluation & Khảo sát giảng viên (Likert 1--5) &
+            Chất lượng Summary và Quiz. \\
+        Usability Testing & SUS Questionnaire (10 sinh viên) &
+            NFR-06 (khả dụng). \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Phạm vi}
+
+\textbf{Trong phạm vi:} Toàn bộ FR và NFR đã đặc tả ở Chương 2.
+
+\textbf{Ngoài phạm vi:} Kiểm thử bảo mật chuyên sâu (penetration testing);
+kiểm thử tương thích trình duyệt (chỉ test Chrome/Firefox).
+
+\subsection{Kiểm thử tính năng (Functional Testing)}
+
+\subsubsection{Cấu hình môi trường kiểm thử}
+
+\begin{table}[H]
+    \centering
+    \caption{Cấu hình môi trường kiểm thử tính năng.}
+    \label{tab:test-env-func}
+    \begin{tabular}{p{4cm}p{10.5cm}}
+        \toprule
+        \textbf{Thành phần} & \textbf{Cấu hình} \\
+        \midrule
+        Môi trường & Docker Compose (local), giống production \\
+        Dữ liệu test & 10 tài liệu mẫu: 3 PDF, 3 DOCX, 2 PPTX, 1 PDF lỗi, 1 PDF vượt kích thước \\
+        Tài khoản test & 2 Giảng viên, 5 Học viên, 1 Admin \\
+        LLM & GPT-4o-mini (API key thật, giới hạn \$5 budget) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Kiểm thử Hộp đen (Black-box Testing)}
+
+% ---- FR-01 ----
+\begin{longtable}{|p{1.5cm}|p{4.5cm}|p{3.5cm}|p{3cm}|p{2cm}|}
+    \caption{Test cases cho FR-01: Xác thực người dùng.} \label{tab:tc-fr01} \\
+    \hline
+    \textbf{ID} & \textbf{Mô tả} & \textbf{Input} & \textbf{Expected} & \textbf{Result} \\
+    \hline
+    \endfirsthead \hline
+    \textbf{ID} & \textbf{Mô tả} & \textbf{Input} & \textbf{Expected} & \textbf{Result} \\
+    \hline \endhead
+
+    TC-01-01 & Đăng nhập với email và mật khẩu hợp lệ &
+        email: test@bk.edu.vn, password: Test@123 &
+        JWT token trả về; redirect dashboard & \\ \hline
+
+    TC-01-02 & Đăng nhập với mật khẩu sai &
+        password: WrongPass &
+        HTTP 401; thông báo ``Sai email hoặc mật khẩu'' & \\ \hline
+
+    TC-01-03 & Đăng nhập với tài khoản bị khóa &
+        Tài khoản is\_active=false &
+        HTTP 403; thông báo ``Tài khoản bị khóa'' & \\ \hline
+
+    TC-01-04 & Truy cập API không có JWT &
+        Không có Authorization header &
+        HTTP 401; ``Unauthorized'' & \\ \hline
+
+    TC-01-05 & JWT hết hạn (access token) &
+        JWT expired 2 giờ trước &
+        HTTP 401; ``Token expired'' & \\ \hline
+\end{longtable}
+
+% ---- FR-02/03 ----
+\begin{longtable}{|p{1.5cm}|p{4.5cm}|p{3.5cm}|p{3cm}|p{2cm}|}
+    \caption{Test cases cho FR-02/03: Upload và xử lý tài liệu.} \label{tab:tc-fr02} \\
+    \hline
+    \textbf{ID} & \textbf{Mô tả} & \textbf{Input} & \textbf{Expected} & \textbf{Result} \\
+    \hline
+    \endfirsthead \hline
+    \textbf{ID} & \textbf{Mô tả} & \textbf{Input} & \textbf{Expected} & \textbf{Result} \\
+    \hline \endhead
+
+    TC-02-01 & Upload PDF hợp lệ (10 trang) &
+        chapter1.pdf, 2MB &
+        Document tạo với status UPLOADED; pipeline khởi động & \\ \hline
+
+    TC-02-02 & Upload file sai định dạng (.xlsx) &
+        data.xlsx &
+        HTTP 400; ``Định dạng không hỗ trợ'' & \\ \hline
+
+    TC-02-03 & Upload file vượt kích thước (60MB) &
+        large.pdf, 60MB &
+        HTTP 413; ``File tối đa 50MB'' & \\ \hline
+
+    TC-02-04 & Pipeline hoàn tất: kiểm tra số chunk &
+        PDF 10 trang, 5 section &
+        $\geq$5 chunk được tạo & \\ \hline
+
+    TC-02-05 & Pipeline hoàn tất: kiểm tra Card &
+        Mỗi chunk phải có đúng 1 Card &
+        Số Card = số chunk & \\ \hline
+
+    TC-02-06 & Pipeline hoàn tất: kiểm tra Quiz &
+        Mỗi chunk phải có $\geq$5 câu Quiz &
+        Số Quiz $\geq$ 5 $\times$ số chunk & \\ \hline
+
+    TC-02-07 & LLM API lỗi network: kiểm tra retry &
+        Giả lập LLM timeout &
+        Retry đúng 3 lần; status = ERROR sau lần 3 & \\ \hline
+\end{longtable}
+
+% ---- FR-04/05 ----
+\begin{longtable}{|p{1.5cm}|p{4.5cm}|p{3.5cm}|p{3cm}|p{2cm}|}
+    \caption{Test cases cho FR-04/05: Review, publish và học tập.} \label{tab:tc-fr04} \\
+    \hline
+    \textbf{ID} & \textbf{Mô tả} & \textbf{Input} & \textbf{Expected} & \textbf{Result} \\
+    \hline
+    \endfirsthead \hline
+    \textbf{ID} & \textbf{Mô tả} & \textbf{Input} & \textbf{Expected} & \textbf{Result} \\
+    \hline \endhead
+
+    TC-04-01 & Chỉnh sửa nội dung Card &
+        Sửa ý chính thứ 2 &
+        Thay đổi lưu ngay; nội dung mới xuất hiện & \\ \hline
+
+    TC-04-02 & Publish khi chưa review bất kỳ section &
+        Nhấn Publish &
+        Nút Publish disabled; tooltip giải thích & \\ \hline
+
+    TC-04-03 & Publish sau khi review 1 section &
+        Review section 1; nhấn Publish &
+        Khóa học status = PUBLISHED; hiện trong list học viên & \\ \hline
+
+    TC-05-01 & Học viên làm Quiz: chọn đúng &
+        Chọn đáp án đúng &
+        Highlight xanh; hiển thị giải thích; điểm +1 & \\ \hline
+
+    TC-05-02 & Học viên làm Quiz: chọn sai &
+        Chọn đáp án sai &
+        Highlight đỏ; hiện đáp án đúng và giải thích & \\ \hline
+
+    TC-05-03 & Tiến độ được lưu khi thoát giữa chừng &
+        Thoát ở Card thứ 3/10 &
+        Quay lại tiếp tục từ Card thứ 3 & \\ \hline
+\end{longtable}
+
+\subsection{Kiểm thử phi tính năng}
+
+\subsubsection{Cấu hình môi trường kiểm thử}
+
+\begin{table}[H]
+    \centering
+    \caption{Cấu hình môi trường kiểm thử phi tính năng.}
+    \label{tab:test-env-nonfunc}
+    \begin{tabular}{p{4cm}p{10.5cm}}
+        \toprule
+        \textbf{Thành phần} & \textbf{Cấu hình} \\
+        \midrule
+        Công cụ load test & \texttt{locust} 2.x \\
+        Máy chủ           & VM: 4 CPU, 8GB RAM (giả lập staging) \\
+        Dữ liệu           & 100 khóa học, mỗi khóa 10 section, 50 Card, 50 câu Quiz \\
+        Mạng              & Localhost (latency $<$1ms) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Kiểm thử hiệu năng (Benchmark \& Load Test)}
+
+\begin{table}[H]
+    \centering
+    \caption{Kết quả kiểm thử hiệu năng API (50 concurrent users, \texttt{locust}).}
+    \label{tab:load-test}
+    \begin{tabular}{p{4cm}p{2cm}p{2.5cm}p{2.5cm}p{2.5cm}p{2cm}}
+        \toprule
+        \textbf{Endpoint} & \textbf{RPS} & \textbf{Avg (ms)} &
+        \textbf{P50 (ms)} & \textbf{P95 (ms)} & \textbf{Error \%} \\
+        \midrule
+        GET /cards (xem Card)   & & & & & \\
+        GET /quiz (lấy Quiz)    & & & & & \\
+        POST /progress (lưu tiến độ) & & & & & \\
+        GET /search (vector search) & & & & & \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{Kết quả kiểm thử thời gian xử lý pipeline (tài liệu thực tế).}
+    \label{tab:pipeline-test}
+    \begin{tabular}{p{3cm}p{2cm}p{2cm}p{2.5cm}p{2.5cm}p{2.5cm}}
+        \toprule
+        \textbf{Tài liệu} & \textbf{Trang} & \textbf{Chunks} &
+        \textbf{Parse (s)} & \textbf{Embed (s)} & \textbf{LLM (s)} \\
+        \midrule
+        PDF 10 trang    & 10 & & & & \\
+        PDF 25 trang    & 25 & & & & \\
+        DOCX 30 trang   & 30 & & & & \\
+        PPTX 20 slides  & 20 & & & & \\
+        \midrule
+        \textbf{Tiêu chí} & \multicolumn{5}{l}{Tổng $\leq$ 3 phút cho 20 trang (NFR-01)} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Kiểm thử chất lượng nội dung AI}
+
+\textbf{Phương pháp:} \ldots\ giảng viên đánh giá độc lập 20 Card Summary
+và 20 câu Quiz sinh ra từ tài liệu thực tế, theo thang Likert 5 điểm.
+
+\begin{table}[H]
+    \centering
+    \caption{Kết quả đánh giá chất lượng nội dung AI (N=\ldots\ giảng viên).}
+    \label{tab:ai-eval}
+    \begin{tabular}{p{5.5cm}p{2.5cm}p{2.5cm}p{4cm}}
+        \toprule
+        \textbf{Tiêu chí đánh giá} & \textbf{Summary} & \textbf{Quiz} &
+        \textbf{Nhận xét} \\
+        \midrule
+        Độ chính xác nội dung ($\bar{x}$/5) & & & \\
+        Độ rõ ràng, dễ hiểu ($\bar{x}$/5)  & & & \\
+        Phù hợp độ khó ($\bar{x}$/5)       & & & Chỉ áp dụng Quiz \\
+        Tỷ lệ không cần chỉnh sửa (\%)     & & & \\
+        \midrule
+        \textbf{Tiêu chí đặt ra} & $\geq$70\% & $\geq$65\% & \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Usability Testing (SUS):}
+Thực hiện với \ldots\ sinh viên; yêu cầu hoàn thành 3 task: (1) đăng ký tài
+khoản, (2) học một section, (3) làm Quiz. Điền bảng SUS 10 câu sau khi hoàn
+thành.
+
+\begin{table}[H]
+    \centering
+    \caption{Kết quả SUS và task completion.}
+    \label{tab:sus}
+    \begin{tabular}{p{5cm}p{3cm}p{6.5cm}}
+        \toprule
+        \textbf{Chỉ số} & \textbf{Kết quả} & \textbf{Nhận xét} \\
+        \midrule
+        SUS Score                    & \ldots/100 & $\geq$68: Acceptable \\
+        Task completion rate         & \ldots\%   & Task 1/2/3: \ldots / \ldots / \ldots\% \\
+        Avg time trên task Quiz       & \ldots s   & \\
+        Điểm hài lòng chung (1--5)   & \ldots     & \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Tổng kết Chương 6}
+
+Chương 6 đã trình bày toàn diện kế hoạch và kết quả kiểm thử hệ thống theo
+hai nhóm: kiểm thử tính năng (black-box test cases cho FR-01 đến FR-05) và
+kiểm thử phi tính năng (load test, đánh giá chất lượng AI, SUS usability).
+Kết quả kiểm thử xác nhận \ldots\ (nhóm điền tổng kết sau khi có số liệu).
+Các điểm cần cải thiện sẽ được ưu tiên trong kế hoạch Giai đoạn 2.

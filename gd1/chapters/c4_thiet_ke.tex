@@ -1,0 +1,290 @@
+\section{Thiết kế hệ thống}
+
+\subsection{Thiết kế kiến trúc hệ thống}
+
+\subsubsection{Tổng quan kiến trúc}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{figures/arch_overview.png}
+    \caption{Kiến trúc tổng quan hệ thống Micro-learning.}
+    \label{fig:arch-overview}
+\end{figure}
+
+Hệ thống gồm ba nhóm thành phần chính:
+
+\begin{enumerate}
+    \item \textbf{Client Layer:} Web Application (React) --- giao tiếp với
+          Backend qua gRPC-Web.
+    \item \textbf{Service Layer:} Backend API và AI Pipeline (Chunking Service)
+          --- giao tiếp với nhau qua gRPC nội bộ.
+    \item \textbf{Infrastructure Layer:} MinIO, Qdrant, PostgreSQL --- lưu trữ
+          file, vector và dữ liệu quan hệ.
+\end{enumerate}
+
+\subsubsection{Bài toán thiết kế}
+
+Trong quá trình thiết kế, nhóm đối mặt với ba bài toán kỹ thuật chính:
+
+\begin{enumerate}
+    \item \textbf{Bài toán xử lý bất đồng bộ:} Pipeline AI có thể kéo dài
+          vài phút (đặc biệt khi gọi LLM API nhiều lần). Nếu xử lý đồng bộ
+          trong cùng HTTP request, kết nối sẽ timeout.
+    \item \textbf{Bài toán thay thế LLM:} OpenAI có thể thay đổi giá hoặc
+          điều khoản sử dụng; cần thiết kế để chuyển LLM provider dễ dàng.
+    \item \textbf{Bài toán kiểm thử:} Mỗi lần chạy unit test không thể gọi
+          LLM API thật (tốn tiền, phụ thuộc mạng).
+\end{enumerate}
+
+\subsubsection{Giải pháp cho bài toán}
+
+\textbf{Bài toán 1 --- Background Job:} AI Pipeline chạy dưới dạng background
+job bất đồng bộ. Giao diện cập nhật trạng thái qua WebSocket polling.
+
+\textbf{Bài toán 2 và 3 --- DDD với Port/Adapter:} Áp dụng kiến trúc
+Port/Adapter (Hexagonal Architecture). \texttt{LLMPort} là interface trừu
+tượng; \texttt{OpenAIAdapter} và \texttt{GeminiAdapter} là implementation cụ
+thể. Use case chỉ phụ thuộc interface, không phụ thuộc implementation.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/arch_pipeline_ddd.png}
+    \caption{Kiến trúc AI Pipeline theo Port/Adapter (DDD).}
+    \label{fig:arch-ddd}
+\end{figure}
+
+\subsection{Thiết kế cơ sở dữ liệu}
+
+\subsubsection{Các bảng nghiệp vụ chính}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{figures/erd_full.png}
+    \caption{Lược đồ ERD tổng quan.}
+    \label{fig:erd-full}
+\end{figure}
+
+\begin{table}[H]
+    \centering
+    \caption{Mô tả bảng \texttt{users}.}
+    \label{tab:tbl-users}
+    \begin{tabular}{p{3.5cm}p{3cm}p{8cm}}
+        \toprule
+        \textbf{Cột} & \textbf{Kiểu} & \textbf{Mô tả} \\
+        \midrule
+        \texttt{id}           & UUID PK      & Khóa chính tự sinh (gen\_random\_uuid). \\
+        \texttt{email}        & VARCHAR UNIQUE & Địa chỉ email đăng nhập. \\
+        \texttt{password\_hash}& VARCHAR     & Bcrypt hash của mật khẩu. \\
+        \texttt{role}         & ENUM         & \texttt{INSTRUCTOR} | \texttt{LEARNER} | \texttt{ADMIN}. \\
+        \texttt{full\_name}   & VARCHAR(100) & Họ tên đầy đủ. \\
+        \texttt{is\_active}   & BOOLEAN      & Tài khoản chưa bị khóa. \\
+        \texttt{created\_at}  & TIMESTAMPTZ  & Thời điểm tạo. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{Mô tả bảng \texttt{documents}.}
+    \label{tab:tbl-docs}
+    \begin{tabular}{p{3.5cm}p{3cm}p{8cm}}
+        \toprule
+        \textbf{Cột} & \textbf{Kiểu} & \textbf{Mô tả} \\
+        \midrule
+        \texttt{id}          & UUID PK     & Khóa chính. \\
+        \texttt{owner\_id}   & UUID FK     & Tham chiếu \texttt{users.id}. \\
+        \texttt{title}       & VARCHAR(255)& Tên tài liệu. \\
+        \texttt{file\_key}   & TEXT        & Key object trong MinIO bucket. \\
+        \texttt{file\_type}  & ENUM        & \texttt{PDF} | \texttt{DOCX} | \texttt{PPTX}. \\
+        \texttt{language}    & ENUM        & \texttt{vi} | \texttt{en}. \\
+        \texttt{status}      & ENUM        & \texttt{UPLOADED→PARSING→CHUNKING→GENERATING→DONE|ERROR}. \\
+        \texttt{error\_msg}  & TEXT NULL   & Thông báo lỗi (nếu có). \\
+        \texttt{created\_at} & TIMESTAMPTZ & Thời điểm tạo. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{Mô tả bảng \texttt{chunks}, \texttt{cards}, \texttt{quiz\_questions}.}
+    \label{tab:tbl-chunks-cards}
+    \begin{tabular}{p{3.5cm}p{3cm}p{8cm}}
+        \toprule
+        \textbf{Cột} & \textbf{Kiểu} & \textbf{Mô tả} \\
+        \midrule
+        \multicolumn{3}{l}{\textit{Bảng \texttt{chunks}}} \\
+        \texttt{id}           & UUID PK  & Khóa chính; đồng thời là ID trong Qdrant. \\
+        \texttt{document\_id} & UUID FK  & Tài liệu gốc. \\
+        \texttt{content}      & TEXT     & Text của chunk. \\
+        \texttt{heading}      & TEXT     & Tiêu đề section. \\
+        \texttt{chunk\_index} & INT      & Thứ tự trong tài liệu. \\
+        \texttt{token\_count} & INT      & Token ước tính (cl100k\_base tokenizer). \\
+        \midrule
+        \multicolumn{3}{l}{\textit{Bảng \texttt{cards}}} \\
+        \texttt{id}           & UUID PK   & Khóa chính. \\
+        \texttt{chunk\_id}    & UUID FK   & Chunk tương ứng. \\
+        \texttt{summary}      & JSONB     & \texttt{["ý chính 1", "ý chính 2", ...]}. \\
+        \texttt{is\_reviewed} & BOOLEAN   & Giảng viên đã review. \\
+        \texttt{sort\_order}  & INT       & Thứ tự hiển thị (hỗ trợ drag-and-drop). \\
+        \midrule
+        \multicolumn{3}{l}{\textit{Bảng \texttt{quiz\_questions}}} \\
+        \texttt{id}          & UUID PK   & Khóa chính. \\
+        \texttt{chunk\_id}   & UUID FK   & Chunk nguồn. \\
+        \texttt{question}    & TEXT      & Câu hỏi. \\
+        \texttt{options}     & JSONB     & \texttt{\{"A":"...","B":"...","C":"...","D":"..."\}}. \\
+        \texttt{answer}      & CHAR(1)   & Đáp án đúng. \\
+        \texttt{explanation} & TEXT      & Giải thích. \\
+        \texttt{difficulty}  & ENUM      & \texttt{EASY} | \texttt{MEDIUM} | \texttt{HARD}. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Mức độ chuẩn hóa và trade-off}
+
+Lược đồ được thiết kế đạt \textbf{Chuẩn thứ ba (3NF)}:
+\begin{itemize}
+    \item \textbf{1NF:} Mọi cột chỉ chứa giá trị nguyên tử; không có group
+          lặp (trừ JSONB là intentional).
+    \item \textbf{2NF:} Mọi thuộc tính không khóa phụ thuộc đầy đủ vào
+          khóa chính (không có partial dependency).
+    \item \textbf{3NF:} Không có phụ thuộc bắc cầu (transitive dependency).
+\end{itemize}
+
+\textbf{Trade-off có chủ đích:} Cột \texttt{summary} (JSONB) và
+\texttt{options} (JSONB) vi phạm 1NF theo nghĩa chặt, nhưng được giữ nguyên
+vì: (1)~cấu trúc mảng cố định và không cần truy vấn từng phần tử riêng lẻ,
+(2)~tránh tạo bảng join không cần thiết, (3)~JSONB trong PostgreSQL hỗ trợ
+index và query hiệu quả.
+
+\subsection{Thiết kế giao diện}
+
+\subsubsection{Bộ nhận diện thương hiệu}
+
+\begin{table}[H]
+    \centering
+    \caption{Bảng màu sắc và typography của hệ thống.}
+    \label{tab:branding}
+    \begin{tabular}{p{4cm}p{3cm}p{7.5cm}}
+        \toprule
+        \textbf{Thành phần} & \textbf{Giá trị} & \textbf{Ý nghĩa} \\
+        \midrule
+        Màu chính (Primary)   & \texttt{\#2563EB} (Blue-600) & Hành động chính, nút CTA. \\
+        Màu phụ (Secondary)   & \texttt{\#10B981} (Emerald-500) & Thành công, hoàn thành. \\
+        Màu cảnh báo (Warning) & \texttt{\#F59E0B} (Amber-500) & Cần review, đang xử lý. \\
+        Màu lỗi (Error)       & \texttt{\#EF4444} (Red-500) & Lỗi, thất bại. \\
+        Nền (Background)      & \texttt{\#F9FAFB} (Gray-50)  & Nền trang. \\
+        Font chính            & Inter (sans-serif) & Văn bản giao diện. \\
+        Font code             & JetBrains Mono     & Hiển thị code/JSON. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Sơ đồ trang (Sitemap)}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{figures/sitemap.png}
+    \caption{Sơ đồ trang (Sitemap) của toàn bộ hệ thống.}
+    \label{fig:sitemap}
+\end{figure}
+
+\textbf{Giảng viên:}
+\begin{itemize}
+    \item \texttt{/login}, \texttt{/register}
+    \item \texttt{/dashboard} --- Tổng quan
+    \item \texttt{/documents} --- Danh sách tài liệu
+    \item \texttt{/documents/upload} --- Upload mới
+    \item \texttt{/documents/:id/status} --- Theo dõi tiến trình
+    \item \texttt{/documents/:id/review} --- Review và chỉnh sửa
+    \item \texttt{/courses/:id/publish} --- Publish khóa học
+    \item \texttt{/courses/:id/analytics} --- Thống kê học viên
+\end{itemize}
+
+\textbf{Học viên:}
+\begin{itemize}
+    \item \texttt{/courses} --- Danh sách khóa học
+    \item \texttt{/courses/:id} --- Chi tiết khóa học
+    \item \texttt{/courses/:id/learn} --- Xem Card
+    \item \texttt{/courses/:id/quiz} --- Làm Quiz
+    \item \texttt{/profile} --- Lịch sử học tập
+    \item \texttt{/search} --- Tìm kiếm ngữ nghĩa
+\end{itemize}
+
+\subsection{Thiết kế Use Case Diagram}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{figures/uc_overall.png}
+    \caption{Use Case Diagram tổng quan.}
+    \label{fig:uc-design}
+\end{figure}
+
+\subsubsection{Nhóm use case Xác thực}
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.7\textwidth]{figures/uc_auth.png}
+    \caption{Use Case Diagram --- Xác thực người dùng.}
+    \label{fig:uc-auth}
+\end{figure}
+
+\subsubsection{Nhóm use case Quản lý tài liệu và nội dung}
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.85\textwidth]{figures/uc_document.png}
+    \caption{Use Case Diagram --- Quản lý tài liệu và nội dung AI.}
+    \label{fig:uc-document}
+\end{figure}
+
+\subsubsection{Nhóm use case Học tập}
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.85\textwidth]{figures/uc_learning.png}
+    \caption{Use Case Diagram --- Học tập và kiểm tra.}
+    \label{fig:uc-learning}
+\end{figure}
+
+\subsection{Thiết kế Activity Diagram}
+
+\subsubsection{Quy trình upload và xử lý tài liệu}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/act_upload.png}
+    \caption{Activity Diagram: Upload và xử lý tài liệu.}
+    \label{fig:act-upload}
+\end{figure}
+
+\subsubsection{Quy trình AI Pipeline}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{figures/act_pipeline.png}
+    \caption{Activity Diagram: AI Pipeline (Parse → Chunk → Embed → Generate).}
+    \label{fig:act-pipeline}
+\end{figure}
+
+\subsubsection{Quy trình review và publish}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/act_review.png}
+    \caption{Activity Diagram: Review và publish khóa học.}
+    \label{fig:act-review}
+\end{figure}
+
+\subsubsection{Quy trình học viên học bài và làm Quiz}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/act_learn.png}
+    \caption{Activity Diagram: Học viên xem Card và làm Quiz.}
+    \label{fig:act-learn}
+\end{figure}
+
+\subsection{Tổng kết Chương 4}
+
+Chương 4 đã trình bày toàn bộ bản thiết kế kỹ thuật của hệ thống: từ kiến
+trúc tổng quan và giải pháp cho ba bài toán thiết kế cốt lõi, đến thiết kế
+chi tiết cơ sở dữ liệu (ERD, 3NF, trade-off JSONB), bộ nhận diện thương hiệu,
+sơ đồ trang (Sitemap), use case diagram và activity diagram cho từng luồng
+nghiệp vụ. Những thiết kế này là bản vẽ cho Chương 5 --- Hiện thực.

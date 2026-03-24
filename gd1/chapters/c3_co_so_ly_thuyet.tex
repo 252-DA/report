@@ -1,0 +1,204 @@
+\section{Cơ sở lý thuyết}
+
+\subsection{Lý thuyết công nghệ sử dụng}
+
+\subsubsection{Mô hình Ngôn ngữ Lớn (Large Language Model)}
+
+\textbf{Định nghĩa:} Mô hình Ngôn ngữ Lớn (LLM) là các mạng nơ-ron sâu với
+hàng tỷ tham số, được huấn luyện trên tập văn bản khổng lồ để học phân phối
+xác suất của ngôn ngữ tự nhiên. Kiến trúc nền tảng là \textbf{Transformer}
+\cite{vaswani2017attention} với cơ chế \textit{self-attention} cho phép nắm
+bắt phụ thuộc xa trong chuỗi văn bản.
+
+\textbf{Cơ chế hoạt động:} Khi nhận một đầu vào (prompt), LLM sinh ra đầu ra
+bằng cách dự đoán token tiếp theo lặp đi lặp lại (autoregressive decoding).
+Tham số \texttt{temperature} điều chỉnh tính ngẫu nhiên: giá trị thấp ($<0.3$)
+cho đầu ra nhất quán, giá trị cao ($>0.7$) cho đầu ra sáng tạo hơn.
+
+\textbf{Ứng dụng trong đề tài:} LLM được sử dụng cho hai tác vụ:
+\begin{itemize}
+    \item \textbf{Tóm tắt (Summarization):} Từ một chunk văn bản, sinh ra
+          danh sách 3--5 ý chính ngắn gọn.
+    \item \textbf{Sinh câu hỏi (Question Generation):} Từ cùng chunk, sinh
+          ra 5--10 câu hỏi trắc nghiệm 4 đáp án kèm giải thích.
+\end{itemize}
+
+\subsubsection{Prompt Engineering}
+
+\textbf{Định nghĩa:} Prompt Engineering là kỹ thuật thiết kế đầu vào cho LLM
+để dẫn hướng đầu ra về chất lượng, định dạng và nội dung mong muốn, mà không
+cần thay đổi tham số mô hình (zero-shot / few-shot).
+
+\textbf{Các kỹ thuật áp dụng trong đề tài:}
+
+\begin{table}[H]
+    \centering
+    \caption{Các kỹ thuật Prompt Engineering và ứng dụng trong đề tài.}
+    \label{tab:prompt-tech}
+    \begin{tabular}{p{3.5cm}p{6cm}p{5cm}}
+        \toprule
+        \textbf{Kỹ thuật} & \textbf{Mô tả} & \textbf{Ứng dụng} \\
+        \midrule
+        \textbf{Role Prompting} &
+            Gán vai trò chuyên gia cho LLM để định hướng phong cách. &
+            ``Bạn là giảng viên đại học soạn đề kiểm tra\ldots'' \\
+        \midrule
+        \textbf{Structured Output} &
+            Yêu cầu LLM trả về JSON theo schema cố định. &
+            \texttt{response\_format = json\_object}; schema kiểm tra bằng Pydantic. \\
+        \midrule
+        \textbf{Constraint Prompting} &
+            Đặt ràng buộc rõ ràng về số lượng, độ dài, ngôn ngữ. &
+            ``Tạo đúng \{n\} câu hỏi; mỗi câu $\leq$ 30 từ; ngôn ngữ: tiếng Việt.'' \\
+        \midrule
+        \textbf{Few-shot Examples} &
+            Cung cấp ví dụ mẫu để định hướng format. &
+            Đính kèm 1 ví dụ câu hỏi mẫu trong prompt. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Text Chunking}
+
+\textbf{Định nghĩa:} Text Chunking là quá trình chia văn bản dài thành các
+đoạn nhỏ hơn (chunk) có tính ngữ nghĩa độc lập, phục vụ cho xử lý LLM và
+lưu trữ vector.
+
+\textbf{Vì sao cần chunking?} LLM có giới hạn \textit{context window}
+(ví dụ GPT-4o-mini: 128K token). Tuy nhiên, đưa toàn bộ tài liệu vào một
+lần gọi API vừa tốn kém vừa làm giảm chất lượng đầu ra do LLM khó tập trung
+vào từng phần. Chunking giải quyết vấn đề này bằng cách xử lý từng đoạn nhỏ.
+
+\textbf{Bài toán thiết kế:} Chunk lý tưởng cần thỏa mãn ba điều kiện:
+(1)~tính ngữ nghĩa (một ý hoàn chỉnh), (2)~kích thước phù hợp (500--1500
+token), (3)~metadata đầy đủ (thuộc section nào, trang bao nhiêu).
+
+\subsubsection{Vector Embedding}
+
+\textbf{Định nghĩa:} Vector Embedding là ánh xạ $f: \text{text} \to
+\mathbb{R}^d$ sao cho các văn bản có nghĩa tương đồng có véc-tơ gần nhau
+theo độ đo cosine:
+\[
+    \text{sim}(\vec{u}, \vec{v}) = \frac{\vec{u} \cdot \vec{v}}{|\vec{u}||\vec{v}|}
+\]
+
+\textbf{Ứng dụng:} Mỗi chunk được chuyển thành véc-tơ $\vec{e} \in
+\mathbb{R}^{768}$ và lưu vào Qdrant. Khi học viên tìm kiếm, query cũng được
+chuyển thành véc-tơ và Qdrant tìm top-K chunk có similarity cao nhất --- đây
+là nền tảng của tìm kiếm ngữ nghĩa và RAG.
+
+\subsubsection{Domain-Driven Design (DDD)}
+
+\textbf{Định nghĩa:} DDD \cite{evans2004ddd} là phương pháp thiết kế phần
+mềm tổ chức code xung quanh mô hình nghiệp vụ. Nguyên tắc cốt lõi:
+logic nghiệp vụ phải độc lập với framework và hạ tầng kỹ thuật.
+
+\textbf{Áp dụng trong đề tài --- bốn lớp:}
+\begin{enumerate}
+    \item \textbf{Domain:} Entity (\texttt{Document}, \texttt{Chunk}), Port
+          interface khai báo contract (\texttt{LLMPort}, \texttt{ParserPort},
+          \texttt{VectorDBPort}).
+    \item \textbf{Application:} Use case (\texttt{ProcessDocumentUseCase},
+          \texttt{SearchChunksUseCase}) --- chỉ phụ thuộc Port.
+    \item \textbf{Infrastructure:} Adapter cài đặt Port (\texttt{OpenAIAdapter},
+          \texttt{PDFParser}, \texttt{QdrantAdapter}, \texttt{MinIOAdapter}).
+    \item \textbf{Delivery:} gRPC Servicer nhận request, gọi use case.
+\end{enumerate}
+
+\subsection{Cân nhắc lựa chọn công nghệ}
+
+\subsubsection{Lựa chọn LLM API: GPT-4o-mini vs Gemini Flash}
+
+\begin{table}[H]
+    \centering
+    \caption{So sánh GPT-4o-mini và Gemini Flash.}
+    \label{tab:llm-choice}
+    \begin{tabular}{p{4cm}p{5cm}p{5.5cm}}
+        \toprule
+        \textbf{Tiêu chí} & \textbf{GPT-4o-mini} & \textbf{Gemini 1.5 Flash} \\
+        \midrule
+        Chất lượng tiếng Việt & Tốt & Tốt (hỗ trợ tốt đa ngôn ngữ) \\
+        Chi phí (input/1M token) & \$0.15 & \$0.075 \\
+        Tốc độ                & Nhanh ($\sim$30 token/s) & Rất nhanh ($\sim$60 token/s) \\
+        JSON mode             & Có (\texttt{json\_object}) & Có (\texttt{application/json}) \\
+        Độ ổn định API        & Rất cao & Cao \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\noindent\textbf{Quyết định:} Sử dụng \textbf{GPT-4o-mini} làm mặc định do
+hệ sinh thái OpenAI ổn định hơn và tài liệu phong phú hơn. Kiến trúc adapter
+cho phép chuyển sang Gemini Flash dễ dàng nếu cần tối ưu chi phí.
+
+\subsubsection{Lựa chọn chiến lược Chunking}
+
+\begin{table}[H]
+    \centering
+    \caption{So sánh các chiến lược Chunking cho tài liệu học thuật.}
+    \label{tab:chunking-choice}
+    \begin{tabular}{p{3cm}p{5.5cm}p{6cm}}
+        \toprule
+        \textbf{Chiến lược} & \textbf{Ưu điểm} & \textbf{Nhược điểm} \\
+        \midrule
+        Fixed-size & Đơn giản; kích thước nhất quán. & Cắt đứt câu/ý; mất ngữ cảnh. \\
+        Sentence-based & Bảo toàn câu hoàn chỉnh. & Chunk nhỏ; thiếu ngữ cảnh đoạn. \\
+        \textbf{Heading-based} & Phù hợp tài liệu có cấu trúc; mỗi chunk = 1 chủ đề. & Phụ thuộc chất lượng cấu trúc tài liệu gốc. \\
+        Semantic & Chính xác nhất. & Chi phí tính toán cao. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\noindent\textbf{Quyết định:} \textbf{Heading-based} là chiến lược chính.
+Section vượt ngưỡng sẽ được chia tiếp bằng sliding window với overlap 100
+token để bảo toàn ngữ cảnh.
+
+\subsubsection{Lựa chọn Vector Database: Qdrant vs Weaviate vs Pinecone}
+
+\begin{table}[H]
+    \centering
+    \caption{So sánh các Vector Database.}
+    \label{tab:vdb-choice}
+    \begin{tabular}{p{3cm}p{3.5cm}p{3.5cm}p{4.5cm}}
+        \toprule
+        \textbf{Tiêu chí} & \textbf{Qdrant} & \textbf{Weaviate} & \textbf{Pinecone} \\
+        \midrule
+        Tự host (on-premise)  & Có & Có & Không (cloud-only) \\
+        Hiệu năng ANN         & Rất cao (HNSW) & Cao & Cao \\
+        Payload filtering     & Có & Có & Có (giới hạn) \\
+        Python SDK            & Đơn giản & Phức tạp hơn & Đơn giản \\
+        Chi phí               & Miễn phí (OSS) & Miễn phí (OSS) & Có phí (theo vector) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\noindent\textbf{Quyết định:} \textbf{Qdrant} --- mã nguồn mở, tự host,
+hiệu năng cao, Python SDK thân thiện.
+
+\subsubsection{Lựa chọn Embedding Model: bge-m3 vs text-embedding-3-small}
+
+\begin{table}[H]
+    \centering
+    \caption{So sánh mô hình Embedding.}
+    \label{tab:embed-choice}
+    \begin{tabular}{p{4cm}p{5cm}p{5.5cm}}
+        \toprule
+        \textbf{Tiêu chí} & \textbf{BAAI/bge-m3} & \textbf{text-embedding-3-small} \\
+        \midrule
+        Chiều véc-tơ     & 768 & 1536 \\
+        Hỗ trợ tiếng Việt & Rất tốt (đa ngôn ngữ) & Tốt \\
+        Chi phí           & Miễn phí (local) & \$0.02/1M token \\
+        Tốc độ inference  & Nhanh (CPU đủ dùng) & Rất nhanh (API call) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\noindent\textbf{Quyết định:} \textbf{BAAI/bge-m3} chạy local --- không tốn
+chi phí API, hỗ trợ tiếng Việt tốt, phù hợp môi trường staging.
+
+\subsection{Tổng kết Chương 3}
+
+Chương 3 đã trình bày nền tảng lý thuyết cho các công nghệ cốt lõi của hệ
+thống: LLM và Prompt Engineering, Text Chunking, Vector Embedding và kiến
+trúc DDD. Đặc biệt, phần cân nhắc lựa chọn công nghệ đã lý giải cụ thể lý do
+chọn GPT-4o-mini, Heading-based Chunking, Qdrant và bge-m3 so với các lựa
+chọn thay thế. Những quyết định này sẽ được hiện thực hóa trong Chương 4 và 5.

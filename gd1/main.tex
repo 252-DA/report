@@ -1,0 +1,308 @@
+\documentclass[a4paper,12pt]{article}
+
+% ============================================================
+% PACKAGES
+% ============================================================
+\usepackage{a4wide,amssymb,epsfig,latexsym,multicol,array,hhline,fancyhdr}
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
+\usepackage[vietnamese,english]{babel}
+\usepackage{listings}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{lastpage}
+\usepackage[lined,boxed,commentsnumbered]{algorithm2e}
+\usepackage{enumerate}
+\usepackage{enumitem}
+\usepackage{color}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{makecell}
+\usepackage{tabularx, caption}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{multicol}
+\usepackage{rotating}
+\usepackage{float}
+\usepackage[left=3cm, right=2cm, top=2.5cm, bottom=2.5cm]{geometry}
+\usepackage{setspace}
+\usepackage{tikz}
+\usepackage{booktabs}
+\usepackage{minted}
+\usetikzlibrary{arrows,decorations.pathmorphing,backgrounds,shapes,positioning}
+\usepackage{hyperref}
+\hypersetup{urlcolor=blue, linkcolor=black, citecolor=black, colorlinks=true}
+\usepackage{titlesec}
+\usepackage{pdfpages}
+
+% ============================================================
+% COLORS
+% ============================================================
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+\definecolor{darkblue}{RGB}{0,51,102}
+\definecolor{hcmutblue}{RGB}{0,82,165}
+
+% ============================================================
+% CODE LISTING STYLE
+% ============================================================
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{hcmutblue}\bfseries,
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    frame=single,
+    rulecolor=\color{codegray}
+}
+\lstset{style=mystyle}
+
+% minted config
+\usemintedstyle{friendly}
+\newminted[pycode]{python}{linenos=true, texcl=true, bgcolor=backcolour, fontsize=\footnotesize}
+\newminted[bashcode]{bash}{linenos=true, texcl=true, bgcolor=backcolour, fontsize=\footnotesize}
+
+% ============================================================
+% SPACING
+% ============================================================
+\onehalfspacing
+
+% ============================================================
+% SECTION DEPTH
+% ============================================================
+\setcounter{secnumdepth}{4}
+\setcounter{tocdepth}{3}
+
+\makeatletter
+\newcounter{subsubsubsection}[subsubsection]
+\renewcommand\thesubsubsubsection{\thesubsubsection.\@alph\c@subsubsubsection}
+\newcommand\subsubsubsection{\@startsection{subsubsubsection}{4}{\z@}%
+  {-3.25ex\@plus -1ex \@minus -.2ex}%
+  {1.5ex \@plus .2ex}%
+  {\normalfont\normalsize\bfseries}}
+\newcommand*\l@subsubsubsection{\@dottedtocline{3}{10.0em}{4.1em}}
+\newcommand*{\subsubsubsectionmark}[1]{}
+\makeatother
+
+% ============================================================
+% CUSTOM LIST: use-case flow enumeration
+% ============================================================
+\newlist{flowenum}{enumerate}{4}
+\setlist[flowenum,1]{label=\arabic*., ref=\arabic*}
+\setlist[flowenum,2]{label=\arabic{flowenumi}\alph*., ref=\arabic{flowenumi}\alph*}
+\setlist[flowenum,3]{label=\arabic{flowenumi}\alph{flowenumii}\arabic*., ref=\arabic{flowenumi}\alph{flowenumii}\arabic*}
+\setlist[flowenum,4]{label=\arabic{flowenumi}\alph{flowenumii}\arabic{flowenumiii}\alph*., ref=\arabic{flowenumi}\alph{flowenumii}\arabic{flowenumiii}\alph*}
+
+\newlist{nobullets}{itemize}{1}
+\setlist[nobullets]{label=, left=0pt, itemindent=*}
+
+% ============================================================
+% HEADER / FOOTER
+% ============================================================
+\setlength{\headheight}{45pt}
+\pagestyle{fancy}
+\fancyhf{}
+
+\fancyhead[L]{%
+  \begin{tabular}{rl}
+    \begin{picture}(25,15)(0,0)
+      \put(0,-8){\includegraphics[width=8mm,height=8mm]{figures/hcmut.png}}
+    \end{picture} &
+    \begin{tabular}{l}
+      \textbf{\ttfamily Trường Đại Học Bách Khoa TP.HCM}\\
+      \textbf{\ttfamily Khoa Khoa Học và Kỹ Thuật Máy Tính}
+    \end{tabular}
+  \end{tabular}%
+}
+\fancyhead[R]{%
+  \begin{tabular}{r}
+    \small\textbf{Đồ Án Chuyên Ngành}\\
+    \small\textbf{Báo cáo Giai đoạn 1}
+  \end{tabular}%
+}
+
+\fancyfoot[L]{\scriptsize\ttfamily Hệ thống Micro-learning thông minh}
+\fancyfoot[C]{\scriptsize\ttfamily Giai đoạn 1: Pipeline xử lý văn bản \& Tạo Quiz}
+\fancyfoot[R]{\scriptsize\ttfamily Trang \thepage/\pageref{LastPage}}
+
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% ============================================================
+% LOCALIZATION
+% ============================================================
+\AtBeginDocument{\renewcommand*\contentsname{Mục lục}}
+\AtBeginDocument{\renewcommand*\refname{Tài liệu tham khảo}}
+\AtBeginDocument{\renewcommand*\listfigurename{Danh sách hình}}
+\AtBeginDocument{\renewcommand*\listtablename{Danh sách bảng}}
+
+% ============================================================
+% THEOREMS
+% ============================================================
+\newtheorem{theorem}{{\bf Định lý}}
+\newtheorem{property}{{\bf Tính chất}}
+\newtheorem{definition}{{\bf Định nghĩa}}
+
+% ============================================================
+% BEGIN DOCUMENT
+% ============================================================
+\begin{document}
+
+% ------ TITLE PAGE -------------------------------------------
+\begin{titlepage}
+  \begin{center}
+    \large ĐẠI HỌC QUỐC GIA THÀNH PHỐ HỒ CHÍ MINH \\[4pt]
+    \large TRƯỜNG ĐẠI HỌC BÁCH KHOA \\[4pt]
+    \large KHOA KHOA HỌC VÀ KỸ THUẬT MÁY TÍNH
+  \end{center}
+
+  \vspace{0.5cm}
+
+  \begin{figure}[h!]
+    \centering
+    \includegraphics[width=4cm]{figures/hcmut.png}
+  \end{figure}
+
+  \vspace{0.5cm}
+
+  \begin{center}
+    \begin{tabular}{c}
+      \multicolumn{1}{c}{\textbf{\Large Đồ Án Chuyên Ngành}} \\[6pt]
+      \hline \\[4pt]
+      \textbf{\Large BÁO CÁO GIAI ĐOẠN 1} \\[8pt]
+      \multicolumn{1}{c}{\textbf{\LARGE HỆ THỐNG MICRO-LEARNING THÔNG MINH}} \\[4pt]
+      \multicolumn{1}{c}{\textbf{\Large Pipeline Xử Lý Văn Bản \& Tạo Quiz}} \\[8pt]
+      \textit{(Tuần 1 -- 15)} \\[4pt]
+      \hline
+    \end{tabular}
+  \end{center}
+
+  \vspace{1.5cm}
+
+  \begin{table}[H]
+    \centering
+    \onehalfspacing
+    \begin{tabular}{lrlc}
+      \hspace{8cm} & GV hướng dẫn: & Tên Giảng Viên          &          \\[6pt]
+                   & SV thực hiện: 
+                   &               & Phùng Xương Cận         & 2210348  \\
+    \end{tabular}
+  \end{table}
+
+  \vfill
+
+  \begin{center}
+    {\footnotesize THÀNH PHỐ HỒ CHÍ MINH, \the\year}
+  \end{center}
+\end{titlepage}
+
+% ------ TASK ASSIGNMENT TABLE --------------------------------
+\newpage
+\thispagestyle{fancy}
+\begin{longtable}{%
+    |>{\centering\arraybackslash}m{1cm}|
+    >{\arraybackslash}m{4.5cm}|
+    >{\centering\arraybackslash}m{1.5cm}|
+    >{\arraybackslash}m{5cm}|
+    >{\centering\arraybackslash}m{2cm}|
+    >{\centering\arraybackslash}m{1.25cm}|}
+  \caption{Bảng phân công nhiệm vụ và nhận xét của giảng viên.} \\
+  \hline
+  \textbf{STT} & \textbf{Họ tên} & \textbf{MSSV} & \textbf{Nhiệm vụ} & \textbf{Đóng góp} & \textbf{Ký tên} \\
+  \hline
+  \endfirsthead
+
+  3 & Phùng Xương Cận & 2210348
+    & Frontend Giảng viên \& Học viên; Demo \& Kiểm thử
+    & 100\% & \\ \hline
+
+  \multicolumn{4}{|c|}{\textbf{Nhận xét của giảng viên:}} &
+  \multicolumn{2}{c|}{\textbf{Ký tên}} \\ \hline
+  \multicolumn{4}{|p{0.58\textwidth}|}{%
+    \emph{(Đây là khu vực nhận xét của giảng viên)}\vspace{3cm}
+  } & \multicolumn{2}{l|}{} \\ \hline
+\end{longtable}
+\clearpage
+
+% ------ TABLE OF CONTENTS ------------------------------------
+\newpage
+\tableofcontents
+
+\newpage
+\listoffigures
+
+\newpage
+\listoftables
+
+% ------ FRONT MATTER ----------------------------------------
+\newpage
+\include{frontmatter/loi_cam_doan}
+
+\newpage
+\include{frontmatter/loi_cam_on}
+
+\newpage
+\include{frontmatter/tom_tat}
+
+% ------ LISTS ------------------------------------------------
+\newpage
+\tableofcontents
+
+\newpage
+\listoftables
+\addcontentsline{toc}{section}{Danh mục bảng biểu}
+
+\newpage
+\listoffigures
+\addcontentsline{toc}{section}{Danh mục hình ảnh}
+
+\newpage
+\include{frontmatter/danh_muc_viet_tat}
+
+% ------ MAIN CONTENT -----------------------------------------
+\newpage
+\include{chapters/c1_tong_quan}
+
+\newpage
+\include{chapters/c2_khao_sat}
+
+\newpage
+\include{chapters/c3_co_so_ly_thuyet}
+
+\newpage
+\include{chapters/c4_thiet_ke}
+
+\newpage
+\include{chapters/c5_hien_thuc}
+
+\newpage
+\include{chapters/c6_kiem_thu}
+
+\newpage
+\include{chapters/c7_ket_luan}
+
+% ------ REFERENCES -------------------------------------------
+\newpage
+\bibliographystyle{plain}
+\bibliography{references}
+
+% ------ APPENDICES -------------------------------------------
+\newpage
+\appendix
+\include{appendix/phu_luc}
+
+\end{document}

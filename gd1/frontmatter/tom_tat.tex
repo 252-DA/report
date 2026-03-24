@@ -1,0 +1,73 @@
+\thispagestyle{fancy}
+\begin{center}
+    \textbf{\Large TÓM TẮT ĐỀ TÀI}
+\end{center}
+
+\vspace{0.5cm}
+
+\noindent\textbf{Tên đề tài:} Hệ thống Micro-learning thông minh --- Pipeline
+Xử lý Văn bản và Tạo Quiz bằng LLM\\[4pt]
+\noindent\textbf{Giai đoạn:} Giai đoạn 1 (Tuần 1--15)\\[4pt]
+\noindent\textbf{Giảng viên hướng dẫn:} [Tên Giảng Viên]\\[4pt]
+\noindent\textbf{Nhóm thực hiện:} Nguyễn Nam Phương (2212698), Nguyễn Minh
+Triết (2213608), Phùng Xương Cận (2210348)
+
+\vspace{0.7cm}
+
+\noindent\textbf{\large Bối cảnh và vấn đề}
+
+\vspace{0.3cm}
+
+Trong bối cảnh giáo dục hiện đại, việc chuyển đổi tài liệu học thuật (giáo
+trình, slide bài giảng, tài liệu PDF) thành nội dung Micro-learning vẫn đang
+được thực hiện thủ công bởi giảng viên --- tốn từ 2 đến 4 giờ cho mỗi chương
+và không đảm bảo tính nhất quán. Sự ra đời của các Mô hình Ngôn ngữ Lớn
+(LLM) như GPT-4o và Gemini mở ra cơ hội tự động hóa quy trình này.
+
+\vspace{0.5cm}
+
+\noindent\textbf{\large Giải pháp đề xuất}
+
+\vspace{0.3cm}
+
+Nhóm xây dựng một hệ thống Micro-learning tích hợp AI với pipeline tự động:
+
+\begin{enumerate}
+    \item \textbf{Document Parsing:} Trích xuất text và cấu trúc từ PDF, DOCX,
+          PPTX bằng các thư viện chuyên dụng.
+    \item \textbf{Text Chunking:} Phân đoạn văn bản theo cấu trúc heading ngữ
+          nghĩa (Heading-based Chunking); áp dụng sliding window với overlap
+          cho section dài.
+    \item \textbf{Vector Embedding:} Tạo embedding 768 chiều bằng mô hình
+          \texttt{BAAI/bge-m3} đa ngôn ngữ; lưu vào Qdrant Vector Database để
+          hỗ trợ tìm kiếm ngữ nghĩa.
+    \item \textbf{Sinh nội dung AI:} Gọi LLM API (GPT-4o-mini) với prompt
+          được thiết kế để sinh bài tóm tắt (Summary) và bộ câu hỏi trắc
+          nghiệm (Quiz) cho từng chunk.
+    \item \textbf{Human-in-the-Loop:} Giao diện web cho giảng viên review,
+          chỉnh sửa và publish; giao diện học viên xem Card và làm Quiz.
+\end{enumerate}
+
+Hệ thống sử dụng kiến trúc \textbf{Domain-Driven Design (DDD)} với giao thức
+\textbf{gRPC} cho phép dễ dàng thay thế LLM provider hoặc thêm parser mới mà
+không ảnh hưởng đến logic nghiệp vụ.
+
+\vspace{0.5cm}
+
+\noindent\textbf{\large Kết quả đạt được}
+
+\vspace{0.3cm}
+
+\begin{itemize}
+    \item Pipeline xử lý tài liệu 25 trang PDF trong khoảng \ldots\ giây,
+          sinh ra \ldots\ Card tóm tắt và \ldots\ câu hỏi Quiz.
+    \item Tỷ lệ nội dung Summary không cần chỉnh sửa: $\sim$\ldots\%.
+    \item Tỷ lệ câu Quiz không cần chỉnh sửa: $\sim$\ldots\%.
+    \item Demo thành công kịch bản end-to-end: upload một chương giáo trình
+          Machine Learning $\to$ nhận khóa học Micro-learning hoàn chỉnh.
+\end{itemize}
+
+\vspace{0.5cm}
+
+\noindent\textbf{\large Từ khóa:} Micro-learning, Large Language Model, Text
+Chunking, Prompt Engineering, Vector Embedding, RAG, EdTech.

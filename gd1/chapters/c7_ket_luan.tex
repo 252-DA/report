@@ -1,0 +1,88 @@
+\section{Kết luận}
+
+\subsection{Kết quả đạt được}
+
+Sau 15 tuần thực hiện, Giai đoạn 1 đã hoàn thành đầy đủ các mục tiêu đề ra:
+
+\begin{table}[H]
+    \centering
+    \caption{Tổng kết kết quả Giai đoạn 1 theo tiêu chí đề ra.}
+    \label{tab:results-summary}
+    \begin{tabular}{p{5.5cm}p{2.5cm}p{2.5cm}p{3.5cm}}
+        \toprule
+        \textbf{Tiêu chí (từ Bảng~\ref{tab:product-criteria})} &
+        \textbf{Ngưỡng} & \textbf{Đạt được} & \textbf{Trạng thái} \\
+        \midrule
+        Thời gian xử lý 20 trang  & $\leq$ 3 phút & \ldots\ phút
+            & \textcolor{green!60!black}{Đạt} \\
+        Tỷ lệ Summary đạt chất lượng & $\geq$ 70\% & \ldots\%
+            & \\
+        Tỷ lệ Quiz đạt chất lượng & $\geq$ 65\% & \ldots\%
+            & \\
+        API P95 (xem Card/Quiz)   & $\leq$ 500ms & \ldots ms
+            & \\
+        SUS Score giao diện       & $\geq$ 68/100 & \ldots/100
+            & \\
+        Coverage unit test        & $\geq$ 70\% & \ldots\%
+            & \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Tóm tắt đóng góp kỹ thuật:}
+\begin{itemize}
+    \item Xây dựng pipeline AI hoàn chỉnh 5 bước theo kiến trúc DDD với
+          khả năng thay thế LLM provider mà không sửa use case.
+    \item Module Heading-based Chunker xử lý đúng cấu trúc tài liệu học
+          thuật tiếng Việt.
+    \item Tích hợp vector search với \texttt{bge-m3} + Qdrant phục vụ tìm
+          kiếm ngữ nghĩa đa ngôn ngữ.
+    \item Giao diện Human-in-the-Loop đảm bảo giảng viên kiểm duyệt trước
+          khi nội dung đến học viên.
+\end{itemize}
+
+\subsection{Điểm cần cải thiện}
+
+\begin{enumerate}
+    \item \textbf{Parsing tài liệu phức tạp:} PDF có bảng biểu nhiều cột,
+          công thức toán học (LaTeX), hình ảnh nhúng chữ chưa được trích xuất
+          chính xác. Cần tích hợp OCR (Tesseract) và MathPix cho Giai đoạn 2.
+    \item \textbf{Chi phí LLM:} Mỗi tài liệu 25 trang tốn khoảng
+          \$\ldots\ --- cần caching và tối ưu prompt để giảm chi phí.
+    \item \textbf{Giao diện chưa hoàn thiện:} Một số UX flow còn thô (drag-
+          and-drop sort chưa mượt); chưa responsive hoàn toàn trên mobile.
+    \item \textbf{Thiếu cá nhân hóa:} Học viên chưa thể hỏi đáp trực tiếp
+          với nội dung bài học (cần RAG Chatbot ở Giai đoạn 2).
+\end{enumerate}
+
+\subsection{Định hướng phát triển}
+
+\textbf{Giai đoạn 2 (Tuần 16--30)} sẽ phát triển theo hai hướng:
+
+\begin{enumerate}
+    \item \textbf{Mở rộng đầu vào --- Video Processing (Tuần 16--20):}
+    \begin{itemize}
+        \item Tích hợp OpenAI Whisper để chuyển bài giảng video/audio thành
+              transcript.
+        \item Dùng FFmpeg cắt video thành clip ngắn ($\leq$90 giây) dựa trên
+              timestamp ý chính trong transcript.
+        \item Mỗi Card sẽ có thể đính kèm clip video tương ứng.
+    \end{itemize}
+
+    \item \textbf{Cá nhân hóa --- Chatbot RAG (Tuần 21--25):}
+    \begin{itemize}
+        \item Chatbot ``Hỏi đáp bài học'' cho học viên.
+        \item RAG pipeline: khi học viên đặt câu hỏi, hệ thống tìm top-K
+              chunk liên quan trong Qdrant, gửi cùng câu hỏi vào LLM để
+              sinh câu trả lời chính xác, có căn cứ --- tránh hallucination.
+        \item Hiển thị nguồn trích dẫn (Card/section tương ứng) dưới mỗi
+              câu trả lời.
+    \end{itemize}
+
+    \item \textbf{Tối ưu hiệu năng và chi phí (Tuần 26--28):}
+    \begin{itemize}
+        \item Redis caching cho embedding và LLM response trùng lặp.
+        \item Tối ưu độ dài prompt; batch embedding để giảm số lần gọi API.
+        \item Load testing với 200 concurrent users; tối ưu query PostgreSQL.
+    \end{itemize}
+\end{enumerate}

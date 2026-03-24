@@ -1,0 +1,106 @@
+\section*{Phụ lục}
+\addcontentsline{toc}{section}{Phụ lục}
+
+\subsection*{Đường dẫn quan trọng}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{p{5cm}p{9.5cm}}
+        \toprule
+        \textbf{Tài nguyên} & \textbf{Đường dẫn} \\
+        \midrule
+        Repository AI Pipeline   & \texttt{https://github.com/...} \\
+        Repository Frontend      & \texttt{https://github.com/...} \\
+        Báo cáo (LaTeX source)   & \texttt{https://github.com/...} \\
+        Video Demo               & \texttt{https://...} \\
+        Figma Mockup             & \texttt{https://figma.com/...} \\
+        \bottomrule
+    \end{tabular}
+    \caption*{Bảng đường dẫn quan trọng.}
+\end{table}
+
+\subsection*{Use Case Descriptions chi tiết}
+
+\subsubsection*{UC-01: Upload tài liệu}
+
+\begin{longtable}{|p{3.5cm}|p{11cm}|}
+    \caption*{Đặc tả UC-01.} \\
+    \hline
+    \textbf{Use Case ID} & UC-01 \\ \hline
+    \textbf{Tên} & Upload tài liệu \\ \hline
+    \textbf{Tác nhân chính} & Giảng viên \\ \hline
+    \textbf{Tác nhân phụ} & AI Pipeline \\ \hline
+    \textbf{Tóm tắt} & Giảng viên tải lên file tài liệu để pipeline AI xử lý thành nội dung Micro-learning. \\ \hline
+    \textbf{Kích hoạt} & Giảng viên chọn ``Upload tài liệu mới'' từ Dashboard. \\ \hline
+    \textbf{Tiền điều kiện} & Giảng viên đã đăng nhập với role INSTRUCTOR; JWT còn hạn. \\ \hline
+    \textbf{Hậu điều kiện thành công} & File lưu trong MinIO; Document bản ghi tạo với status UPLOADED; AI Pipeline khởi động. \\ \hline
+    \textbf{Hậu điều kiện thất bại} & File không lưu; không có bản ghi nào được tạo; thông báo lỗi hiển thị. \\ \hline
+    \textbf{Luồng chính} &
+    \begin{flowenum}
+        \item Giảng viên chọn ``Upload tài liệu mới''.
+        \item Hệ thống hiển thị form: tên tài liệu, mô tả, ngôn ngữ (vi/en), file đính kèm.
+        \item Giảng viên điền thông tin, kéo thả hoặc chọn file.
+        \item Frontend kiểm tra phía client: định dạng (\texttt{.pdf}/\texttt{.docx}/\texttt{.pptx}) và kích thước ($\leq$50MB).
+        \item Giảng viên nhấn ``Bắt đầu xử lý''.
+        \item Frontend gọi gRPC \texttt{UploadDocument}; stream file lên server.
+        \item Backend lưu file vào MinIO; tạo bản ghi Document.
+        \item Backend phát sự kiện kích hoạt AI Pipeline bất đồng bộ.
+        \item Frontend redirect sang màn hình theo dõi tiến trình.
+    \end{flowenum} \\ \hline
+    \textbf{Luồng thay thế} &
+    \begin{nobullets}
+        \item \textbf{4a.} Sai định dạng (phía client): tô đỏ ô file; ``Chỉ nhận PDF, DOCX, PPTX''.
+        \item \textbf{4b.} Quá kích thước: ``File tối đa 50MB, file hiện tại: X MB''.
+        \item \textbf{7a.} MinIO lỗi: rollback; HTTP 503; ``Lỗi lưu trữ, thử lại sau''.
+        \item \textbf{6a.} Mất mạng khi upload: Frontend hiển thị nút ``Thử lại''; giữ nguyên form.
+    \end{nobullets} \\ \hline
+\end{longtable}
+
+\subsubsection*{UC-02: Xử lý tài liệu tự động (AI Pipeline)}
+
+\begin{longtable}{|p{3.5cm}|p{11cm}|}
+    \caption*{Đặc tả UC-02.} \\
+    \hline
+    \textbf{Use Case ID} & UC-02 \\ \hline
+    \textbf{Tên} & Xử lý tài liệu tự động \\ \hline
+    \textbf{Tác nhân} & AI Pipeline (system actor; kích hoạt sau UC-01) \\ \hline
+    \textbf{Tiền điều kiện} & File tài liệu tồn tại trong MinIO; Document.status = UPLOADED. \\ \hline
+    \textbf{Hậu điều kiện thành công} & Đủ Card và Quiz cho mọi chunk; Document.status = DONE. \\ \hline
+    \textbf{Luồng chính} &
+    \begin{flowenum}
+        \item Pipeline nhận event upload; tải file từ MinIO.
+        \item Cập nhật status $\to$ PARSING; chọn parser theo file type.
+        \item Parser trích xuất text và cấu trúc heading.
+        \item Cập nhật status $\to$ CHUNKING; chia text thành chunks.
+        \item Lưu chunks vào PostgreSQL.
+        \item Cập nhật status $\to$ GENERATING.
+        \item Với mỗi batch (5 chunks): song song hóa embedding + LLM call.
+        \item Lưu vector vào Qdrant; lưu Card và Quiz vào PostgreSQL.
+        \item Cập nhật status $\to$ DONE; gửi WebSocket event cho Giảng viên.
+    \end{flowenum} \\ \hline
+    \textbf{Luồng thay thế} &
+    \begin{nobullets}
+        \item \textbf{3a.} File hỏng/không đọc được: status $\to$ PARSE\_ERROR; log lỗi chi tiết.
+        \item \textbf{7a.} LLM API timeout: exponential backoff retry (1s, 2s, 4s); sau 3 lần $\to$ ERROR.
+        \item \textbf{7b.} LLM trả về JSON không hợp lệ: retry với prompt điều chỉnh (tối đa 2 lần).
+    \end{nobullets} \\ \hline
+\end{longtable}
+
+\subsubsection*{UC-03 đến UC-08 (Tóm tắt)}
+
+\begin{table}[H]
+    \centering
+    \caption*{Danh mục tóm tắt tất cả Use Case.}
+    \begin{tabular}{p{1.5cm}p{4.5cm}p{3cm}p{5.5cm}}
+        \toprule
+        \textbf{ID} & \textbf{Tên} & \textbf{Tác nhân} & \textbf{Kết quả chính} \\
+        \midrule
+        UC-03 & Review \& chỉnh sửa   & Giảng viên   & Card/Quiz được cập nhật; section marked reviewed. \\
+        UC-04 & Publish khóa học      & Giảng viên   & Course.status = PUBLISHED. \\
+        UC-05 & Xem Card              & Học viên     & Tiến độ lưu; LearningProgress cập nhật. \\
+        UC-06 & Làm Quiz              & Học viên     & Điểm tính và lưu; QuizSubmission tạo. \\
+        UC-07 & Tìm kiếm ngữ nghĩa    & Học viên     & Top-K Card liên quan trả về. \\
+        UC-08 & Quản lý tài khoản     & Admin        & User CRUD; role management. \\
+        \bottomrule
+    \end{tabular}
+\end{table}

@@ -1,0 +1,258 @@
+\section{Hiện thực hệ thống}
+
+\subsection{Nền tảng sử dụng}
+
+\subsubsection{Python 3.11 và gRPC}
+
+\textbf{Python 3.11} là ngôn ngữ chính cho AI Pipeline. Lý do chọn Python:
+hệ sinh thái ML/AI phong phú nhất (\texttt{sentence-transformers},
+\texttt{pdfplumber}, \texttt{openai}); cộng đồng lớn; asyncio native hỗ trợ
+I/O-bound workload hiệu quả.
+
+\textbf{gRPC + Protobuf:} Giao thức giao tiếp giữa các service. Ưu điểm so
+với REST/JSON: binary encoding nhanh hơn $\sim$3--5x, schema strongly typed
+qua \texttt{.proto}, hỗ trợ streaming response.
+
+\subsubsection{MinIO Object Storage}
+
+MinIO là hệ thống object storage mã nguồn mở tương thích S3 API. Trong đề
+tài, MinIO lưu trữ file tài liệu gốc (PDF, DOCX, PPTX). Bucket chính:
+\texttt{documents}. Mỗi file có key: \texttt{\{owner\_id\}/\{doc\_id\}/original.\{ext\}}.
+
+\subsubsection{Qdrant Vector Database}
+
+Qdrant chạy trong Docker container, persistent volume tại
+\texttt{./data/qdrant}. Collection \texttt{document\_chunks}: vector 768
+chiều, metric cosine, payload gồm \texttt{document\_id}, \texttt{chunk\_id},
+\texttt{heading}, \texttt{language}.
+
+\subsubsection{React + TypeScript --- Frontend}
+
+Frontend được xây dựng bằng \textbf{React 18 + TypeScript + Vite}. Thư viện
+UI: \textbf{Tailwind CSS} + \textbf{shadcn/ui} (headless components). Giao
+tiếp với Backend qua \textbf{gRPC-Web} (\texttt{@grpc/grpc-js} + Envoy proxy).
+
+\subsubsection{Docker và Docker Compose}
+
+\begin{lstlisting}[language=bash, caption={Cấu trúc \texttt{docker-compose.yml} (rút gọn)}]
+services:
+  ai-pipeline:    # Python gRPC server
+  frontend:       # React dev server
+  qdrant:         # Vector database
+  minio:          # Object storage
+  postgres:       # Relational database
+  envoy:          # gRPC-Web proxy
+
+networks:
+  internal:       # Service-to-service communication
+\end{lstlisting}
+
+\subsection{Hiện thực AI Pipeline}
+
+\subsubsection{Module Document Parsing}
+
+Ba parser được triển khai, mỗi cái implement \texttt{ParserPort}:
+
+\begin{lstlisting}[language=Python, caption={Interface ParserPort}]
+from abc import ABC, abstractmethod
+from src.domain.entities.document import Document, ParsedDocument
+
+class ParserPort(ABC):
+    @abstractmethod
+    def parse(self, document: Document,
+              file_bytes: bytes) -> ParsedDocument:
+        """Trích xuất text và cấu trúc heading từ file."""
+        ...
+\end{lstlisting}
+
+\begin{lstlisting}[language=Python, caption={PDFParser sử dụng pdfplumber}]
+class PDFParser(ParserPort):
+    def parse(self, document: Document,
+              file_bytes: bytes) -> ParsedDocument:
+        sections = []
+        with pdfplumber.open(BytesIO(file_bytes)) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text() or ""
+                # Phát hiện heading theo font size/bold
+                headings = self._detect_headings(page)
+                sections.extend(
+                    self._build_sections(text, headings, page.page_number)
+                )
+        return ParsedDocument(document_id=document.id,
+                              sections=sections)
+\end{lstlisting}
+
+\subsubsection{Module Text Chunking}
+
+\begin{lstlisting}[language=Python, caption={HeadingChunker --- xử lý section dài}]
+class HeadingChunker(ChunkerPort):
+    def chunk(self, parsed_doc: ParsedDocument) -> list[Chunk]:
+        chunks = []
+        for section in parsed_doc.sections:
+            token_count = self._count_tokens(section.text)
+            if token_count <= self.max_chunk_size:
+                chunks.append(self._to_chunk(section))
+            else:
+                # Sliding window với overlap
+                sub_chunks = self._sliding_window(
+                    section, self.max_chunk_size, self.overlap
+                )
+                chunks.extend(sub_chunks)
+        return chunks
+
+    def _sliding_window(self, section: Section,
+                        size: int, overlap: int) -> list[Chunk]:
+        sentences = sent_tokenize(section.text)
+        windows, current, current_tokens = [], [], 0
+        for sent in sentences:
+            t = self._count_tokens(sent)
+            if current_tokens + t > size and current:
+                windows.append(self._join(section, current))
+                # Giữ lại phần overlap
+                current = current[-(overlap // 20):]
+                current_tokens = sum(self._count_tokens(s)
+                                     for s in current)
+            current.append(sent)
+            current_tokens += t
+        if current:
+            windows.append(self._join(section, current))
+        return windows
+\end{lstlisting}
+
+\subsubsection{Module sinh nội dung AI}
+
+\begin{lstlisting}[language=Python, caption={OpenAIAdapter --- sinh Summary và Quiz}]
+class OpenAIAdapter(LLMPort):
+    def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
+        self.client = AsyncOpenAI(api_key=api_key)
+        self.model = model
+
+    async def generate_summary(self, text: str,
+                                language: str = "vi") -> list[str]:
+        prompt = SUMMARY_PROMPT.format(
+            text=text, language=language, n_points=5
+        )
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+        data = json.loads(response.choices[0].message.content)
+        return data["summary_points"]
+
+    async def generate_quiz(self, text: str,
+                             language: str = "vi") -> list[dict]:
+        prompt = QUIZ_PROMPT.format(
+            text=text, language=language, n_questions=5
+        )
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            response_format={"type": "json_object"},
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.5,
+        )
+        data = json.loads(response.choices[0].message.content)
+        return data["questions"]
+\end{lstlisting}
+
+\subsubsection{Use Case ProcessDocument}
+
+\begin{lstlisting}[language=Python, caption={ProcessDocumentUseCase --- điều phối pipeline}]
+class ProcessDocumentUseCase:
+    async def execute(self, command: ProcessDocumentCommand):
+        doc = await self.doc_repo.get(command.document_id)
+        # 1. Parse
+        await self._update_status(doc.id, DocumentStatus.PARSING)
+        file_bytes = await self.storage.download(doc.file_key)
+        parser = self.parser_factory.get(doc.file_type)
+        parsed_doc = parser.parse(doc, file_bytes)
+        # 2. Chunk
+        await self._update_status(doc.id, DocumentStatus.CHUNKING)
+        chunks = self.chunker.chunk(parsed_doc)
+        await self.chunk_repo.save_all(chunks)
+        # 3. Embed + Generate (chạy theo batch để tránh rate limit)
+        await self._update_status(doc.id, DocumentStatus.GENERATING)
+        for batch in batched(chunks, size=5):
+            await asyncio.gather(*[
+                self._process_chunk(chunk) for chunk in batch
+            ])
+        await self._update_status(doc.id, DocumentStatus.DONE)
+
+    async def _process_chunk(self, chunk: Chunk):
+        # Embedding
+        vector = await self.embedder.embed(chunk.content)
+        await self.vector_db.upsert(str(chunk.id), vector,
+                                    chunk.metadata)
+        # Summary + Quiz song song
+        summary, quiz = await asyncio.gather(
+            self.llm.generate_summary(chunk.content),
+            self.llm.generate_quiz(chunk.content),
+        )
+        await self.card_repo.save(Card(chunk_id=chunk.id,
+                                       summary=summary,
+                                       quiz_questions=quiz))
+\end{lstlisting}
+
+\subsection{Hiện thực Web Application}
+
+\subsubsection{Giao diện Giảng viên}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/screen_dashboard.png}
+    \caption{Màn hình Dashboard Giảng viên.}
+    \label{fig:screen-dashboard}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/screen_upload.png}
+    \caption{Màn hình Upload tài liệu.}
+    \label{fig:screen-upload}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/screen_progress.png}
+    \caption{Màn hình theo dõi tiến trình xử lý AI (4 bước).}
+    \label{fig:screen-progress}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/screen_review.png}
+    \caption{Màn hình Review nội dung AI (layout 2 cột).}
+    \label{fig:screen-review}
+\end{figure}
+
+\subsubsection{Giao diện Học viên}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.85\textwidth]{figures/screen_courses.png}
+    \caption{Màn hình danh sách khóa học của Học viên.}
+    \label{fig:screen-courses}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.85\textwidth]{figures/screen_card.png}
+    \caption{Màn hình xem bài học dạng Card.}
+    \label{fig:screen-card}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.85\textwidth]{figures/screen_quiz.png}
+    \caption{Màn hình làm Quiz (hiển thị phản hồi tức thì sau khi chọn đáp án).}
+    \label{fig:screen-quiz}
+\end{figure}
+
+\subsection{Tổng kết Chương 5}
+
+Chương 5 đã trình bày chi tiết việc hiện thực hệ thống: lý giải lựa chọn
+từng nền tảng công nghệ, mã nguồn cốt lõi của AI Pipeline (Parser, Chunker,
+LLM Adapter, Use Case) và giao diện Web Application cho cả hai nhóm người dùng.
+Toàn bộ mã nguồn được tổ chức theo kiến trúc DDD, đảm bảo tính modular và
+dễ kiểm thử --- cơ sở để tiến hành kiểm thử toàn diện trong Chương 6.

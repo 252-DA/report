@@ -1,0 +1,292 @@
+\section{Khảo sát và phân tích đề tài}
+
+\subsection{Khảo sát thực trạng}
+
+\subsubsection{Khảo sát quy trình giảng viên}
+
+Nhóm tiến hành phỏng vấn và khảo sát online với \ldots\ giảng viên đại học,
+tập trung vào ba câu hỏi chính: thời gian soạn nội dung kiểm tra, công cụ
+đang sử dụng, và mức độ sẵn sàng dùng AI.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/survey_instructor.png}
+    \caption{Kết quả khảo sát giảng viên về quy trình tạo nội dung kiểm tra.}
+    \label{fig:survey-instructor}
+\end{figure}
+
+\textbf{Nhận xét:} Quy trình thủ công hiện tại tiêu tốn trung bình
+\ldots\ giờ/chương và hoàn toàn không có sự hỗ trợ của công cụ AI.
+Đây là pain point rõ ràng mà hệ thống đề xuất cần giải quyết.
+
+\subsubsection{Khảo sát học viên}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/survey_learner.png}
+    \caption{Kết quả khảo sát học viên về thói quen học tập.}
+    \label{fig:survey-learner}
+\end{figure}
+
+\textbf{Nhận xét:} Phần lớn học viên mong muốn nội dung ngắn gọn và kiểm tra
+tức thì --- phù hợp hoàn toàn với triết lý Micro-learning của hệ thống đề xuất.
+
+\subsection{Khảo sát giải pháp tương tự}
+
+\subsubsection{Coursera --- AI-generated Summaries}
+
+Coursera gần đây bổ sung tính năng AI tóm tắt transcript bài giảng video,
+hiển thị bên cạnh video. Tuy nhiên, tính năng này chỉ áp dụng cho video có
+sẵn trên nền tảng và không cho phép giảng viên bên ngoài tải tài liệu lên để
+xử lý.
+
+\subsubsection{Khan Academy --- Khanmigo (AI Tutor)}
+
+Khanmigo là chatbot AI tích hợp vào Khan Academy, hỗ trợ học viên giải thích
+bài tập theo phong cách Socratic (đặt câu hỏi dẫn dắt thay vì đưa đáp án
+thẳng). Giải pháp này không tự động sinh Quiz từ tài liệu mới và chỉ hỗ trợ
+tiếng Anh.
+
+\subsubsection{Quizlet AI --- Smart Notes}
+
+Quizlet cho phép người dùng nhập hoặc paste văn bản, sau đó AI tự động tạo
+flashcard và câu hỏi trắc nghiệm. Ưu điểm là đơn giản, nhanh. Nhược điểm:
+không xử lý được file PDF/DOCX phức tạp, không tích hợp vào quy trình giảng
+dạy (không có flow: upload $\to$ review $\to$ publish $\to$ học viên học).
+
+\subsubsection{So sánh và đánh giá các giải pháp}
+
+\begin{table}[H]
+    \centering
+    \caption{So sánh các giải pháp tương tự với hệ thống đề xuất.}
+    \label{tab:compare-solutions}
+    \begin{tabular}{p{3cm}p{2cm}p{2cm}p{2cm}p{2cm}p{3.5cm}}
+        \toprule
+        \textbf{Tiêu chí} & \textbf{Coursera AI} & \textbf{Khanmigo} &
+        \textbf{Quizlet AI} & \textbf{Notion AI} & \textbf{Hệ thống đề xuất} \\
+        \midrule
+        Upload tài liệu riêng  & Không & Không & Có (text) & Có & Có (PDF/DOCX/PPTX) \\
+        Sinh Quiz tự động       & Không & Không & Có        & Không & Có \\
+        Review trước publish    & ---   & ---   & Không     & Không & Có \\
+        Hỗ trợ tiếng Việt       & Không & Không & Một phần  & Có    & Có \\
+        Giao diện học viên      & Có    & Có    & Có        & Không & Có \\
+        Chi phí                 & Cao   & Cao   & Miễn phí + Pro & Có phí & Tự host \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\noindent\textbf{Kết luận:} Không có giải pháp nào hiện tại đáp ứng đầy đủ
+ba tiêu chí: (1) upload tài liệu riêng, (2) có quy trình review Human-in-the-Loop,
+và (3) hỗ trợ tiếng Việt. Đây là khoảng trống mà đề tài hướng đến lấp đầy.
+
+\subsection{User Stories}
+
+\subsubsection{Giảng viên}
+
+\begin{longtable}{|p{0.5cm}|p{6cm}|p{8cm}|}
+    \caption{User Stories của Giảng viên.} \label{tab:us-instructor} \\
+    \hline
+    \textbf{\#} & \textbf{User Story} & \textbf{Tiêu chí chấp nhận} \\
+    \hline
+    \endfirsthead \hline
+    \textbf{\#} & \textbf{User Story} & \textbf{Tiêu chí chấp nhận} \\
+    \hline \endhead
+
+    1 & Là giảng viên, tôi muốn upload file PDF/DOCX để AI tự động tạo nội
+        dung Micro-learning, giúp tôi tiết kiệm thời gian soạn bài. &
+        Hệ thống nhận file $\leq$50MB; thông báo lỗi rõ nếu sai định dạng;
+        pipeline khởi động $\leq$5 giây sau upload. \\ \hline
+
+    2 & Là giảng viên, tôi muốn theo dõi tiến trình xử lý AI để biết khi
+        nào có thể review. &
+        Hiển thị 4 bước xử lý; cập nhật tự động; không cần refresh. \\ \hline
+
+    3 & Là giảng viên, tôi muốn chỉnh sửa nội dung AI trước khi publish để
+        đảm bảo chính xác học thuật. &
+        Chỉnh sửa inline trực tiếp; lưu tức thì; có lịch sử sửa đổi. \\ \hline
+
+    4 & Là giảng viên, tôi muốn publish khóa học chỉ khi đã review xong để
+        học viên không thấy nội dung chưa được kiểm tra. &
+        Nút Publish chỉ active sau khi $\geq$1 section được review. \\ \hline
+
+    5 & Là giảng viên, tôi muốn xem thống kê học viên (ai đã học, điểm Quiz)
+        để đánh giá hiệu quả nội dung. &
+        Dashboard hiển thị: số học viên, tỷ lệ hoàn thành, điểm Quiz TB. \\ \hline
+\end{longtable}
+
+\subsubsection{Học viên}
+
+\begin{longtable}{|p{0.5cm}|p{6cm}|p{8cm}|}
+    \caption{User Stories của Học viên.} \label{tab:us-learner} \\
+    \hline
+    \textbf{\#} & \textbf{User Story} & \textbf{Tiêu chí chấp nhận} \\
+    \hline
+    \endfirsthead \hline
+    \textbf{\#} & \textbf{User Story} & \textbf{Tiêu chí chấp nhận} \\
+    \hline \endhead
+
+    1 & Là học viên, tôi muốn xem danh sách khóa học và tiến độ cá nhân để
+        lên kế hoạch học tập. &
+        Progress bar cá nhân trên mỗi card khóa học; lọc theo trạng thái. \\ \hline
+
+    2 & Là học viên, tôi muốn học nội dung dạng Card ngắn gọn để có thể
+        học mọi lúc, mọi nơi. &
+        Card $\leq$200 từ; swipe gesture (mobile); phím mũi tên (desktop). \\ \hline
+
+    3 & Là học viên, tôi muốn làm Quiz và nhận phản hồi tức thì để biết
+        mình đã hiểu đúng chưa. &
+        Hiển thị đúng/sai + giải thích ngay sau khi chọn; không thể đổi đáp án. \\ \hline
+
+    4 & Là học viên, tôi muốn tìm kiếm nội dung bằng câu hỏi tự nhiên
+        để ôn tập đúng phần cần thiết. &
+        Nhập query; hệ thống trả về top-5 Card liên quan trong $\leq$2 giây. \\ \hline
+\end{longtable}
+
+\subsubsection{Quản trị viên}
+
+\begin{longtable}{|p{0.5cm}|p{6cm}|p{8cm}|}
+    \caption{User Stories của Quản trị viên.} \label{tab:us-admin} \\
+    \hline
+    \textbf{\#} & \textbf{User Story} & \textbf{Tiêu chí chấp nhận} \\
+    \hline
+    \endfirsthead \hline
+    \textbf{\#} & \textbf{User Story} & \textbf{Tiêu chí chấp nhận} \\
+    \hline \endhead
+
+    1 & Là quản trị viên, tôi muốn quản lý tài khoản người dùng (tạo, khóa,
+        đổi vai trò) để vận hành hệ thống. &
+        CRUD tài khoản; đổi vai trò INSTRUCTOR/LEARNER; khóa tài khoản vi phạm. \\ \hline
+
+    2 & Là quản trị viên, tôi muốn xem log chi phí API để kiểm soát ngân
+        sách sử dụng LLM. &
+        Dashboard chi phí theo ngày/tháng; cảnh báo khi vượt ngưỡng. \\ \hline
+\end{longtable}
+
+\subsection{Yêu cầu nghiệp vụ}
+
+Yêu cầu nghiệp vụ (Business Requirements --- BR) mô tả \textit{what} hệ
+thống phải làm từ góc nhìn nghiệp vụ, không đề cập chi tiết kỹ thuật.
+
+\subsubsection{BR-01: Xác thực và phân quyền người dùng}
+
+Hệ thống phải phân biệt rõ ràng ba vai trò: Giảng viên, Học viên và Quản
+trị viên. Mỗi vai trò chỉ được thực hiện các thao tác thuộc phạm vi của mình.
+Người dùng phải xác thực trước khi truy cập bất kỳ chức năng nào.
+
+\subsubsection{BR-02: Quản lý tài liệu và nội dung học tập}
+
+Giảng viên phải có khả năng đưa tài liệu vào hệ thống và nhận lại nội dung
+Micro-learning. Nội dung AI sinh ra phải có thể được giảng viên kiểm duyệt
+và chỉnh sửa trước khi công bố cho học viên. Học viên chỉ thấy nội dung đã
+được giảng viên chấp thuận.
+
+\subsubsection{BR-03: Xử lý và sinh nội dung AI}
+
+Hệ thống phải tự động phân tích cấu trúc tài liệu, chia thành các đơn vị
+học tập có nghĩa, và sinh ra nội dung tóm tắt cùng câu hỏi kiểm tra phù hợp
+với nội dung gốc. Nội dung sinh ra phải ở ngôn ngữ tương ứng với tài liệu
+đầu vào.
+
+\subsubsection{BR-04: Trải nghiệm học tập và đánh giá}
+
+Học viên phải có thể học theo đơn vị nhỏ và tự đánh giá kiến thức sau mỗi
+đơn vị. Hệ thống phải lưu lại tiến độ và kết quả của học viên để phục vụ
+việc theo dõi và cải thiện.
+
+\subsection{Yêu cầu tính năng}
+
+Yêu cầu tính năng (Functional Requirements --- FR) cụ thể hóa BR thành các
+chức năng hệ thống có thể đo lường.
+
+\subsubsection{FR-01: Đăng nhập / Đăng xuất / Đăng ký tài khoản}
+
+\begin{itemize}
+    \item Người dùng đăng ký bằng email + mật khẩu; xác nhận qua email.
+    \item Đăng nhập nhận JWT access token (1 giờ) + refresh token (7 ngày).
+    \item Mật khẩu hash bằng \texttt{bcrypt}; không lưu plaintext.
+    \item Đăng xuất vô hiệu hóa refresh token phía server.
+\end{itemize}
+
+\subsubsection{FR-02: Quản lý tài liệu}
+
+\begin{itemize}
+    \item Upload file PDF/DOCX/PPTX $\leq$ 50MB; kiểm tra MIME type.
+    \item Lưu file vào MinIO; tạo bản ghi \texttt{Document} với trạng thái
+          \texttt{UPLOADED}.
+    \item Hiển thị danh sách tài liệu của giảng viên với trạng thái xử lý
+          theo thời gian thực.
+    \item Xóa tài liệu: xóa file MinIO + cascade xóa chunk, card, quiz liên quan.
+\end{itemize}
+
+\subsubsection{FR-03: Xử lý tài liệu tự động (AI Pipeline)}
+
+\begin{itemize}
+    \item Sau khi upload, pipeline tự động kích hoạt.
+    \item Trạng thái cập nhật qua WebSocket: UPLOADED $\to$ PARSING $\to$
+          CHUNKING $\to$ GENERATING $\to$ DONE (hoặc ERROR).
+    \item Retry tối đa 3 lần nếu LLM API lỗi; ghi log chi tiết mỗi lần retry.
+    \item Pipeline có thể xử lý đồng thời tối đa 10 tài liệu.
+\end{itemize}
+
+\subsubsection{FR-04: Review và publish khóa học}
+
+\begin{itemize}
+    \item Giảng viên xem, sửa (inline edit) và xóa từng Card và câu Quiz.
+    \item Thêm câu hỏi thủ công vào bất kỳ section nào.
+    \item Sắp xếp lại thứ tự Card trong section bằng drag-and-drop.
+    \item Publish khóa học: điều kiện $\geq$ 1 section có \texttt{is\_reviewed=true}.
+    \item Unpublish: ẩn khóa học khỏi danh sách học viên (soft delete).
+\end{itemize}
+
+\subsubsection{FR-05: Trải nghiệm học tập}
+
+\begin{itemize}
+    \item Học viên xem Card theo thứ tự; hệ thống lưu tiến độ sau mỗi Card.
+    \item Làm Quiz: hiển thị ngẫu nhiên từ pool câu hỏi; phản hồi tức thì.
+    \item Tìm kiếm ngữ nghĩa: vector similarity top-K.
+    \item Xem lịch sử học: tiến độ theo khóa học, điểm Quiz theo thời gian.
+\end{itemize}
+
+\subsection{Yêu cầu phi tính năng}
+
+\begin{longtable}{|p{1.5cm}|p{4cm}|p{9cm}|}
+    \caption{Yêu cầu phi tính năng (NFR).} \label{tab:nfr} \\
+    \hline
+    \textbf{ID} & \textbf{Tên} & \textbf{Tiêu chí cụ thể} \\
+    \hline
+    \endfirsthead \hline
+    \textbf{ID} & \textbf{Tên} & \textbf{Tiêu chí cụ thể} \\
+    \hline \endhead
+
+    NFR-01 & Hiệu năng &
+        Xử lý tài liệu 20 trang $\leq$ 3 phút; API read $\leq$ 500ms ở P95;
+        hỗ trợ 50 concurrent users xem Card/Quiz đồng thời. \\ \hline
+
+    NFR-02 & Bảo mật &
+        JWT trên mọi API; HTTPS bắt buộc; API key LLM qua biến môi trường;
+        rate limiting 100 req/phút/IP; OWASP Top 10 check. \\ \hline
+
+    NFR-03 & Độ tin cậy &
+        Uptime $\geq$ 95\% staging; pipeline idempotent (retry an toàn);
+        không mất dữ liệu khi lỗi giữa chừng. \\ \hline
+
+    NFR-04 & Khả năng bảo trì &
+        Kiến trúc DDD; unit test coverage $\geq$ 70\%; tài liệu API đầy đủ
+        (auto-generated từ \texttt{.proto}). \\ \hline
+
+    NFR-05 & Khả năng mở rộng &
+        Thêm parser mới chỉ cần tạo adapter; thay LLM provider không sửa
+        use case; Docker Compose $\to$ Kubernetes khi cần. \\ \hline
+
+    NFR-06 & Khả dụng (Usability) &
+        Không cần đào tạo; giao diện responsive; thông báo lỗi rõ và có
+        hướng dẫn khắc phục; SUS Score $\geq$ 68/100. \\ \hline
+\end{longtable}
+
+\subsection{Tổng kết Chương 2}
+
+Chương 2 đã trình bày toàn diện bức tranh hiện tại của bài toán: từ kết quả
+khảo sát thực tế với giảng viên và học viên, phân tích so sánh bốn giải pháp
+tương tự, đến đặc tả chi tiết user stories và các yêu cầu hệ thống (BR, FR,
+NFR). Các phân tích này là căn cứ để thiết kế hệ thống trong các chương
+tiếp theo.

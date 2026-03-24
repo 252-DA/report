@@ -1,0 +1,162 @@
+\section{Tổng quan}
+
+\subsection{Mô tả đề tài}
+
+\subsubsection{Khảo sát sơ bộ}
+
+Để hiểu rõ bài toán trước khi đề xuất giải pháp, nhóm đã thực hiện khảo sát
+sơ bộ với hai nhóm đối tượng:
+
+\textbf{Phía Giảng viên:} Qua trao đổi với \ldots\ giảng viên tại Khoa Khoa
+học và Kỹ thuật Máy tính, ĐHBK TP.HCM, nhóm ghi nhận:
+\begin{itemize}
+    \item \textbf{\ldots\%} giảng viên phải đầu tư hơn 2 giờ để chuyển đổi
+          một chương tài liệu thành nội dung kiểm tra.
+    \item \textbf{\ldots\%} không có công cụ hỗ trợ, phải làm hoàn toàn thủ
+          công (soạn Word, nhập Moodle).
+    \item \textbf{\ldots\%} bày tỏ sẵn sàng dùng công cụ AI nếu kết quả đạt
+          $\geq 70\%$ chất lượng so với làm tay.
+\end{itemize}
+
+\textbf{Phía Học viên:} Qua khảo sát \ldots\ sinh viên đại học:
+\begin{itemize}
+    \item \textbf{\ldots\%} cho rằng tài liệu học quá dài, khó tập trung khi
+          ôn tập.
+    \item \textbf{\ldots\%} muốn có bài kiểm tra nhanh sau mỗi section để
+          tự đánh giá mức độ hiểu bài.
+    \item \textbf{\ldots\%} đã từng dùng Quizlet hoặc flashcard để học.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.8\textwidth]{figures/survey_chart.png}
+    \caption{Kết quả khảo sát nhu cầu của giảng viên và học viên.}
+    \label{fig:survey}
+\end{figure}
+
+Kết quả khảo sát xác nhận rõ khoảng trống: \textbf{thiếu công cụ tự động hóa
+việc tạo nội dung Micro-learning từ tài liệu sẵn có}.
+
+\subsubsection{Mục tiêu đề tài}
+
+\textbf{Mục tiêu tổng quát:} Xây dựng hệ thống Micro-learning thông minh có
+khả năng tự động chuyển đổi tài liệu học thuật (PDF, DOCX, PPTX) thành nội
+dung học tập dạng thẻ (Card) kèm bộ câu hỏi trắc nghiệm (Quiz), với sự kiểm
+soát và phê duyệt của giảng viên (\textit{Human-in-the-Loop}).
+
+\textbf{Mục tiêu cụ thể Giai đoạn 1 (Tuần 1--15):}
+\begin{enumerate}
+    \item Nghiên cứu và thiết kế hệ thống prompt hiệu quả cho tác vụ tóm tắt
+          (Summary) và tạo câu hỏi trắc nghiệm (Quiz) từ văn bản.
+    \item Xây dựng module \textbf{Text Chunking} phân đoạn văn bản theo cấu
+          trúc ngữ nghĩa của tài liệu.
+    \item Xây dựng \textbf{Backend AI Pipeline} hoàn chỉnh:
+          Upload $\to$ Parse $\to$ Chunk $\to$ Embed $\to$ Generate.
+    \item Xây dựng \textbf{giao diện web} cơ bản cho Giảng viên và Học viên.
+    \item \textbf{Demo} end-to-end: upload một chương sách giáo khoa và nhận
+          lại khóa học Micro-learning hoàn chỉnh trong thời gian thực.
+\end{enumerate}
+
+\subsubsection{Định hướng sản phẩm}
+
+Sản phẩm hướng đến \textbf{nền tảng web SaaS} (Software as a Service) phục
+vụ các tổ chức giáo dục đại học và trung học phổ thông tại Việt Nam. Trong
+giai đoạn đầu, tập trung vào thị trường trong trường đại học.
+
+\textbf{Mô hình sử dụng:}
+\begin{itemize}
+    \item Giảng viên đăng nhập, upload tài liệu, nhận kết quả AI và publish.
+    \item Học viên đăng nhập, học theo Card và làm Quiz để kiểm tra kiến thức.
+    \item Quản trị viên quản lý tài khoản và theo dõi thống kê hệ thống.
+\end{itemize}
+
+\subsubsection{Tiêu chí sản phẩm}
+
+\begin{table}[H]
+    \centering
+    \caption{Tiêu chí chấp nhận sản phẩm Giai đoạn 1.}
+    \label{tab:product-criteria}
+    \begin{tabular}{p{0.5cm}p{5cm}p{3cm}p{6cm}}
+        \toprule
+        \textbf{\#} & \textbf{Tiêu chí} & \textbf{Ngưỡng} & \textbf{Cách đo} \\
+        \midrule
+        1 & Thời gian xử lý tài liệu 20 trang & $\leq$ 3 phút
+          & Đo thực tế với 5 tài liệu mẫu \\
+        2 & Tỷ lệ Summary đạt chất lượng & $\geq$ 70\%
+          & Giảng viên đánh giá (Likert 1--5, $\geq$3 là đạt) \\
+        3 & Tỷ lệ Quiz đạt chất lượng & $\geq$ 65\%
+          & Tương tự trên \\
+        4 & API response time (xem Card, Quiz) & $\leq$ 500ms
+          & Đo với 50 concurrent users \\
+        5 & SUS Score giao diện học viên & $\geq$ 68/100
+          & Khảo sát 10 sinh viên \\
+        6 & Coverage unit test & $\geq$ 70\%
+          & \texttt{pytest --cov} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Mô hình dự kiến}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.85\textwidth]{figures/product_model.png}
+    \caption{Mô hình tổng quát của sản phẩm.}
+    \label{fig:product-model}
+\end{figure}
+
+\subsection{Phân công nhiệm vụ}
+
+\subsubsection{Phân công Giai đoạn 1}
+
+\begin{table}[H]
+    \centering
+    \caption{Phân công nhiệm vụ Giai đoạn 1.}
+    \label{tab:task-assign-gd1}
+    \begin{tabular}{p{0.5cm}p{4cm}p{2cm}p{8cm}}
+        \toprule
+        \textbf{\#} & \textbf{Thành viên} & \textbf{MSSV} & \textbf{Nhiệm vụ} \\
+        \midrule
+        1 & Nguyễn Nam Phương & 2212698
+          & Nghiên cứu Prompt Engineering; thiết kế và thử nghiệm các prompt
+            template; tích hợp LLM API (OpenAI/Gemini); viết chương 1 và 3. \\
+        \midrule
+        2 & Nguyễn Minh Triết & 2213608
+          & Xây dựng module Text Chunking và Document Parsing (PDF, DOCX, PPTX);
+            thiết kế kiến trúc DDD; viết chương 4 và 5. \\
+        \midrule
+        3 & Phùng Xương Cận & 2210348
+          & Xây dựng giao diện web (Frontend Giảng viên \& Học viên); triển
+            khai Docker Compose; thực hiện kiểm thử; viết chương 2 và 6. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Cấu trúc báo cáo}
+
+Báo cáo được tổ chức thành 7 chương:
+\begin{itemize}
+    \item \textbf{Chương 1 --- Tổng quan:} Khảo sát sơ bộ, mục tiêu, tiêu
+          chí sản phẩm và phân công nhiệm vụ.
+    \item \textbf{Chương 2 --- Khảo sát và phân tích:} Khảo sát thực trạng
+          chi tiết, phân tích giải pháp tương tự, user stories và đặc tả
+          yêu cầu (BR / FR / NFR).
+    \item \textbf{Chương 3 --- Cơ sở lý thuyết:} Lý thuyết LLM, Prompt
+          Engineering, Text Chunking, Vector Embedding và lý giải lựa chọn
+          công nghệ.
+    \item \textbf{Chương 4 --- Thiết kế hệ thống:} Kiến trúc, cơ sở dữ liệu,
+          giao diện (Sitemap), use case diagram và activity diagram.
+    \item \textbf{Chương 5 --- Hiện thực hệ thống:} Nền tảng sử dụng, mã
+          nguồn các module chính, giao diện web.
+    \item \textbf{Chương 6 --- Kiểm thử hệ thống:} Kiểm thử tính năng
+          (black-box), kiểm thử phi tính năng (load test, chất lượng AI).
+    \item \textbf{Chương 7 --- Kết luận:} Kết quả, điểm cần cải thiện và
+          định hướng Giai đoạn 2.
+\end{itemize}
+
+\subsection{Tổng kết Chương 1}
+
+Chương 1 đã trình bày tổng quan về đề tài: bối cảnh và động cơ từ kết quả
+khảo sát sơ bộ, mục tiêu cụ thể của Giai đoạn 1, tiêu chí chấp nhận sản
+phẩm và phân công nhiệm vụ giữa các thành viên. Chương tiếp theo sẽ đi sâu
+vào khảo sát thực trạng và phân tích yêu cầu chi tiết của hệ thống.
