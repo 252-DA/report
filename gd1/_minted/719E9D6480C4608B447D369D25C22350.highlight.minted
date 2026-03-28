@@ -1,0 +1,12 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+services:
+\PYG{+w}{  }ai\PYGZhy{}pipeline:\PYG{+w}{    }\PYG{c+c1}{\PYGZsh{} Python gRPC server}
+\PYG{+w}{  }frontend:\PYG{+w}{       }\PYG{c+c1}{\PYGZsh{} React dev server}
+\PYG{+w}{  }qdrant:\PYG{+w}{         }\PYG{c+c1}{\PYGZsh{} Vector database}
+\PYG{+w}{  }minio:\PYG{+w}{          }\PYG{c+c1}{\PYGZsh{} Object storage}
+\PYG{+w}{  }postgres:\PYG{+w}{       }\PYG{c+c1}{\PYGZsh{} Relational database}
+\PYG{+w}{  }envoy:\PYG{+w}{          }\PYG{c+c1}{\PYGZsh{} gRPC\PYGZhy{}Web proxy}
+
+networks:
+\PYG{+w}{  }internal:\PYG{+w}{       }\PYG{c+c1}{\PYGZsh{} Service\PYGZhy{}to\PYGZhy{}service communication}
+\end{MintedVerbatim}

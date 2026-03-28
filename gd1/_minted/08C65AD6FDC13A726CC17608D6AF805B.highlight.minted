@@ -1,0 +1,16 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{k}{class}\PYG{+w}{ }\PYG{n+nc}{PDFParser}\PYG{p}{(}\PYG{n}{ParserPort}\PYG{p}{):}
+    \PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{parse}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{p}{,} \PYG{n}{document}\PYG{p}{:} \PYG{n}{Document}\PYG{p}{,}
+              \PYG{n}{file\PYGZus{}bytes}\PYG{p}{:} \PYG{n+nb}{bytes}\PYG{p}{)} \PYG{o}{\PYGZhy{}\PYGZgt{}} \PYG{n}{ParsedDocument}\PYG{p}{:}
+        \PYG{n}{sections} \PYG{o}{=} \PYG{p}{[]}
+        \PYG{k}{with} \PYG{n}{pdfplumber}\PYG{o}{.}\PYG{n}{open}\PYG{p}{(}\PYG{n}{BytesIO}\PYG{p}{(}\PYG{n}{file\PYGZus{}bytes}\PYG{p}{))} \PYG{k}{as} \PYG{n}{pdf}\PYG{p}{:}
+            \PYG{k}{for} \PYG{n}{page} \PYG{o+ow}{in} \PYG{n}{pdf}\PYG{o}{.}\PYG{n}{pages}\PYG{p}{:}
+                \PYG{n}{text} \PYG{o}{=} \PYG{n}{page}\PYG{o}{.}\PYG{n}{extract\PYGZus{}text}\PYG{p}{()} \PYG{o+ow}{or} \PYG{l+s+s2}{\PYGZdq{}\PYGZdq{}}
+                \PYG{c+c1}{\PYGZsh{} Phát hiện heading theo font size/bold}
+                \PYG{n}{headings} \PYG{o}{=} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{\PYGZus{}detect\PYGZus{}headings}\PYG{p}{(}\PYG{n}{page}\PYG{p}{)}
+                \PYG{n}{sections}\PYG{o}{.}\PYG{n}{extend}\PYG{p}{(}
+                    \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{\PYGZus{}build\PYGZus{}sections}\PYG{p}{(}\PYG{n}{text}\PYG{p}{,} \PYG{n}{headings}\PYG{p}{,} \PYG{n}{page}\PYG{o}{.}\PYG{n}{page\PYGZus{}number}\PYG{p}{)}
+                \PYG{p}{)}
+        \PYG{k}{return} \PYG{n}{ParsedDocument}\PYG{p}{(}\PYG{n}{document\PYGZus{}id}\PYG{o}{=}\PYG{n}{document}\PYG{o}{.}\PYG{n}{id}\PYG{p}{,}
+                              \PYG{n}{sections}\PYG{o}{=}\PYG{n}{sections}\PYG{p}{)}
+\end{MintedVerbatim}

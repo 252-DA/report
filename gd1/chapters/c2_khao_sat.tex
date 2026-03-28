@@ -212,7 +212,7 @@ chức năng hệ thống có thể đo lường.
 \begin{itemize}
     \item Upload file PDF/DOCX/PPTX $\leq$ 50MB; kiểm tra MIME type.
     \item Lưu file vào MinIO; tạo bản ghi \texttt{Document} với trạng thái
-          \texttt{UPLOADED}.
+          \texttt{QUEUED}.
     \item Hiển thị danh sách tài liệu của giảng viên với trạng thái xử lý
           theo thời gian thực.
     \item Xóa tài liệu: xóa file MinIO + cascade xóa chunk, card, quiz liên quan.
@@ -221,9 +221,11 @@ chức năng hệ thống có thể đo lường.
 \subsubsection{FR-03: Xử lý tài liệu tự động (AI Pipeline)}
 
 \begin{itemize}
-    \item Sau khi upload, pipeline tự động kích hoạt.
-    \item Trạng thái cập nhật qua WebSocket: UPLOADED $\to$ PARSING $\to$
-          CHUNKING $\to$ GENERATING $\to$ DONE (hoặc ERROR).
+    \item Sau khi upload, hệ thống tự động enqueue job và AI Pipeline worker
+          xử lý bất đồng bộ.
+    \item Trạng thái cập nhật theo thời gian thực qua server streaming:
+          QUEUED $\to$ PARSING $\to$ CHUNKING $\to$ GENERATING $\to$ DONE
+          (hoặc ERROR).
     \item Retry tối đa 3 lần nếu LLM API lỗi; ghi log chi tiết mỗi lần retry.
     \item Pipeline có thể xử lý đồng thời tối đa 10 tài liệu.
 \end{itemize}

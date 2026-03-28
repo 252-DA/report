@@ -1,0 +1,42 @@
+\babel@toc {english}{}\relax 
+\contentsline {figure}{\numberline {1}{\ignorespaces Kết quả khảo sát nhu cầu của giảng viên và học viên.}}{16}{figure.caption.1}%
+\contentsline {figure}{\numberline {2}{\ignorespaces Mô hình tổng quát của sản phẩm.}}{17}{figure.caption.3}%
+\contentsline {figure}{\numberline {3}{\ignorespaces Kết quả khảo sát giảng viên về quy trình tạo nội dung kiểm tra.}}{20}{figure.caption.5}%
+\contentsline {figure}{\numberline {4}{\ignorespaces Kết quả khảo sát học viên về thói quen học tập.}}{20}{figure.caption.6}%
+\contentsline {figure}{\numberline {5}{\ignorespaces Kiến trúc tổng quan hệ thống Micro-learning.}}{30}{figure.caption.13}%
+\contentsline {figure}{\numberline {6}{\ignorespaces Kiến trúc phân tầng của hệ thống.}}{30}{figure.caption.14}%
+\contentsline {figure}{\numberline {7}{\ignorespaces State Machine của AI Pipeline.}}{33}{figure.caption.17}%
+\contentsline {figure}{\numberline {8}{\ignorespaces Kiến trúc Hexagonal --- Port/Adapter cho AI Pipeline.}}{33}{figure.caption.19}%
+\contentsline {figure}{\numberline {9}{\ignorespaces Kiến trúc RAG Pipeline cho Chatbot Tutor.}}{34}{figure.caption.21}%
+\contentsline {figure}{\numberline {10}{\ignorespaces Luồng dữ liệu Text Processing: từ Upload đến Card + Quiz.}}{35}{figure.caption.22}%
+\contentsline {figure}{\numberline {11}{\ignorespaces Luồng dữ liệu: từ Video Upload đến Clip + Card + Quiz.}}{35}{figure.caption.23}%
+\contentsline {figure}{\numberline {12}{\ignorespaces Luồng dữ liệu RAG Chatbot.}}{36}{figure.caption.24}%
+\contentsline {figure}{\numberline {13}{\ignorespaces Lược đồ ERD tổng quan. Bảng in nghiêng chỉ áp dụng khi input là video/audio.}}{39}{figure.caption.30}%
+\contentsline {figure}{\numberline {14}{\ignorespaces Sequence Diagram: Giảng viên upload tài liệu và pipeline xử lý.}}{43}{figure.caption.42}%
+\contentsline {figure}{\numberline {15}{\ignorespaces Sequence Diagram: Học viên làm Quiz và nhận phản hồi.}}{44}{figure.caption.43}%
+\contentsline {figure}{\numberline {16}{\ignorespaces Sequence Diagram: Học viên hỏi Chatbot RAG.}}{44}{figure.caption.44}%
+\contentsline {figure}{\numberline {17}{\ignorespaces Sequence Diagram: Xử lý Video.}}{45}{figure.caption.45}%
+\contentsline {figure}{\numberline {18}{\ignorespaces Luồng xác thực JWT.}}{46}{figure.caption.46}%
+\contentsline {figure}{\numberline {19}{\ignorespaces Docker Compose topology --- tất cả service chạy trong container.}}{47}{figure.caption.48}%
+\contentsline {figure}{\numberline {20}{\ignorespaces Sơ đồ trang (Sitemap) của toàn bộ hệ thống (hai giai đoạn).}}{48}{figure.caption.51}%
+\contentsline {figure}{\numberline {21}{\ignorespaces Wireframe Dashboard Giảng viên --- hiển thị tổng quan tài liệu và trạng thái pipeline.}}{49}{figure.caption.52}%
+\contentsline {figure}{\numberline {22}{\ignorespaces Wireframe Review --- layout 2 cột: bên trái là text gốc, bên phải là nội dung AI sinh.}}{49}{figure.caption.53}%
+\contentsline {figure}{\numberline {23}{\ignorespaces Wireframe Card view --- một Card hiển thị tại một thời điểm, navigation bằng phím mũi tên.}}{49}{figure.caption.54}%
+\contentsline {figure}{\numberline {24}{\ignorespaces Wireframe Chatbot --- panel bên phải trong màn hình học.}}{50}{figure.caption.55}%
+\contentsline {figure}{\numberline {25}{\ignorespaces Use Case Diagram tổng quan (hai giai đoạn).}}{50}{figure.caption.56}%
+\contentsline {figure}{\numberline {26}{\ignorespaces Use Case Diagram --- Xác thực người dùng.}}{50}{figure.caption.57}%
+\contentsline {figure}{\numberline {27}{\ignorespaces Use Case Diagram --- Quản lý tài liệu và nội dung AI.}}{50}{figure.caption.58}%
+\contentsline {figure}{\numberline {28}{\ignorespaces Use Case Diagram --- Học tập và kiểm tra.}}{50}{figure.caption.59}%
+\contentsline {figure}{\numberline {29}{\ignorespaces Use Case Diagram --- Quản trị hệ thống.}}{51}{figure.caption.60}%
+\contentsline {figure}{\numberline {30}{\ignorespaces Activity Diagram: Upload và xử lý tài liệu.}}{51}{figure.caption.61}%
+\contentsline {figure}{\numberline {31}{\ignorespaces Activity Diagram: AI Pipeline chi tiết (Text và Video).}}{51}{figure.caption.62}%
+\contentsline {figure}{\numberline {32}{\ignorespaces Activity Diagram: Review và publish khóa học.}}{51}{figure.caption.63}%
+\contentsline {figure}{\numberline {33}{\ignorespaces Activity Diagram: Học viên xem Card, xem Video (nếu có) và làm Quiz.}}{52}{figure.caption.64}%
+\contentsline {figure}{\numberline {34}{\ignorespaces Activity Diagram: Học viên hỏi Chatbot RAG.}}{52}{figure.caption.65}%
+\contentsline {figure}{\numberline {35}{\ignorespaces Màn hình Dashboard Giảng viên.}}{56}{figure.caption.66}%
+\contentsline {figure}{\numberline {36}{\ignorespaces Màn hình Upload tài liệu.}}{56}{figure.caption.67}%
+\contentsline {figure}{\numberline {37}{\ignorespaces Màn hình theo dõi tiến trình xử lý AI (4 bước).}}{56}{figure.caption.68}%
+\contentsline {figure}{\numberline {38}{\ignorespaces Màn hình Review nội dung AI (layout 2 cột).}}{56}{figure.caption.69}%
+\contentsline {figure}{\numberline {39}{\ignorespaces Màn hình danh sách khóa học của Học viên.}}{56}{figure.caption.70}%
+\contentsline {figure}{\numberline {40}{\ignorespaces Màn hình xem bài học dạng Card.}}{56}{figure.caption.71}%
+\contentsline {figure}{\numberline {41}{\ignorespaces Màn hình làm Quiz (hiển thị phản hồi tức thì sau khi chọn đáp án).}}{56}{figure.caption.72}%

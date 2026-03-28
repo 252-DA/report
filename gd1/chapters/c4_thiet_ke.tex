@@ -4,6 +4,12 @@
 
 \subsubsection{Tổng quan kiến trúc}
 
+Hệ thống Micro-learning được thiết kế theo kiến trúc \textbf{Microservices kết
+hợp Domain-Driven Design (DDD)}, chia thành các service độc lập. Các tác vụ
+đồng bộ sử dụng gRPC, trong khi các tác vụ nền kéo dài (AI Pipeline) được
+điều phối qua cơ chế \textbf{job queue + worker}. Toàn bộ hệ thống được thiết
+kế hoàn chỉnh nhằm đảm bảo tính nhất quán kiến trúc và khả năng mở rộng.
+
 \begin{figure}[H]
     \centering
     % \includegraphics[width=\textwidth]{figures/arch_overview.png}
@@ -11,58 +17,539 @@
     \label{fig:arch-overview}
 \end{figure}
 
-Hệ thống gồm ba nhóm thành phần chính:
+Hệ thống gồm bốn nhóm thành phần lớn:
+\begin{itemize}
+    \item \textbf{Client Layer:} React SPA giao tiếp với backend qua gRPC-Web.
+    \item \textbf{API Gateway:} Envoy Proxy chuyển đổi gRPC-Web $\to$ gRPC,
+          xử lý TLS và rate limiting.
+    \item \textbf{Service Layer:} Bốn service nghiệp vụ độc lập (API Service,
+          AI Pipeline Service, Video Service, Chat Service), giao tiếp nội
+          bộ qua gRPC cho tác vụ đồng bộ và qua job queue cho tác vụ nền.
+    \item \textbf{Infrastructure Layer:} PostgreSQL, Qdrant, MinIO, Redis ---
+          lưu trữ dữ liệu quan hệ, vector, file, cache và hàng đợi nhẹ cho
+          pipeline.
+\end{itemize}
 
-\begin{enumerate}
-    \item \textbf{Client Layer:} Web Application (React) --- giao tiếp với
-          Backend qua gRPC-Web.
-    \item \textbf{Service Layer:} Backend API và AI Pipeline (Chunking Service)
-          --- giao tiếp với nhau qua gRPC nội bộ.
-    \item \textbf{Infrastructure Layer:} MinIO, Qdrant, PostgreSQL --- lưu trữ
-          file, vector và dữ liệu quan hệ.
-\end{enumerate}
+\subsubsection{Kiến trúc phân tầng (Layered Architecture)}
 
-\subsubsection{Bài toán thiết kế}
-
-Trong quá trình thiết kế, nhóm đối mặt với ba bài toán kỹ thuật chính:
-
-\begin{enumerate}
-    \item \textbf{Bài toán xử lý bất đồng bộ:} Pipeline AI có thể kéo dài
-          vài phút (đặc biệt khi gọi LLM API nhiều lần). Nếu xử lý đồng bộ
-          trong cùng HTTP request, kết nối sẽ timeout.
-    \item \textbf{Bài toán thay thế LLM:} OpenAI có thể thay đổi giá hoặc
-          điều khoản sử dụng; cần thiết kế để chuyển LLM provider dễ dàng.
-    \item \textbf{Bài toán kiểm thử:} Mỗi lần chạy unit test không thể gọi
-          LLM API thật (tốn tiền, phụ thuộc mạng).
-\end{enumerate}
-
-\subsubsection{Giải pháp cho bài toán}
-
-\textbf{Bài toán 1 --- Background Job:} AI Pipeline chạy dưới dạng background
-job bất đồng bộ. Giao diện cập nhật trạng thái qua WebSocket polling.
-
-\textbf{Bài toán 2 và 3 --- DDD với Port/Adapter:} Áp dụng kiến trúc
-Port/Adapter (Hexagonal Architecture). \texttt{LLMPort} là interface trừu
-tượng; \texttt{OpenAIAdapter} và \texttt{GeminiAdapter} là implementation cụ
-thể. Use case chỉ phụ thuộc interface, không phụ thuộc implementation.
+Hệ thống được tổ chức thành \textbf{bốn tầng} (layer), mỗi tầng có trách
+nhiệm rõ ràng và chỉ giao tiếp với tầng liền kề:
 
 \begin{figure}[H]
     \centering
-    % \includegraphics[width=0.9\textwidth]{figures/arch_pipeline_ddd.png}
-    \caption{Kiến trúc AI Pipeline theo Port/Adapter (DDD).}
-    \label{fig:arch-ddd}
+    % \includegraphics[width=\textwidth]{figures/arch_layered.png}
+    \caption{Kiến trúc phân tầng của hệ thống.}
+    \label{fig:arch-layered}
 \end{figure}
 
-\subsection{Thiết kế cơ sở dữ liệu}
+\begin{table}[H]
+    \centering
+    \caption{Mô tả bốn tầng kiến trúc của hệ thống.}
+    \label{tab:arch-layers}
+    \begin{tabular}{p{3cm}p{4.5cm}p{7cm}}
+        \toprule
+        \textbf{Tầng} & \textbf{Thành phần} & \textbf{Trách nhiệm} \\
+        \midrule
+        \textbf{Client Layer}
+            & React SPA (TypeScript + Vite)
+            & Giao diện web cho Giảng viên, Học viên, Admin.
+              Giao tiếp với Backend qua gRPC-Web (qua Envoy proxy). \\
+        \midrule
+        \textbf{API Gateway}
+            & Envoy Proxy
+            & Chuyển đổi gRPC-Web $\to$ gRPC; load balancing;
+              TLS termination; rate limiting 100 req/phút/IP. \\
+        \midrule
+        \textbf{Service Layer}
+            & API Service, AI Pipeline Service,
+              Video Service, Chat Service
+            & Xử lý nghiệp vụ cốt lõi. Mỗi service có domain riêng,
+              giao tiếp nội bộ qua gRPC và job queue tùy loại tác vụ. \\
+        \midrule
+        \textbf{Infrastructure Layer}
+            & PostgreSQL, Qdrant, MinIO, Redis
+            & Lưu trữ dữ liệu quan hệ, vector, file, semantic cache và
+              job queue cho AI Pipeline. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\subsubsection{Các bảng nghiệp vụ chính}
+\subsubsection{Chi tiết các service}
+
+\textbf{(1) API Service} --- Service trung tâm, đóng vai trò gateway nghiệp
+vụ. Nhận request từ client, xác thực JWT, kiểm tra phân quyền, sau đó
+điều phối đến các service khác hoặc truy cập trực tiếp database.
+
+Chức năng chính:
+\begin{itemize}
+    \item Xác thực và phân quyền (Auth).
+    \item CRUD tài liệu, khóa học, người dùng.
+    \item Enqueue job xử lý tài liệu/video vào Redis-backed queue.
+    \item Phục vụ dữ liệu cho frontend (danh sách Card, Quiz, tiến độ học).
+    \item Server-streaming endpoint để cập nhật trạng thái pipeline real-time.
+\end{itemize}
+
+\textbf{(2) AI Pipeline Service} --- Service xử lý bất đồng bộ, điều phối
+toàn bộ pipeline sinh nội dung. Service này hoạt động như một tập worker tiêu
+thụ job từ hàng đợi, sau đó thực hiện Parse $\to$ Chunk $\to$ Embed $\to$
+Generate đối với tài liệu text. Khi nhận video/audio, worker gọi thêm Video
+Service để transcribe và clip trước khi đưa transcript vào pipeline text.
+
+\textbf{(3) Video Service} --- Service chuyên biệt xử lý media:
+\begin{itemize}
+    \item Nhận file video/audio từ MinIO, trích xuất audio track.
+    \item Gọi Whisper API để tạo transcript có word-level timestamp.
+    \item Dùng FFmpeg cắt video gốc thành clip ngắn (1--5 phút) theo
+          timestamp của từng ý chính.
+    \item Lưu clip vào MinIO, metadata vào bảng \texttt{media\_clips}.
+\end{itemize}
+
+\textbf{(4) Chat Service} --- Service RAG Chatbot hỗ trợ học viên hỏi
+đáp về nội dung bài học:
+\begin{itemize}
+    \item Nhận câu hỏi từ học viên.
+    \item Kiểm tra semantic cache (Redis) trước khi gọi LLM.
+    \item Truy vấn Qdrant để tìm top-K chunk liên quan (Retrieval).
+    \item Xây dựng RAG prompt, gọi LLM sinh câu trả lời (Generation).
+    \item Trả lời kèm trích dẫn nguồn (chunk ID, heading, trang).
+    \item Lưu lịch sử hội thoại để duy trì ngữ cảnh trong session.
+\end{itemize}
+
+\subsubsection{Bài toán thiết kế và giải pháp}
+
+Trong quá trình thiết kế, nhóm xác định năm bài toán kỹ thuật chính cần giải
+quyết:
+
+\begin{table}[H]
+    \centering
+    \caption{Năm bài toán thiết kế và giải pháp tương ứng.}
+    \label{tab:design-problems}
+    \begin{tabular}{p{0.5cm}p{4cm}p{4cm}p{5.5cm}}
+        \toprule
+        \textbf{\#} & \textbf{Bài toán} & \textbf{Nguyên nhân} & \textbf{Giải pháp} \\
+        \midrule
+        1 & Xử lý bất đồng bộ
+          & Pipeline AI kéo dài vài phút; HTTP request sẽ timeout.
+          & Job Queue + Worker + server-streaming status. \\
+        \midrule
+        2 & Thay thế LLM provider
+          & OpenAI có thể thay đổi giá/điều khoản; cần linh hoạt.
+          & Port/Adapter pattern (Hexagonal Architecture). \\
+        \midrule
+        3 & Kiểm thử không gọi API thật
+          & Gọi LLM API thật tốn tiền và phụ thuộc mạng.
+          & Mock Adapter implement cùng Port interface. \\
+        \midrule
+        4 & Chatbot bịa đặt
+          & LLM có thể sinh thông tin sai (hallucination).
+          & RAG --- chỉ trả lời dựa trên context từ Qdrant. \\
+        \midrule
+        5 & Chi phí API cao
+          & Nhiều câu hỏi trùng lặp; token lãng phí.
+          & Semantic caching + prompt token optimization. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\paragraph{Giải pháp chi tiết Bài toán 1 --- Job Queue kết hợp State Machine.}
+
+Khi giảng viên upload tài liệu, API Service không gọi trực tiếp AI Pipeline
+bằng RPC dài hạn mà \textbf{đưa một job vào hàng đợi Redis}. AI Pipeline
+worker tiêu thụ job theo thứ tự, cập nhật trạng thái vào database sau mỗi bước
+và frontend theo dõi tiến trình qua server streaming. Bên trong mỗi job,
+pipeline vẫn được mô hình hóa như một \textbf{state machine} với các trạng
+thái chuyển tiếp rõ ràng. Nếu bất kỳ bước nào thất bại, hệ thống chuyển sang
+\texttt{ERROR} và ghi nhận bước cuối cùng thành công để hỗ trợ retry từ đúng
+điểm đó.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{figures/state_machine_pipeline.png}
+    \caption{State Machine của AI Pipeline.}
+    \label{fig:state-machine}
+\end{figure}
+
+\begin{table}[H]
+    \centering
+    \caption{Các trạng thái trong State Machine của AI Pipeline.}
+    \label{tab:state-machine}
+    \begin{tabular}{p{3.5cm}p{5.5cm}p{5cm}}
+        \toprule
+        \textbf{Trạng thái} & \textbf{Mô tả} & \textbf{Chuyển tiếp} \\
+        \midrule
+        \texttt{QUEUED}      & File đã lưu vào MinIO; job đã được đẩy vào queue.
+                             & $\to$ \texttt{TRANSCRIBING} (video) hoặc \texttt{PARSING} (text) khi worker nhận job \\
+        \texttt{TRANSCRIBING}& Whisper đang chuyển audio/video $\to$ text.
+                             & $\to$ \texttt{PARSING} hoặc \texttt{ERROR} \\
+        \texttt{PARSING}     & Trích xuất text + heading từ tài liệu.
+                             & $\to$ \texttt{CHUNKING} hoặc \texttt{ERROR} \\
+        \texttt{CHUNKING}    & Chia text thành chunk theo heading.
+                             & $\to$ \texttt{EMBEDDING} hoặc \texttt{ERROR} \\
+        \texttt{EMBEDDING}   & Tạo vector embedding cho mỗi chunk.
+                             & $\to$ \texttt{GENERATING} hoặc \texttt{ERROR} \\
+        \texttt{GENERATING}  & Gọi LLM sinh Summary + Quiz.
+                             & $\to$ \texttt{CLIPPING} (video) hoặc \texttt{DONE} \\
+        \texttt{CLIPPING}    & FFmpeg cắt video thành clip ngắn (chỉ với input video).
+                             & $\to$ \texttt{DONE} hoặc \texttt{ERROR} \\
+        \texttt{DONE}        & Pipeline hoàn tất.
+                             & (terminal state) \\
+        \texttt{ERROR}       & Có lỗi xảy ra; ghi \texttt{error\_msg} + \texttt{last\_success\_state}.
+                             & Retry $\to$ quay lại trạng thái sau \texttt{last\_success\_state} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Cơ chế \textbf{retry}: Khi pipeline gặp lỗi tạm thời (LLM API timeout, rate
+limit), worker tự động retry tối đa 3 lần với exponential backoff
+($1s \to 2s \to 4s$). Nếu vẫn thất bại, job được đánh dấu \texttt{ERROR}; API
+Service hiển thị nút ``Retry'' để đưa lại job vào queue từ bước cuối cùng
+thành công.
+
+\paragraph{Giải pháp chi tiết Bài toán 2 \& 3 --- Hexagonal Architecture
+(Port/Adapter).}
+
+Áp dụng kiến trúc Port/Adapter để tách biệt nghiệp vụ khỏi hạ tầng kỹ thuật.
+Mỗi dependency bên ngoài (LLM, database, storage) được trừu tượng hóa thành
+một \textbf{Port} (interface). Khi cần thay thế provider, chỉ cần tạo Adapter
+mới mà không sửa bất kỳ use case nào.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.95\textwidth]{figures/arch_hexagonal.png}
+    \caption{Kiến trúc Hexagonal --- Port/Adapter cho AI Pipeline.}
+    \label{fig:arch-hexagonal}
+\end{figure}
+
+\begin{table}[H]
+    \centering
+    \caption{Danh sách Port và Adapter trong hệ thống.}
+    \label{tab:ports-adapters}
+    \begin{tabular}{p{3.5cm}p{5cm}p{6cm}}
+        \toprule
+        \textbf{Port (Interface)} & \textbf{Production Adapter} & \textbf{Test Adapter} \\
+        \midrule
+        \texttt{LLMPort}
+            & \texttt{OpenAIAdapter}, \texttt{GeminiAdapter}
+            & \texttt{MockLLMAdapter} (trả JSON cố định) \\
+        \texttt{ParserPort}
+            & \texttt{PDFParser}, \texttt{DocxParser}, \texttt{PptxParser}
+            & \texttt{MockParser} \\
+        \texttt{EmbeddingPort}
+            & \texttt{BGEm3Adapter} (local)
+            & \texttt{MockEmbeddingAdapter} (vector ngẫu nhiên) \\
+        \texttt{VectorDBPort}
+            & \texttt{QdrantAdapter}
+            & \texttt{InMemoryVectorDB} \\
+        \texttt{StoragePort}
+            & \texttt{MinIOAdapter}
+            & \texttt{LocalFSAdapter} \\
+        \texttt{STTPort}
+            & \texttt{WhisperAdapter}, \texttt{GoogleSTTAdapter}
+            & \texttt{MockSTTAdapter} \\
+        \texttt{VideoPort}
+            & \texttt{FFmpegAdapter}
+            & \texttt{MockVideoAdapter} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\paragraph{Giải pháp chi tiết Bài toán 4 --- RAG (Retrieval-Augmented
+Generation) cho Chatbot Tutor.}
+
+RAG là kỹ thuật kết hợp truy vấn thông tin (Retrieval) với sinh văn bản
+(Generation) để giảm hallucination. Chatbot chỉ trả lời dựa trên nội dung
+bài học đã được index trong Qdrant.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{figures/arch_rag_pipeline.png}
+    \caption{Kiến trúc RAG Pipeline cho Chatbot Tutor.}
+    \label{fig:arch-rag}
+\end{figure}
+
+Luồng xử lý RAG:
+\begin{enumerate}
+    \item Học viên gửi câu hỏi (ví dụ: ``Giải thích thuật toán Dijkstra'').
+    \item Câu hỏi được chuyển thành vector embedding (bge-m3).
+    \item Truy vấn Qdrant: tìm top-5 chunk có cosine similarity cao nhất,
+          \textbf{lọc theo \texttt{course\_id}} để chỉ tìm trong nội dung
+          khóa học đang học.
+    \item Xây dựng prompt: \textit{System prompt} (vai trò giảng viên, không
+          được bịa đặt) + \textit{Context} (5 chunk) + \textit{User question}.
+    \item Gọi LLM sinh câu trả lời; kèm trích dẫn chunk ID và heading.
+    \item Nếu không tìm được chunk liên quan (similarity $< 0.5$), trả lời:
+          ``Nội dung này chưa có trong bài học, vui lòng hỏi giảng viên.''
+\end{enumerate}
+
+\paragraph{Giải pháp chi tiết Bài toán 5 --- Tối ưu chi phí API.}
+
+Ba chiến lược tối ưu được áp dụng:
+
+\begin{enumerate}
+    \item \textbf{Semantic Caching:} Trước khi gọi LLM, kiểm tra xem câu hỏi
+          có tương đồng ($\geq 0.95$ cosine) với câu hỏi đã trả lời trước đó
+          không. Nếu có, trả về kết quả cache (Redis) thay vì gọi API mới.
+    \item \textbf{Prompt Compression:} Loại bỏ whitespace thừa, rút gọn context
+          chunk (chỉ lấy phần liên quan nhất thay vì toàn bộ chunk).
+    \item \textbf{Model Tiering:} Dùng mô hình nhỏ hơn (GPT-4o-mini) cho tác
+          vụ đơn giản (tóm tắt); chỉ dùng mô hình lớn (GPT-4o) cho tác vụ
+          phức tạp (sinh câu hỏi đánh giá bậc cao Bloom).
+\end{enumerate}
+
+\subsubsection{Thiết kế luồng dữ liệu (Data Flow)}
+
+\paragraph{Luồng dữ liệu: Text Processing Pipeline.}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{figures/dataflow_text.png}
+    \caption{Luồng dữ liệu Text Processing: từ Upload đến Card + Quiz.}
+    \label{fig:dataflow-gd1}
+\end{figure}
+
+\begin{enumerate}
+    \item \textbf{Upload:} Giảng viên upload file PDF/DOCX/PPTX $\to$ API
+          Service lưu file vào MinIO, tạo record \texttt{documents} với
+          trạng thái \texttt{QUEUED}.
+    \item \textbf{Enqueue:} API Service đẩy job vào Redis queue và trả ngay
+          \texttt{document\_id} cho frontend.
+    \item \textbf{Consume:} AI Pipeline worker nhận job từ queue, lấy file từ
+          MinIO $\to$ Parser trích xuất raw text + heading structure $\to$ lưu
+          parsed content tạm thời.
+    \item \textbf{Chunk:} Chunker chia parsed text thành các chunk theo heading;
+          section dài được sliding window $\to$ lưu vào bảng \texttt{chunks}.
+    \item \textbf{Embed:} Mỗi chunk được chuyển thành vector 768 chiều (bge-m3)
+          $\to$ upsert vào Qdrant collection \texttt{document\_chunks} với
+          payload metadata.
+    \item \textbf{Generate:} Từng batch chunk được gửi đến LLM (OpenAI API)
+          $\to$ sinh Summary (3--5 ý chính) + Quiz (5--10 câu MCQ) $\to$ lưu
+          vào bảng \texttt{cards} và \texttt{quiz\_questions}.
+    \item \textbf{Notify:} Cập nhật trạng thái \texttt{DONE} $\to$
+          \texttt{WatchStatus} stream thông báo giảng viên.
+\end{enumerate}
+
+\paragraph{Luồng dữ liệu: Video/Audio Processing Pipeline.}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{figures/dataflow_video.png}
+    \caption{Luồng dữ liệu: từ Video Upload đến Clip + Card + Quiz.}
+    \label{fig:dataflow-gd2-video}
+\end{figure}
+
+\begin{enumerate}
+    \item \textbf{Upload Video:} Giảng viên upload file MP4/MP3/WAV $\to$ lưu
+          vào MinIO bucket \texttt{media}.
+    \item \textbf{Transcribe:} Video Service gọi Whisper API $\to$ nhận
+          transcript có timestamp cho từng câu/đoạn.
+    \item \textbf{Segment:} Dựa trên transcript, AI phân tích và xác định các
+          ý chính kèm timestamp bắt đầu--kết thúc.
+    \item \textbf{Clip:} FFmpeg cắt video gốc thành các clip ngắn (1--5 phút)
+          theo timestamp $\to$ lưu clip vào MinIO.
+    \item \textbf{Process:} Transcript của mỗi clip được đưa qua Text Pipeline
+          (Chunk $\to$ Embed $\to$ Generate) như với tài liệu text.
+    \item \textbf{Output:} Mỗi section gồm: video clip + Card tóm tắt + Quiz.
+\end{enumerate}
+
+\paragraph{Luồng dữ liệu: RAG Chatbot.}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{figures/dataflow_rag.png}
+    \caption{Luồng dữ liệu RAG Chatbot.}
+    \label{fig:dataflow-gd2-rag}
+\end{figure}
+
+\begin{enumerate}
+    \item Học viên gửi câu hỏi qua Chat UI.
+    \item Chat Service kiểm tra \textbf{semantic cache} (Redis):
+    \begin{itemize}
+        \item Cache hit ($\geq 0.95$ similarity): trả về câu trả lời đã cache.
+        \item Cache miss: tiếp tục bước 3.
+    \end{itemize}
+    \item Embed câu hỏi $\to$ truy vấn Qdrant (filter \texttt{course\_id})
+          $\to$ lấy top-5 chunk.
+    \item Xây dựng RAG prompt $\to$ gọi LLM $\to$ sinh câu trả lời.
+    \item Lưu câu hỏi + câu trả lời vào \textbf{semantic cache} và
+          \textbf{chat history} (PostgreSQL).
+    \item Trả kết quả cho học viên kèm trích dẫn nguồn.
+\end{enumerate}
+
+% ================================================================
+\subsection{Thiết kế giao tiếp giữa các service (API Design)}
+% ================================================================
+
+\subsubsection{Tổng quan giao thức gRPC}
+
+Tất cả giao tiếp giữa các service sử dụng \textbf{gRPC} với Protocol Buffers.
+Client (React) giao tiếp qua \textbf{gRPC-Web} thông qua Envoy proxy.
+
+Lý do chọn gRPC thay vì REST:
+\begin{itemize}
+    \item \textbf{Strongly typed:} Schema định nghĩa trong \texttt{.proto},
+          tự động sinh code cho cả Python và TypeScript.
+    \item \textbf{Hiệu năng:} Binary encoding nhỏ hơn JSON $\sim$3--5x.
+    \item \textbf{Streaming:} Hỗ trợ server-side streaming cho cập nhật
+          pipeline status real-time.
+    \item \textbf{Code generation:} Giảm sai sót do manual serialization.
+\end{itemize}
+
+\subsubsection{Định nghĩa Service Protobuf}
+
+\paragraph{Auth Service.}
+
+\begin{table}[H]
+    \centering
+    \caption{Định nghĩa RPC cho Auth Service.}
+    \label{tab:rpc-auth}
+    \begin{tabular}{p{4cm}p{4cm}p{6.5cm}}
+        \toprule
+        \textbf{RPC Method} & \textbf{Request / Response} & \textbf{Mô tả} \\
+        \midrule
+        \texttt{Register}
+            & \texttt{RegisterReq} $\to$ \texttt{UserResp}
+            & Đăng ký tài khoản mới (email + password + role). \\
+        \texttt{Login}
+            & \texttt{LoginReq} $\to$ \texttt{TokenPair}
+            & Xác thực, trả access\_token + refresh\_token. \\
+        \texttt{RefreshToken}
+            & \texttt{RefreshReq} $\to$ \texttt{TokenPair}
+            & Gia hạn access\_token. \\
+        \texttt{Logout}
+            & \texttt{LogoutReq} $\to$ \texttt{Empty}
+            & Vô hiệu hóa refresh\_token. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\paragraph{Document Service.}
+
+\begin{table}[H]
+    \centering
+    \caption{Định nghĩa RPC cho Document Service.}
+    \label{tab:rpc-document}
+    \begin{tabular}{p{4cm}p{4.5cm}p{6cm}}
+        \toprule
+        \textbf{RPC Method} & \textbf{Request / Response} & \textbf{Mô tả} \\
+        \midrule
+        \texttt{UploadDocument}
+            & \texttt{UploadDocumentReq} $\to$ \texttt{DocumentResp}
+            & Upload tài liệu, tạo bản ghi \texttt{QUEUED} và enqueue job xử lý. \\
+        \texttt{GetDocument}
+            & \texttt{DocIdReq} $\to$ \texttt{DocumentResp}
+            & Lấy thông tin tài liệu. \\
+        \texttt{ListDocuments}
+            & \texttt{ListDocsReq} $\to$ \texttt{DocListResp}
+            & Danh sách tài liệu (phân trang). \\
+        \texttt{DeleteDocument}
+            & \texttt{DocIdReq} $\to$ \texttt{Empty}
+            & Xóa tài liệu + cascade. \\
+        \texttt{WatchStatus}
+            & \texttt{DocIdReq} $\to$ \texttt{stream StatusUpdate}
+            & Server streaming: pipeline status real-time. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\paragraph{Content Service.}
+
+\begin{table}[H]
+    \centering
+    \caption{Định nghĩa RPC cho Content Service.}
+    \label{tab:rpc-content}
+    \begin{tabular}{p{4cm}p{4.5cm}p{6cm}}
+        \toprule
+        \textbf{RPC Method} & \textbf{Request / Response} & \textbf{Mô tả} \\
+        \midrule
+        \texttt{GetCards}
+            & \texttt{DocIdReq} $\to$ \texttt{CardListResp}
+            & Lấy danh sách Card theo tài liệu. \\
+        \texttt{UpdateCard}
+            & \texttt{UpdateCardReq} $\to$ \texttt{CardResp}
+            & Giảng viên chỉnh sửa Card. \\
+        \texttt{GetQuizzes}
+            & \texttt{ChunkIdReq} $\to$ \texttt{QuizListResp}
+            & Lấy Quiz theo chunk. \\
+        \texttt{UpdateQuiz}
+            & \texttt{UpdateQuizReq} $\to$ \texttt{QuizResp}
+            & Chỉnh sửa câu hỏi Quiz. \\
+        \texttt{PublishCourse}
+            & \texttt{CourseIdReq} $\to$ \texttt{CourseResp}
+            & Publish khóa học. \\
+        \texttt{ReorderCards}
+            & \texttt{ReorderReq} $\to$ \texttt{Empty}
+            & Sắp xếp lại thứ tự Card. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\paragraph{Learning Service.}
+
+\begin{table}[H]
+    \centering
+    \caption{Định nghĩa RPC cho Learning Service.}
+    \label{tab:rpc-learning}
+    \begin{tabular}{p{4cm}p{4.5cm}p{6cm}}
+        \toprule
+        \textbf{RPC Method} & \textbf{Request / Response} & \textbf{Mô tả} \\
+        \midrule
+        \texttt{ListCourses}
+            & \texttt{ListCoursesReq} $\to$ \texttt{CourseListResp}
+            & Danh sách khóa học (published). \\
+        \texttt{GetLessonCards}
+            & \texttt{CourseIdReq} $\to$ \texttt{CardListResp}
+            & Lấy Card để học. \\
+        \texttt{SubmitQuizAnswer}
+            & \texttt{AnswerReq} $\to$ \texttt{AnswerResp}
+            & Nộp đáp án, nhận phản hồi. \\
+        \texttt{GetProgress}
+            & \texttt{ProgressReq} $\to$ \texttt{ProgressResp}
+            & Tiến độ học tập. \\
+        \texttt{SemanticSearch}
+            & \texttt{SearchReq} $\to$ \texttt{SearchResp}
+            & Tìm kiếm ngữ nghĩa (Qdrant). \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\paragraph{Chat Service.}
+
+\begin{table}[H]
+    \centering
+    \caption{Định nghĩa RPC cho Chat Service.}
+    \label{tab:rpc-chat}
+    \begin{tabular}{p{4cm}p{4.5cm}p{6cm}}
+        \toprule
+        \textbf{RPC Method} & \textbf{Request / Response} & \textbf{Mô tả} \\
+        \midrule
+        \texttt{AskQuestion}
+            & \texttt{ChatReq} $\to$ \texttt{stream ChatResp}
+            & Hỏi chatbot; streaming response. \\
+        \texttt{GetChatHistory}
+            & \texttt{SessionReq} $\to$ \texttt{ChatHistoryResp}
+            & Lịch sử hội thoại. \\
+        \texttt{RateAnswer}
+            & \texttt{RatingReq} $\to$ \texttt{Empty}
+            & Đánh giá chất lượng trả lời (thumbs up/down). \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+% ================================================================
+\subsection{Thiết kế cơ sở dữ liệu}
+% ================================================================
+
+\subsubsection{Lược đồ ERD tổng quan}
 
 \begin{figure}[H]
     \centering
     % \includegraphics[width=\textwidth]{figures/erd_full.png}
-    \caption{Lược đồ ERD tổng quan.}
+    \caption{Lược đồ ERD tổng quan. Bảng in nghiêng chỉ áp dụng khi input
+             là video/audio.}
     \label{fig:erd-full}
 \end{figure}
+
+\subsubsection{Các bảng nghiệp vụ cốt lõi}
 
 \begin{table}[H]
     \centering
@@ -95,10 +582,14 @@ thể. Use case chỉ phụ thuộc interface, không phụ thuộc implementati
         \texttt{owner\_id}   & UUID FK     & Tham chiếu \texttt{users.id}. \\
         \texttt{title}       & VARCHAR(255)& Tên tài liệu. \\
         \texttt{file\_key}   & TEXT        & Key object trong MinIO bucket. \\
-        \texttt{file\_type}  & ENUM        & \texttt{PDF} | \texttt{DOCX} | \texttt{PPTX}. \\
+        \texttt{file\_type}  & ENUM        & \texttt{PDF} | \texttt{DOCX} | \texttt{PPTX} |
+                                             \texttt{MP4} | \texttt{MP3}. \\
+        \texttt{media\_type} & ENUM        & \texttt{TEXT} | \texttt{VIDEO} | \texttt{AUDIO} --- phân loại input. \\
         \texttt{language}    & ENUM        & \texttt{vi} | \texttt{en}. \\
-        \texttt{status}      & ENUM        & \texttt{UPLOADED→PARSING→CHUNKING→GENERATING→DONE|ERROR}. \\
+        \texttt{status}      & ENUM        & State machine: \texttt{QUEUED} $\to$ \ldots\ $\to$ \texttt{DONE}. \\
+        \texttt{last\_success\_state} & ENUM NULL & Trạng thái cuối thành công (hỗ trợ retry). \\
         \texttt{error\_msg}  & TEXT NULL   & Thông báo lỗi (nếu có). \\
+        \texttt{total\_tokens\_used} & INT DEFAULT 0 & Tổng token đã dùng (tracking chi phí). \\
         \texttt{created\_at} & TIMESTAMPTZ & Thời điểm tạo. \\
         \bottomrule
     \end{tabular}
@@ -106,19 +597,33 @@ thể. Use case chỉ phụ thuộc interface, không phụ thuộc implementati
 
 \begin{table}[H]
     \centering
-    \caption{Mô tả bảng \texttt{chunks}, \texttt{cards}, \texttt{quiz\_questions}.}
-    \label{tab:tbl-chunks-cards}
+    \caption{Mô tả bảng \texttt{chunks}.}
+    \label{tab:tbl-chunks}
     \begin{tabular}{p{3.5cm}p{3cm}p{8cm}}
         \toprule
         \textbf{Cột} & \textbf{Kiểu} & \textbf{Mô tả} \\
         \midrule
-        \multicolumn{3}{l}{\textit{Bảng \texttt{chunks}}} \\
-        \texttt{id}           & UUID PK  & Khóa chính; đồng thời là ID trong Qdrant. \\
+        \texttt{id}           & UUID PK  & Khóa chính; đồng thời là point ID trong Qdrant. \\
         \texttt{document\_id} & UUID FK  & Tài liệu gốc. \\
-        \texttt{content}      & TEXT     & Text của chunk. \\
+        \texttt{content}      & TEXT     & Nội dung text của chunk. \\
         \texttt{heading}      & TEXT     & Tiêu đề section. \\
         \texttt{chunk\_index} & INT      & Thứ tự trong tài liệu. \\
         \texttt{token\_count} & INT      & Token ước tính (cl100k\_base tokenizer). \\
+        \texttt{page\_start}  & INT NULL & Trang bắt đầu trong tài liệu gốc. \\
+        \texttt{page\_end}    & INT NULL & Trang kết thúc. \\
+        \texttt{timestamp\_start} & FLOAT NULL & (chỉ với video) Giây bắt đầu. \\
+        \texttt{timestamp\_end}   & FLOAT NULL & (chỉ với video) Giây kết thúc. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{Mô tả bảng \texttt{cards} và \texttt{quiz\_questions}.}
+    \label{tab:tbl-cards-quiz}
+    \begin{tabular}{p{3.5cm}p{3cm}p{8cm}}
+        \toprule
+        \textbf{Cột} & \textbf{Kiểu} & \textbf{Mô tả} \\
         \midrule
         \multicolumn{3}{l}{\textit{Bảng \texttt{cards}}} \\
         \texttt{id}           & UUID PK   & Khóa chính. \\
@@ -135,6 +640,128 @@ thể. Use case chỉ phụ thuộc interface, không phụ thuộc implementati
         \texttt{answer}      & CHAR(1)   & Đáp án đúng. \\
         \texttt{explanation} & TEXT      & Giải thích. \\
         \texttt{difficulty}  & ENUM      & \texttt{EASY} | \texttt{MEDIUM} | \texttt{HARD}. \\
+        \texttt{bloom\_level}& ENUM NULL & Bloom's Taxonomy level. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{Mô tả bảng \texttt{courses}.}
+    \label{tab:tbl-courses}
+    \begin{tabular}{p{3.5cm}p{3cm}p{8cm}}
+        \toprule
+        \textbf{Cột} & \textbf{Kiểu} & \textbf{Mô tả} \\
+        \midrule
+        \texttt{id}           & UUID PK     & Khóa chính. \\
+        \texttt{document\_id} & UUID FK     & Tài liệu nguồn. \\
+        \texttt{instructor\_id}& UUID FK    & Giảng viên sở hữu. \\
+        \texttt{title}        & VARCHAR(255)& Tên khóa học. \\
+        \texttt{description}  & TEXT NULL   & Mô tả ngắn. \\
+        \texttt{is\_published}& BOOLEAN     & Đã publish cho học viên. \\
+        \texttt{published\_at}& TIMESTAMPTZ NULL & Thời điểm publish. \\
+        \texttt{created\_at}  & TIMESTAMPTZ & Thời điểm tạo. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Các bảng bổ sung cho Video và Chatbot}
+
+\begin{table}[H]
+    \centering
+    \caption{Mô tả bảng \texttt{media\_clips}.}
+    \label{tab:tbl-clips}
+    \begin{tabular}{p{3.5cm}p{3cm}p{8cm}}
+        \toprule
+        \textbf{Cột} & \textbf{Kiểu} & \textbf{Mô tả} \\
+        \midrule
+        \texttt{id}           & UUID PK     & Khóa chính. \\
+        \texttt{chunk\_id}    & UUID FK     & Chunk tương ứng (1 clip = 1 chunk). \\
+        \texttt{file\_key}    & TEXT        & Key trong MinIO bucket \texttt{media}. \\
+        \texttt{duration\_sec}& FLOAT       & Thời lượng clip (giây). \\
+        \texttt{format}       & ENUM        & \texttt{MP4} | \texttt{WEBM}. \\
+        \texttt{created\_at}  & TIMESTAMPTZ & Thời điểm tạo. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{Mô tả bảng \texttt{transcripts}.}
+    \label{tab:tbl-transcripts}
+    \begin{tabular}{p{3.5cm}p{3cm}p{8cm}}
+        \toprule
+        \textbf{Cột} & \textbf{Kiểu} & \textbf{Mô tả} \\
+        \midrule
+        \texttt{id}           & UUID PK     & Khóa chính. \\
+        \texttt{document\_id} & UUID FK     & Video/audio gốc. \\
+        \texttt{full\_text}   & TEXT        & Toàn bộ transcript. \\
+        \texttt{segments}     & JSONB       & \texttt{[\{"start": 0.0, "end": 5.2, "text": "..."\}, ...]}. \\
+        \texttt{language}     & ENUM        & Ngôn ngữ phát hiện được. \\
+        \texttt{model\_used}  & VARCHAR(50) & Whisper model (tiny/base/small/medium/large). \\
+        \texttt{created\_at}  & TIMESTAMPTZ & Thời điểm tạo. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{Mô tả bảng \texttt{chat\_sessions} và \texttt{chat\_messages}.}
+    \label{tab:tbl-chat}
+    \begin{tabular}{p{3.5cm}p{3cm}p{8cm}}
+        \toprule
+        \textbf{Cột} & \textbf{Kiểu} & \textbf{Mô tả} \\
+        \midrule
+        \multicolumn{3}{l}{\textit{Bảng \texttt{chat\_sessions}}} \\
+        \texttt{id}           & UUID PK     & Khóa chính. \\
+        \texttt{learner\_id}  & UUID FK     & Học viên. \\
+        \texttt{course\_id}   & UUID FK     & Khóa học đang hỏi. \\
+        \texttt{created\_at}  & TIMESTAMPTZ & Thời điểm bắt đầu. \\
+        \midrule
+        \multicolumn{3}{l}{\textit{Bảng \texttt{chat\_messages}}} \\
+        \texttt{id}           & UUID PK     & Khóa chính. \\
+        \texttt{session\_id}  & UUID FK     & Phiên hội thoại. \\
+        \texttt{role}         & ENUM        & \texttt{USER} | \texttt{ASSISTANT}. \\
+        \texttt{content}      & TEXT        & Nội dung tin nhắn. \\
+        \texttt{source\_chunks}& UUID[] NULL & Danh sách chunk\_id đã trích dẫn. \\
+        \texttt{tokens\_used} & INT         & Token tiêu thụ. \\
+        \texttt{rating}       & SMALLINT NULL & Đánh giá: 1 (thumbs down) hoặc 5 (thumbs up). \\
+        \texttt{created\_at}  & TIMESTAMPTZ & Thời điểm gửi. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{Mô tả bảng \texttt{learning\_progress}.}
+    \label{tab:tbl-progress}
+    \begin{tabular}{p{3.5cm}p{3cm}p{8cm}}
+        \toprule
+        \textbf{Cột} & \textbf{Kiểu} & \textbf{Mô tả} \\
+        \midrule
+        \texttt{id}           & UUID PK     & Khóa chính. \\
+        \texttt{learner\_id}  & UUID FK     & Học viên. \\
+        \texttt{course\_id}   & UUID FK     & Khóa học. \\
+        \texttt{card\_id}     & UUID FK     & Card đã xem. \\
+        \texttt{completed\_at}& TIMESTAMPTZ & Thời điểm hoàn thành. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{Mô tả bảng \texttt{quiz\_attempts}.}
+    \label{tab:tbl-attempts}
+    \begin{tabular}{p{3.5cm}p{3cm}p{8cm}}
+        \toprule
+        \textbf{Cột} & \textbf{Kiểu} & \textbf{Mô tả} \\
+        \midrule
+        \texttt{id}           & UUID PK     & Khóa chính. \\
+        \texttt{learner\_id}  & UUID FK     & Học viên. \\
+        \texttt{question\_id} & UUID FK     & Câu hỏi. \\
+        \texttt{selected}     & CHAR(1)     & Đáp án đã chọn. \\
+        \texttt{is\_correct}  & BOOLEAN     & Đúng hay sai. \\
+        \texttt{answered\_at} & TIMESTAMPTZ & Thời điểm trả lời. \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -150,13 +777,293 @@ Lược đồ được thiết kế đạt \textbf{Chuẩn thứ ba (3NF)}:
     \item \textbf{3NF:} Không có phụ thuộc bắc cầu (transitive dependency).
 \end{itemize}
 
-\textbf{Trade-off có chủ đích:} Cột \texttt{summary} (JSONB) và
-\texttt{options} (JSONB) vi phạm 1NF theo nghĩa chặt, nhưng được giữ nguyên
-vì: (1)~cấu trúc mảng cố định và không cần truy vấn từng phần tử riêng lẻ,
-(2)~tránh tạo bảng join không cần thiết, (3)~JSONB trong PostgreSQL hỗ trợ
-index và query hiệu quả.
+\textbf{Trade-off có chủ đích:}
 
+\begin{enumerate}
+    \item \textbf{JSONB cho \texttt{summary}, \texttt{options}, \texttt{segments}:}
+          Vi phạm 1NF theo nghĩa chặt, nhưng giữ nguyên vì: (a)~cấu trúc mảng
+          cố định, không cần truy vấn từng phần tử riêng lẻ; (b)~tránh tạo
+          bảng join không cần thiết; (c)~JSONB trong PostgreSQL hỗ trợ GIN
+          index và query hiệu quả.
+
+    \item \textbf{\texttt{UUID[]} cho \texttt{source\_chunks}:} Dùng mảng thay
+          vì bảng trung gian vì: (a)~chỉ cần hiển thị, không cần join ngược;
+          (b)~số lượng chunk trích dẫn luôn $\leq 10$.
+
+    \item \textbf{Tách \texttt{courses} khỏi \texttt{documents}:} Một document
+          có thể tạo nhiều version khóa học; cho phép instructor tạo lại
+          pipeline mà không mất khóa học cũ.
+\end{enumerate}
+
+\subsubsection{Chiến lược index}
+
+\begin{table}[H]
+    \centering
+    \caption{Danh sách index quan trọng.}
+    \label{tab:indexes}
+    \begin{tabular}{p{5cm}p{4cm}p{5.5cm}}
+        \toprule
+        \textbf{Index} & \textbf{Bảng.Cột} & \textbf{Lý do} \\
+        \midrule
+        \texttt{idx\_docs\_owner}
+            & \texttt{documents.owner\_id}
+            & Giảng viên list tài liệu của mình. \\
+        \texttt{idx\_chunks\_doc}
+            & \texttt{chunks.document\_id}
+            & Lấy tất cả chunk theo tài liệu. \\
+        \texttt{idx\_cards\_chunk}
+            & \texttt{cards.chunk\_id}
+            & Join Card với Chunk. \\
+        \texttt{idx\_quiz\_chunk}
+            & \texttt{quiz\_questions.chunk\_id}
+            & Lấy Quiz theo chunk. \\
+        \texttt{idx\_progress\_learner}
+            & \texttt{learning\_progress (learner\_id, course\_id)}
+            & Tính tiến độ học. \\
+        \texttt{idx\_attempts\_learner}
+            & \texttt{quiz\_attempts (learner\_id, question\_id)}
+            & Kiểm tra đã trả lời chưa. \\
+        \texttt{idx\_chat\_session}
+            & \texttt{chat\_messages.session\_id}
+            & Lấy lịch sử chat. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+% ================================================================
+\subsection{Thiết kế Sequence Diagram}
+% ================================================================
+
+\subsubsection{Sequence Diagram: Upload và xử lý tài liệu}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{figures/seq_upload_pipeline.png}
+    \caption{Sequence Diagram: Giảng viên upload tài liệu và pipeline xử lý.}
+    \label{fig:seq-upload}
+\end{figure}
+
+Mô tả luồng:
+\begin{enumerate}
+    \item Giảng viên chọn file và nhấn Upload trên giao diện.
+    \item React gửi file upload request đến API Service.
+    \item API Service lưu file vào MinIO, tạo record \texttt{documents}
+          (status = \texttt{QUEUED}).
+    \item API Service đẩy một job vào Redis queue để bắt đầu xử lý và trả về
+          \texttt{document\_id} cho client ngay lập tức.
+    \item Client mở kết nối server streaming (\texttt{WatchStatus}) để nhận
+          cập nhật trạng thái.
+    \item AI Pipeline worker nhận job từ queue và thực hiện tuần tự: Parse
+          $\to$ Chunk $\to$ Embed $\to$ Generate. Sau mỗi bước, worker cập
+          nhật \texttt{status} trong database và API Service stream trạng thái
+          mới về client.
+    \item Khi hoàn tất (\texttt{DONE}), client hiển thị nút ``Review''.
+\end{enumerate}
+
+\subsubsection{Sequence Diagram: Học viên làm Quiz}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.95\textwidth]{figures/seq_quiz.png}
+    \caption{Sequence Diagram: Học viên làm Quiz và nhận phản hồi.}
+    \label{fig:seq-quiz}
+\end{figure}
+
+Mô tả luồng:
+\begin{enumerate}
+    \item Học viên mở trang Quiz của một section.
+    \item Client gọi \texttt{GetQuizzes} $\to$ nhận danh sách câu hỏi
+          (đã shuffle ngẫu nhiên).
+    \item Học viên chọn đáp án $\to$ client gọi \texttt{SubmitQuizAnswer}.
+    \item API Service kiểm tra đáp án, tạo record \texttt{quiz\_attempts},
+          trả về \texttt{is\_correct} + \texttt{explanation}.
+    \item Client hiển thị phản hồi tức thì (highlight xanh/đỏ + giải thích).
+    \item Sau khi làm hết, client gọi \texttt{GetProgress} để cập nhật
+          tiến độ tổng thể.
+\end{enumerate}
+
+\subsubsection{Sequence Diagram: RAG Chatbot}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{figures/seq_rag_chat.png}
+    \caption{Sequence Diagram: Học viên hỏi Chatbot RAG.}
+    \label{fig:seq-rag}
+\end{figure}
+
+Mô tả luồng:
+\begin{enumerate}
+    \item Học viên nhập câu hỏi trong Chat UI.
+    \item Client gọi \texttt{AskQuestion} (server streaming).
+    \item Chat Service kiểm tra semantic cache (Redis):
+    \begin{itemize}
+        \item Cache hit: stream câu trả lời từ cache, kết thúc.
+        \item Cache miss: tiếp tục.
+    \end{itemize}
+    \item Chat Service embed câu hỏi (bge-m3) $\to$ truy vấn Qdrant
+          (filter \texttt{course\_id}, top-5).
+    \item Nếu max similarity $< 0.5$: trả lời ``Nội dung không có trong
+          bài học''.
+    \item Nếu có kết quả: xây dựng RAG prompt (system + context chunks +
+          chat history gần nhất + câu hỏi).
+    \item Gọi LLM API (streaming) $\to$ stream từng token về client.
+    \item Lưu message vào \texttt{chat\_messages}, cache vào Redis.
+\end{enumerate}
+
+\subsubsection{Sequence Diagram: Video Processing}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{figures/seq_video_pipeline.png}
+    \caption{Sequence Diagram: Xử lý Video.}
+    \label{fig:seq-video}
+\end{figure}
+
+Mô tả luồng:
+\begin{enumerate}
+    \item Giảng viên upload video $\to$ lưu MinIO, status = \texttt{QUEUED}.
+    \item API Service đẩy job video vào queue; AI Pipeline worker nhận job và
+          phát hiện \texttt{media\_type = VIDEO} $\to$ gọi Video Service.
+    \item Video Service tải video từ MinIO $\to$ trích xuất audio track.
+    \item Gọi Whisper API: audio $\to$ transcript (word-level timestamp).
+    \item Lưu transcript vào bảng \texttt{transcripts}.
+    \item AI Pipeline nhận transcript $\to$ gọi LLM để phân tích ý chính
+          và xác định timestamp ranh giới giữa các ý.
+    \item Video Service dùng FFmpeg cắt video gốc thành clip theo timestamp
+          $\to$ lưu clip vào MinIO, metadata vào \texttt{media\_clips}.
+    \item Transcript mỗi clip được đưa vào Text Pipeline (Chunk $\to$
+          Embed $\to$ Generate) như tài liệu text thông thường.
+\end{enumerate}
+
+% ================================================================
+\subsection{Thiết kế bảo mật}
+% ================================================================
+
+\subsubsection{Xác thực và phân quyền}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/auth_flow.png}
+    \caption{Luồng xác thực JWT.}
+    \label{fig:auth-flow}
+\end{figure}
+
+Hệ thống sử dụng \textbf{JWT (JSON Web Token)} với cơ chế dual-token:
+
+\begin{itemize}
+    \item \textbf{Access Token} (thời hạn 1 giờ): Chứa \texttt{user\_id},
+          \texttt{role}, \texttt{exp}. Gửi kèm mỗi request trong header
+          \texttt{Authorization: Bearer <token>}.
+    \item \textbf{Refresh Token} (thời hạn 7 ngày): Dùng để lấy access
+          token mới khi hết hạn. Lưu ở server (database) để có thể
+          revoke khi logout.
+\end{itemize}
+
+\textbf{Phân quyền (Authorization):} Áp dụng \textbf{Role-Based Access
+Control (RBAC)} với ba vai trò:
+
+\begin{table}[H]
+    \centering
+    \caption{Ma trận phân quyền theo vai trò.}
+    \label{tab:rbac}
+    \begin{tabular}{p{5cm}p{2.5cm}p{2.5cm}p{2.5cm}}
+        \toprule
+        \textbf{Hành động} & \textbf{Instructor} & \textbf{Learner} & \textbf{Admin} \\
+        \midrule
+        Upload tài liệu        & \checkmark &            & \checkmark \\
+        Review/Edit nội dung    & \checkmark &            &            \\
+        Publish khóa học        & \checkmark &            &            \\
+        Xem Card/Quiz           & \checkmark & \checkmark & \checkmark \\
+        Làm Quiz                &            & \checkmark &            \\
+        Tìm kiếm ngữ nghĩa     & \checkmark & \checkmark & \checkmark \\
+        Hỏi Chatbot             &            & \checkmark &            \\
+        Quản lý người dùng      &            &            & \checkmark \\
+        Xem thống kê chi phí    &            &            & \checkmark \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Bảo mật dữ liệu và API}
+
+\begin{itemize}
+    \item \textbf{HTTPS/TLS:} Bắt buộc cho mọi kết nối client--server.
+          TLS termination tại Envoy proxy.
+    \item \textbf{Mật khẩu:} Hash bằng \texttt{bcrypt} (cost factor = 12);
+          không bao giờ lưu plaintext.
+    \item \textbf{API Key bảo mật:} LLM API key (OpenAI, Google) lưu trong
+          biến môi trường, không hardcode.
+    \item \textbf{Rate Limiting:} 100 request/phút/IP tại Envoy proxy;
+          10 request/phút cho endpoint Upload (tránh spam pipeline).
+    \item \textbf{Input Validation:} Kiểm tra MIME type file upload; giới
+          hạn kích thước 50MB; sanitize mọi input text.
+    \item \textbf{CORS:} Chỉ cho phép origin cụ thể (domain frontend).
+    \item \textbf{SQL Injection Prevention:} Sử dụng parameterized queries
+          (SQLAlchemy ORM); không bao giờ string concatenation.
+\end{itemize}
+
+% ================================================================
+\subsection{Thiết kế triển khai (Deployment Architecture)}
+% ================================================================
+
+\subsubsection{Docker Compose topology}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{figures/deploy_docker.png}
+    \caption{Docker Compose topology --- tất cả service chạy trong container.}
+    \label{fig:deploy-docker}
+\end{figure}
+
+\begin{table}[H]
+    \centering
+    \caption{Danh sách Docker containers.}
+    \label{tab:docker-services}
+    \begin{tabular}{p{3cm}p{3cm}p{3cm}p{5.5cm}}
+        \toprule
+        \textbf{Container} & \textbf{Image} & \textbf{Port} & \textbf{Ghi chú} \\
+        \midrule
+        \texttt{frontend}     & node:20-alpine  & 3000 & React dev server (Vite). \\
+        \texttt{envoy}        & envoyproxy/envoy& 8080 & gRPC-Web $\to$ gRPC proxy. \\
+        \texttt{api}          & python:3.11-slim& 50051& API Service (gRPC). \\
+        \texttt{ai-pipeline}  & python:3.11-slim& 50052& AI Pipeline worker consume job queue. \\
+        \texttt{postgres}     & postgres:16     & 5432 & Database chính. \\
+        \texttt{qdrant}       & qdrant/qdrant   & 6333 & Vector database. \\
+        \texttt{minio}        & minio/minio     & 9000 & Object storage. \\
+        \texttt{redis}        & redis:7-alpine  & 6379 & Semantic cache cho chatbot và job queue cho pipeline. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Network và Volume}
+
+\begin{itemize}
+    \item \textbf{Network:} Tất cả container cùng Docker bridge network
+          \texttt{ml-network}. Service giao tiếp nội bộ qua container name
+          (DNS resolution); API và worker cùng truy cập Redis để enqueue/
+          consume job.
+    \item \textbf{Volumes:} Persistent volume cho PostgreSQL
+          (\texttt{./data/postgres}), Qdrant (\texttt{./data/qdrant}), MinIO
+          (\texttt{./data/minio}). Đảm bảo dữ liệu không mất khi restart.
+    \item \textbf{Environment:} Mọi secret (API key, DB password) qua
+          \texttt{.env} file, không commit vào git.
+\end{itemize}
+
+\subsubsection{Định hướng mở rộng sang Kubernetes}
+
+Kiến trúc Docker Compose hiện tại được thiết kế sẵn sàng chuyển sang
+Kubernetes khi cần scale:
+\begin{itemize}
+    \item Mỗi service là một container độc lập $\to$ dễ tạo Deployment/Pod.
+    \item gRPC giữa các service $\to$ Kubernetes Service discovery tương thích.
+    \item Stateful data (Postgres, Qdrant, MinIO) dùng
+          PersistentVolumeClaim.
+    \item AI Pipeline có thể scale horizontal (nhiều worker xử lý đồng
+          thời nhiều document).
+\end{itemize}
+
+% ================================================================
 \subsection{Thiết kế giao diện}
+% ================================================================
 
 \subsubsection{Bộ nhận diện thương hiệu}
 
@@ -193,7 +1100,7 @@ index và query hiệu quả.
     \item \texttt{/login}, \texttt{/register}
     \item \texttt{/dashboard} --- Tổng quan
     \item \texttt{/documents} --- Danh sách tài liệu
-    \item \texttt{/documents/upload} --- Upload mới
+    \item \texttt{/documents/upload} --- Upload mới (text, video, audio)
     \item \texttt{/documents/:id/status} --- Theo dõi tiến trình
     \item \texttt{/documents/:id/review} --- Review và chỉnh sửa
     \item \texttt{/courses/:id/publish} --- Publish khóa học
@@ -204,13 +1111,73 @@ index và query hiệu quả.
 \begin{itemize}
     \item \texttt{/courses} --- Danh sách khóa học
     \item \texttt{/courses/:id} --- Chi tiết khóa học
-    \item \texttt{/courses/:id/learn} --- Xem Card
+    \item \texttt{/courses/:id/learn} --- Xem Card (có thể kèm video clip)
     \item \texttt{/courses/:id/quiz} --- Làm Quiz
+    \item \texttt{/courses/:id/chat} --- Chatbot RAG
     \item \texttt{/profile} --- Lịch sử học tập
     \item \texttt{/search} --- Tìm kiếm ngữ nghĩa
 \end{itemize}
 
+\subsubsection{Wireframe các màn hình chính}
+
+\paragraph{Wireframe 1: Dashboard Giảng viên.}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/wf_dashboard.png}
+    \caption{Wireframe Dashboard Giảng viên --- hiển thị tổng quan tài liệu
+             và trạng thái pipeline.}
+    \label{fig:wf-dashboard}
+\end{figure}
+
+Layout gồm: (1)~Sidebar navigation; (2)~Thống kê tổng quan (số tài liệu,
+số khóa học published, số học viên); (3)~Bảng danh sách tài liệu với cột
+trạng thái hiển thị badge màu theo trạng thái job/pipeline.
+
+\paragraph{Wireframe 2: Màn hình Review nội dung AI.}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/wf_review.png}
+    \caption{Wireframe Review --- layout 2 cột: bên trái là text gốc,
+             bên phải là nội dung AI sinh.}
+    \label{fig:wf-review}
+\end{figure}
+
+Layout 2 cột: (1)~Cột trái hiển thị chunk text gốc (read-only, highlight
+heading); (2)~Cột phải hiển thị Summary Card (inline editable) và danh sách
+Quiz (editable). Có nút ``Mark as Reviewed'' cho từng section.
+
+\paragraph{Wireframe 3: Màn hình học Card.}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.85\textwidth]{figures/wf_card.png}
+    \caption{Wireframe Card view --- một Card hiển thị tại một thời điểm,
+             navigation bằng phím mũi tên.}
+    \label{fig:wf-card}
+\end{figure}
+
+Card view: hiển thị 1 card tại 1 thời điểm; progress bar phía trên; nút
+Previous/Next; badge section heading; nội dung tóm tắt dạng bullet points.
+Với khóa học từ video, card có thể kèm embedded video clip.
+
+\paragraph{Wireframe 4: Chatbot UI.}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.85\textwidth]{figures/wf_chatbot.png}
+    \caption{Wireframe Chatbot --- panel bên phải trong màn hình học.}
+    \label{fig:wf-chatbot}
+\end{figure}
+
+Chatbot hiển thị dạng slide-over panel bên phải màn hình học. Gồm: lịch sử
+tin nhắn (bubble style), input box phía dưới, mỗi câu trả lời có trích dẫn
+nguồn (clickable link đến Card tương ứng), nút thumbs up/down để đánh giá.
+
+% ================================================================
 \subsection{Thiết kế Use Case Diagram}
+% ================================================================
 
 \begin{figure}[H]
     \centering
@@ -227,6 +1194,9 @@ index và query hiệu quả.
     \label{fig:uc-auth}
 \end{figure}
 
+Gồm: Đăng ký, Đăng nhập, Đăng xuất, Refresh Token. Actor: tất cả
+người dùng chưa đăng nhập.
+
 \subsubsection{Nhóm use case Quản lý tài liệu và nội dung}
 \begin{figure}[H]
     \centering
@@ -234,6 +1204,10 @@ index và query hiệu quả.
     \caption{Use Case Diagram --- Quản lý tài liệu và nội dung AI.}
     \label{fig:uc-document}
 \end{figure}
+
+Gồm: Upload tài liệu (text, video, audio), Theo dõi pipeline, Review
+nội dung, Chỉnh sửa Card/Quiz, Publish/Unpublish khóa học. Actor:
+Instructor.
 
 \subsubsection{Nhóm use case Học tập}
 \begin{figure}[H]
@@ -243,7 +1217,23 @@ index và query hiệu quả.
     \label{fig:uc-learning}
 \end{figure}
 
+Gồm: Duyệt khóa học, Xem Card, Xem video clip (nếu có), Làm Quiz, Tìm
+kiếm ngữ nghĩa, Hỏi Chatbot, Xem tiến độ. Actor: Learner.
+
+\subsubsection{Nhóm use case Quản trị}
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.7\textwidth]{figures/uc_admin.png}
+    \caption{Use Case Diagram --- Quản trị hệ thống.}
+    \label{fig:uc-admin}
+\end{figure}
+
+Gồm: Quản lý người dùng (CRUD, khóa/mở tài khoản), Xem thống kê chi phí
+API, Xem log hệ thống. Actor: Admin.
+
+% ================================================================
 \subsection{Thiết kế Activity Diagram}
+% ================================================================
 
 \subsubsection{Quy trình upload và xử lý tài liệu}
 
@@ -254,14 +1244,34 @@ index và query hiệu quả.
     \label{fig:act-upload}
 \end{figure}
 
-\subsubsection{Quy trình AI Pipeline}
+Luồng chính: Chọn file $\to$ Validate (MIME, size) $\to$ Upload MinIO
+$\to$ Enqueue Job $\to$ [Fork] Frontend theo dõi status || Worker xử lý tuần
+tự $\to$ [Join khi DONE] $\to$ Hiển thị nút Review.
+
+Luồng ngoại lệ: File không hợp lệ $\to$ thông báo lỗi. Pipeline lỗi
+$\to$ hiển thị error + nút Retry.
+
+\subsubsection{Quy trình AI Pipeline (Job Queue + State Machine)}
 
 \begin{figure}[H]
     \centering
     % \includegraphics[width=\textwidth]{figures/act_pipeline.png}
-    \caption{Activity Diagram: AI Pipeline (Parse → Chunk → Embed → Generate).}
+    \caption{Activity Diagram: AI Pipeline chi tiết (Text và Video).}
     \label{fig:act-pipeline}
 \end{figure}
+
+Worker lấy job từ queue, sau đó decision node đầu tiên kiểm tra
+\texttt{media\_type}:
+\begin{itemize}
+    \item \texttt{TEXT} $\to$ Parse $\to$ Chunk $\to$ Embed $\to$ Generate
+          $\to$ Done.
+    \item \texttt{VIDEO/AUDIO} $\to$ Transcribe (Whisper) $\to$
+          Parse Transcript $\to$ Chunk $\to$ Embed $\to$ Generate $\to$
+          Clip Video (FFmpeg) $\to$ Done.
+\end{itemize}
+
+Mỗi bước có guard condition: thành công $\to$ tiếp tục; thất bại $\to$
+retry (max 3) $\to$ nếu vẫn thất bại $\to$ ERROR state.
 
 \subsubsection{Quy trình review và publish}
 
@@ -272,19 +1282,72 @@ index và query hiệu quả.
     \label{fig:act-review}
 \end{figure}
 
+Luồng: Mở trang Review $\to$ Xem từng section (chunk gốc + AI output)
+$\to$ [Decision] Cần sửa? $\to$ Sửa inline / Xóa / Thêm câu hỏi
+$\to$ Mark Reviewed $\to$ Kiểm tra $\geq 1$ section reviewed?
+$\to$ [Yes] Enable Publish button $\to$ Publish.
+
 \subsubsection{Quy trình học viên học bài và làm Quiz}
 
 \begin{figure}[H]
     \centering
     % \includegraphics[width=0.9\textwidth]{figures/act_learn.png}
-    \caption{Activity Diagram: Học viên xem Card và làm Quiz.}
+    \caption{Activity Diagram: Học viên xem Card, xem Video (nếu có) và làm Quiz.}
     \label{fig:act-learn}
 \end{figure}
 
-\subsection{Tổng kết Chương 4}
+Luồng: Chọn khóa học $\to$ Xem Card $\to$ [Card có video clip?
+$\to$ Xem video clip] $\to$ Next Card $\to$ [Hết Card] $\to$
+Làm Quiz $\to$ Chọn đáp án $\to$ Nhận phản hồi $\to$ [Hết câu]
+$\to$ Xem kết quả tổng $\to$ Cập nhật progress.
 
-Chương 4 đã trình bày toàn bộ bản thiết kế kỹ thuật của hệ thống: từ kiến
-trúc tổng quan và giải pháp cho ba bài toán thiết kế cốt lõi, đến thiết kế
-chi tiết cơ sở dữ liệu (ERD, 3NF, trade-off JSONB), bộ nhận diện thương hiệu,
-sơ đồ trang (Sitemap), use case diagram và activity diagram cho từng luồng
-nghiệp vụ. Những thiết kế này là bản vẽ cho Chương 5 --- Hiện thực.
+\subsubsection{Quy trình Chatbot RAG}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{figures/act_chatbot.png}
+    \caption{Activity Diagram: Học viên hỏi Chatbot RAG.}
+    \label{fig:act-chatbot}
+\end{figure}
+
+Luồng: Nhập câu hỏi $\to$ Check semantic cache $\to$ [Hit] Trả lời
+từ cache $\to$ End. [Miss] $\to$ Embed câu hỏi $\to$ Query Qdrant
+$\to$ [Có kết quả $\geq 0.5$?] $\to$ [Yes] Build RAG prompt $\to$
+Call LLM (streaming) $\to$ Hiển thị + Cache. [No] $\to$ Trả lời
+``Nội dung không có trong bài học''.
+
+% ================================================================
+\subsection{Tổng kết Chương 4}
+% ================================================================
+
+Chương 4 đã trình bày \textbf{toàn bộ bản thiết kế kỹ thuật} của hệ thống
+cho \textbf{toàn bộ hệ thống}, bao gồm:
+
+\begin{enumerate}
+    \item \textbf{Kiến trúc hệ thống:} Kiến trúc phân tầng 4 layer, chi tiết
+          từng service, giải pháp cho 5 bài toán thiết kế (job queue,
+          Hexagonal Architecture, RAG, semantic caching), luồng dữ liệu
+          chi tiết cho cả text pipeline và video/audio pipeline.
+
+    \item \textbf{Thiết kế API:} Định nghĩa gRPC service cho Auth, Document,
+          Content, Learning và Chat với request/response type cụ thể.
+
+    \item \textbf{Cơ sở dữ liệu:} 12 bảng đầy đủ, chuẩn hóa 3NF với
+          trade-off JSONB có chủ đích, chiến lược index.
+
+    \item \textbf{Sequence Diagram:} 4 luồng chính (Upload Pipeline, Quiz,
+          RAG Chatbot, Video Processing).
+
+    \item \textbf{Bảo mật:} JWT dual-token, RBAC 3 vai trò, HTTPS,
+          rate limiting, input validation.
+
+    \item \textbf{Triển khai:} Docker Compose 8 container, network và
+          volume, định hướng Kubernetes.
+
+    \item \textbf{Giao diện:} Branding, Sitemap, 4 wireframe chính.
+
+    \item \textbf{UML:} Use case diagram (4 nhóm), Activity diagram
+          (5 quy trình).
+\end{enumerate}
+
+Thiết kế này là nền tảng để hiện thực hệ thống trong Chương 5.

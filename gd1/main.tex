@@ -123,21 +123,20 @@
       \put(0,-8){\includegraphics[width=8mm,height=8mm]{figures/hcmut.png}}
     \end{picture} &
     \begin{tabular}{l}
-      \textbf{\ttfamily Trường Đại Học Bách Khoa TP.HCM}\\
-      \textbf{\ttfamily Khoa Khoa Học và Kỹ Thuật Máy Tính}
+      \textbf{Trường Đại Học Bách Khoa TP.HCM}\\
+      \textbf{Khoa Khoa Học và Kỹ Thuật Máy Tính}
     \end{tabular}
   \end{tabular}%
 }
 \fancyhead[R]{%
   \begin{tabular}{r}
-    \small\textbf{Đồ Án Chuyên Ngành}\\
-    \small\textbf{Báo cáo Giai đoạn 1}
+    \small\textbf{Đồ Án Chuyên Ngành}
   \end{tabular}%
 }
 
-\fancyfoot[L]{\scriptsize\ttfamily Hệ thống Micro-learning thông minh}
-\fancyfoot[C]{\scriptsize\ttfamily Giai đoạn 1: Pipeline xử lý văn bản \& Tạo Quiz}
-\fancyfoot[R]{\scriptsize\ttfamily Trang \thepage/\pageref{LastPage}}
+\fancyfoot[L]{\scriptsize Hệ thống LMS tự động tạo Micro-Content \& Quiz bằng Generative AI}
+\fancyfoot[C]{}
+\fancyfoot[R]{\scriptsize Trang \thepage/\pageref{LastPage}}
 
 \renewcommand{\headrulewidth}{0.4pt}
 \renewcommand{\footrulewidth}{0.4pt}
@@ -164,50 +163,49 @@
 
 % ------ TITLE PAGE -------------------------------------------
 \begin{titlepage}
+\thispagestyle{empty}
+  \centering
+
+  \vspace*{0.8cm}
+
   \begin{center}
-    \large ĐẠI HỌC QUỐC GIA THÀNH PHỐ HỒ CHÍ MINH \\[4pt]
-    \large TRƯỜNG ĐẠI HỌC BÁCH KHOA \\[4pt]
-    \large KHOA KHOA HỌC VÀ KỸ THUẬT MÁY TÍNH
+    {\large\bfseries ĐẠI HỌC QUỐC GIA THÀNH PHỐ HỒ CHÍ MINH \\[4pt]
+    TRƯỜNG ĐẠI HỌC BÁCH KHOA \\[4pt]
+    KHOA KHOA HỌC VÀ KỸ THUẬT MÁY TÍNH}
   \end{center}
 
   \vspace{0.5cm}
 
-  \begin{figure}[h!]
-    \centering
-    \includegraphics[width=4cm]{figures/hcmut.png}
-  \end{figure}
+  \includegraphics[width=4cm]{figures/hcmut.png}
 
-  \vspace{0.5cm}
+  \vspace{0.8cm}
 
   \begin{center}
-    \begin{tabular}{c}
-      \multicolumn{1}{c}{\textbf{\Large Đồ Án Chuyên Ngành}} \\[6pt]
-      \hline \\[4pt]
-      \textbf{\Large BÁO CÁO GIAI ĐOẠN 1} \\[8pt]
-      \multicolumn{1}{c}{\textbf{\LARGE HỆ THỐNG MICRO-LEARNING THÔNG MINH}} \\[4pt]
-      \multicolumn{1}{c}{\textbf{\Large Pipeline Xử Lý Văn Bản \& Tạo Quiz}} \\[8pt]
-      \textit{(Tuần 1 -- 15)} \\[4pt]
-      \hline
-    \end{tabular}
+    {\Large\bfseries Đồ Án Chuyên Ngành\par}
+    \vspace{0.3cm}
+    \rule{0.72\textwidth}{0.5pt}\par
+    \vspace{0.45cm}
+    {\LARGE\bfseries HỆ THỐNG LMS TỰ ĐỘNG TẠO MICRO-CONTENT \& QUIZ\par}
+    \vspace{0.2cm}
+    {\Large\bfseries BẰNG GENERATIVE AI\par}
+    \vspace{0.45cm}
+    {\large\itshape (Tuần 1 -- 15)\par}
+    \vspace{0.35cm}
+    \rule{0.72\textwidth}{0.5pt}
   \end{center}
 
-  \vspace{1.5cm}
+  \vspace{1.8cm}
 
-  \begin{table}[H]
-    \centering
+  \begin{minipage}{0.62\textwidth}
+    \raggedright
     \onehalfspacing
-    \begin{tabular}{lrlc}
-      \hspace{8cm} & GV hướng dẫn: & Tên Giảng Viên          &          \\[6pt]
-                   & SV thực hiện: 
-                   &               & Phùng Xương Cận         & 2210348  \\
-    \end{tabular}
-  \end{table}
+    \textbf{GV hướng dẫn:} Tên Giảng Viên \\[8pt]
+    \textbf{SV thực hiện:} Phùng Xương Cận - 2210348
+  \end{minipage}
 
   \vfill
 
-  \begin{center}
-    {\footnotesize THÀNH PHỐ HỒ CHÍ MINH, \the\year}
-  \end{center}
+  {\footnotesize THÀNH PHỐ HỒ CHÍ MINH, \the\year\par}
 \end{titlepage}
 
 % ------ TASK ASSIGNMENT TABLE --------------------------------
@@ -237,16 +235,6 @@
   } & \multicolumn{2}{l|}{} \\ \hline
 \end{longtable}
 \clearpage
-
-% ------ TABLE OF CONTENTS ------------------------------------
-\newpage
-\tableofcontents
-
-\newpage
-\listoffigures
-
-\newpage
-\listoftables
 
 % ------ FRONT MATTER ----------------------------------------
 \newpage

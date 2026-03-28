@@ -33,7 +33,7 @@
     \textbf{Tóm tắt} & Giảng viên tải lên file tài liệu để pipeline AI xử lý thành nội dung Micro-learning. \\ \hline
     \textbf{Kích hoạt} & Giảng viên chọn ``Upload tài liệu mới'' từ Dashboard. \\ \hline
     \textbf{Tiền điều kiện} & Giảng viên đã đăng nhập với role INSTRUCTOR; JWT còn hạn. \\ \hline
-    \textbf{Hậu điều kiện thành công} & File lưu trong MinIO; Document bản ghi tạo với status UPLOADED; AI Pipeline khởi động. \\ \hline
+    \textbf{Hậu điều kiện thành công} & File lưu trong MinIO; Document bản ghi tạo với status QUEUED; job AI Pipeline được enqueue. \\ \hline
     \textbf{Hậu điều kiện thất bại} & File không lưu; không có bản ghi nào được tạo; thông báo lỗi hiển thị. \\ \hline
     \textbf{Luồng chính} &
     \begin{flowenum}
@@ -42,9 +42,9 @@
         \item Giảng viên điền thông tin, kéo thả hoặc chọn file.
         \item Frontend kiểm tra phía client: định dạng (\texttt{.pdf}/\texttt{.docx}/\texttt{.pptx}) và kích thước ($\leq$50MB).
         \item Giảng viên nhấn ``Bắt đầu xử lý''.
-        \item Frontend gọi gRPC \texttt{UploadDocument}; stream file lên server.
+        \item Frontend gọi gRPC \texttt{UploadDocument} để gửi request upload.
         \item Backend lưu file vào MinIO; tạo bản ghi Document.
-        \item Backend phát sự kiện kích hoạt AI Pipeline bất đồng bộ.
+        \item Backend đưa job xử lý vào queue cho AI Pipeline worker.
         \item Frontend redirect sang màn hình theo dõi tiến trình.
     \end{flowenum} \\ \hline
     \textbf{Luồng thay thế} &
@@ -64,11 +64,11 @@
     \textbf{Use Case ID} & UC-02 \\ \hline
     \textbf{Tên} & Xử lý tài liệu tự động \\ \hline
     \textbf{Tác nhân} & AI Pipeline (system actor; kích hoạt sau UC-01) \\ \hline
-    \textbf{Tiền điều kiện} & File tài liệu tồn tại trong MinIO; Document.status = UPLOADED. \\ \hline
+    \textbf{Tiền điều kiện} & File tài liệu tồn tại trong MinIO; Document.status = QUEUED. \\ \hline
     \textbf{Hậu điều kiện thành công} & Đủ Card và Quiz cho mọi chunk; Document.status = DONE. \\ \hline
     \textbf{Luồng chính} &
     \begin{flowenum}
-        \item Pipeline nhận event upload; tải file từ MinIO.
+        \item AI Pipeline worker nhận job từ queue; tải file từ MinIO.
         \item Cập nhật status $\to$ PARSING; chọn parser theo file type.
         \item Parser trích xuất text và cấu trúc heading.
         \item Cập nhật status $\to$ CHUNKING; chia text thành chunks.
@@ -76,11 +76,11 @@
         \item Cập nhật status $\to$ GENERATING.
         \item Với mỗi batch (5 chunks): song song hóa embedding + LLM call.
         \item Lưu vector vào Qdrant; lưu Card và Quiz vào PostgreSQL.
-        \item Cập nhật status $\to$ DONE; gửi WebSocket event cho Giảng viên.
+        \item Cập nhật status $\to$ DONE; gửi cập nhật qua \texttt{WatchStatus} stream cho Giảng viên.
     \end{flowenum} \\ \hline
     \textbf{Luồng thay thế} &
     \begin{nobullets}
-        \item \textbf{3a.} File hỏng/không đọc được: status $\to$ PARSE\_ERROR; log lỗi chi tiết.
+        \item \textbf{3a.} File hỏng/không đọc được: status $\to$ ERROR; log lỗi chi tiết.
         \item \textbf{7a.} LLM API timeout: exponential backoff retry (1s, 2s, 4s); sau 3 lần $\to$ ERROR.
         \item \textbf{7b.} LLM trả về JSON không hợp lệ: retry với prompt điều chỉnh (tối đa 2 lần).
     \end{nobullets} \\ \hline

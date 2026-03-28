@@ -1,0 +1,34 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{k}{class}\PYG{+w}{ }\PYG{n+nc}{HeadingChunker}\PYG{p}{(}\PYG{n}{ChunkerPort}\PYG{p}{):}
+    \PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{chunk}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{p}{,} \PYG{n}{parsed\PYGZus{}doc}\PYG{p}{:} \PYG{n}{ParsedDocument}\PYG{p}{)} \PYG{o}{\PYGZhy{}\PYGZgt{}} \PYG{n+nb}{list}\PYG{p}{[}\PYG{n}{Chunk}\PYG{p}{]:}
+        \PYG{n}{chunks} \PYG{o}{=} \PYG{p}{[]}
+        \PYG{k}{for} \PYG{n}{section} \PYG{o+ow}{in} \PYG{n}{parsed\PYGZus{}doc}\PYG{o}{.}\PYG{n}{sections}\PYG{p}{:}
+            \PYG{n}{token\PYGZus{}count} \PYG{o}{=} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{\PYGZus{}count\PYGZus{}tokens}\PYG{p}{(}\PYG{n}{section}\PYG{o}{.}\PYG{n}{text}\PYG{p}{)}
+            \PYG{k}{if} \PYG{n}{token\PYGZus{}count} \PYG{o}{\PYGZlt{}=} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{max\PYGZus{}chunk\PYGZus{}size}\PYG{p}{:}
+                \PYG{n}{chunks}\PYG{o}{.}\PYG{n}{append}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{\PYGZus{}to\PYGZus{}chunk}\PYG{p}{(}\PYG{n}{section}\PYG{p}{))}
+            \PYG{k}{else}\PYG{p}{:}
+                \PYG{c+c1}{\PYGZsh{} Sliding window với overlap}
+                \PYG{n}{sub\PYGZus{}chunks} \PYG{o}{=} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{\PYGZus{}sliding\PYGZus{}window}\PYG{p}{(}
+                    \PYG{n}{section}\PYG{p}{,} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{max\PYGZus{}chunk\PYGZus{}size}\PYG{p}{,} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{overlap}
+                \PYG{p}{)}
+                \PYG{n}{chunks}\PYG{o}{.}\PYG{n}{extend}\PYG{p}{(}\PYG{n}{sub\PYGZus{}chunks}\PYG{p}{)}
+        \PYG{k}{return} \PYG{n}{chunks}
+
+    \PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{\PYGZus{}sliding\PYGZus{}window}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{p}{,} \PYG{n}{section}\PYG{p}{:} \PYG{n}{Section}\PYG{p}{,}
+                        \PYG{n}{size}\PYG{p}{:} \PYG{n+nb}{int}\PYG{p}{,} \PYG{n}{overlap}\PYG{p}{:} \PYG{n+nb}{int}\PYG{p}{)} \PYG{o}{\PYGZhy{}\PYGZgt{}} \PYG{n+nb}{list}\PYG{p}{[}\PYG{n}{Chunk}\PYG{p}{]:}
+        \PYG{n}{sentences} \PYG{o}{=} \PYG{n}{sent\PYGZus{}tokenize}\PYG{p}{(}\PYG{n}{section}\PYG{o}{.}\PYG{n}{text}\PYG{p}{)}
+        \PYG{n}{windows}\PYG{p}{,} \PYG{n}{current}\PYG{p}{,} \PYG{n}{current\PYGZus{}tokens} \PYG{o}{=} \PYG{p}{[],} \PYG{p}{[],} \PYG{l+m+mi}{0}
+        \PYG{k}{for} \PYG{n}{sent} \PYG{o+ow}{in} \PYG{n}{sentences}\PYG{p}{:}
+            \PYG{n}{t} \PYG{o}{=} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{\PYGZus{}count\PYGZus{}tokens}\PYG{p}{(}\PYG{n}{sent}\PYG{p}{)}
+            \PYG{k}{if} \PYG{n}{current\PYGZus{}tokens} \PYG{o}{+} \PYG{n}{t} \PYG{o}{\PYGZgt{}} \PYG{n}{size} \PYG{o+ow}{and} \PYG{n}{current}\PYG{p}{:}
+                \PYG{n}{windows}\PYG{o}{.}\PYG{n}{append}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{\PYGZus{}join}\PYG{p}{(}\PYG{n}{section}\PYG{p}{,} \PYG{n}{current}\PYG{p}{))}
+                \PYG{c+c1}{\PYGZsh{} Giữ lại phần overlap}
+                \PYG{n}{current} \PYG{o}{=} \PYG{n}{current}\PYG{p}{[}\PYG{o}{\PYGZhy{}}\PYG{p}{(}\PYG{n}{overlap} \PYG{o}{//} \PYG{l+m+mi}{20}\PYG{p}{):]}
+                \PYG{n}{current\PYGZus{}tokens} \PYG{o}{=} \PYG{n+nb}{sum}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{\PYGZus{}count\PYGZus{}tokens}\PYG{p}{(}\PYG{n}{s}\PYG{p}{)}
+                                     \PYG{k}{for} \PYG{n}{s} \PYG{o+ow}{in} \PYG{n}{current}\PYG{p}{)}
+            \PYG{n}{current}\PYG{o}{.}\PYG{n}{append}\PYG{p}{(}\PYG{n}{sent}\PYG{p}{)}
+            \PYG{n}{current\PYGZus{}tokens} \PYG{o}{+=} \PYG{n}{t}
+        \PYG{k}{if} \PYG{n}{current}\PYG{p}{:}
+            \PYG{n}{windows}\PYG{o}{.}\PYG{n}{append}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{\PYGZus{}join}\PYG{p}{(}\PYG{n}{section}\PYG{p}{,} \PYG{n}{current}\PYG{p}{))}
+        \PYG{k}{return} \PYG{n}{windows}
+\end{MintedVerbatim}

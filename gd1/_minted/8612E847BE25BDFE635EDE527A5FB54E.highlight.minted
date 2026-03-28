@@ -1,0 +1,34 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{k}{class}\PYG{+w}{ }\PYG{n+nc}{OpenAIAdapter}\PYG{p}{(}\PYG{n}{LLMPort}\PYG{p}{):}
+    \PYG{k}{def}\PYG{+w}{ }\PYG{n+nf+fm}{\PYGZus{}\PYGZus{}init\PYGZus{}\PYGZus{}}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{p}{,} \PYG{n}{api\PYGZus{}key}\PYG{p}{:} \PYG{n+nb}{str}\PYG{p}{,} \PYG{n}{model}\PYG{p}{:} \PYG{n+nb}{str} \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}gpt\PYGZhy{}4o\PYGZhy{}mini\PYGZdq{}}\PYG{p}{):}
+        \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{client} \PYG{o}{=} \PYG{n}{AsyncOpenAI}\PYG{p}{(}\PYG{n}{api\PYGZus{}key}\PYG{o}{=}\PYG{n}{api\PYGZus{}key}\PYG{p}{)}
+        \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{model} \PYG{o}{=} \PYG{n}{model}
+
+    \PYG{k}{async} \PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{generate\PYGZus{}summary}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{p}{,} \PYG{n}{text}\PYG{p}{:} \PYG{n+nb}{str}\PYG{p}{,}
+                                \PYG{n}{language}\PYG{p}{:} \PYG{n+nb}{str} \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}vi\PYGZdq{}}\PYG{p}{)} \PYG{o}{\PYGZhy{}\PYGZgt{}} \PYG{n+nb}{list}\PYG{p}{[}\PYG{n+nb}{str}\PYG{p}{]:}
+        \PYG{n}{prompt} \PYG{o}{=} \PYG{n}{SUMMARY\PYGZus{}PROMPT}\PYG{o}{.}\PYG{n}{format}\PYG{p}{(}
+            \PYG{n}{text}\PYG{o}{=}\PYG{n}{text}\PYG{p}{,} \PYG{n}{language}\PYG{o}{=}\PYG{n}{language}\PYG{p}{,} \PYG{n}{n\PYGZus{}points}\PYG{o}{=}\PYG{l+m+mi}{5}
+        \PYG{p}{)}
+        \PYG{n}{response} \PYG{o}{=} \PYG{k}{await} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{client}\PYG{o}{.}\PYG{n}{chat}\PYG{o}{.}\PYG{n}{completions}\PYG{o}{.}\PYG{n}{create}\PYG{p}{(}
+            \PYG{n}{model}\PYG{o}{=}\PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{model}\PYG{p}{,}
+            \PYG{n}{response\PYGZus{}format}\PYG{o}{=}\PYG{p}{\PYGZob{}}\PYG{l+s+s2}{\PYGZdq{}type\PYGZdq{}}\PYG{p}{:} \PYG{l+s+s2}{\PYGZdq{}json\PYGZus{}object\PYGZdq{}}\PYG{p}{\PYGZcb{},}
+            \PYG{n}{messages}\PYG{o}{=}\PYG{p}{[\PYGZob{}}\PYG{l+s+s2}{\PYGZdq{}role\PYGZdq{}}\PYG{p}{:} \PYG{l+s+s2}{\PYGZdq{}user\PYGZdq{}}\PYG{p}{,} \PYG{l+s+s2}{\PYGZdq{}content\PYGZdq{}}\PYG{p}{:} \PYG{n}{prompt}\PYG{p}{\PYGZcb{}],}
+            \PYG{n}{temperature}\PYG{o}{=}\PYG{l+m+mf}{0.3}\PYG{p}{,}
+        \PYG{p}{)}
+        \PYG{n}{data} \PYG{o}{=} \PYG{n}{json}\PYG{o}{.}\PYG{n}{loads}\PYG{p}{(}\PYG{n}{response}\PYG{o}{.}\PYG{n}{choices}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{message}\PYG{o}{.}\PYG{n}{content}\PYG{p}{)}
+        \PYG{k}{return} \PYG{n}{data}\PYG{p}{[}\PYG{l+s+s2}{\PYGZdq{}summary\PYGZus{}points\PYGZdq{}}\PYG{p}{]}
+
+    \PYG{k}{async} \PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{generate\PYGZus{}quiz}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{p}{,} \PYG{n}{text}\PYG{p}{:} \PYG{n+nb}{str}\PYG{p}{,}
+                             \PYG{n}{language}\PYG{p}{:} \PYG{n+nb}{str} \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}vi\PYGZdq{}}\PYG{p}{)} \PYG{o}{\PYGZhy{}\PYGZgt{}} \PYG{n+nb}{list}\PYG{p}{[}\PYG{n+nb}{dict}\PYG{p}{]:}
+        \PYG{n}{prompt} \PYG{o}{=} \PYG{n}{QUIZ\PYGZus{}PROMPT}\PYG{o}{.}\PYG{n}{format}\PYG{p}{(}
+            \PYG{n}{text}\PYG{o}{=}\PYG{n}{text}\PYG{p}{,} \PYG{n}{language}\PYG{o}{=}\PYG{n}{language}\PYG{p}{,} \PYG{n}{n\PYGZus{}questions}\PYG{o}{=}\PYG{l+m+mi}{5}
+        \PYG{p}{)}
+        \PYG{n}{response} \PYG{o}{=} \PYG{k}{await} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{client}\PYG{o}{.}\PYG{n}{chat}\PYG{o}{.}\PYG{n}{completions}\PYG{o}{.}\PYG{n}{create}\PYG{p}{(}
+            \PYG{n}{model}\PYG{o}{=}\PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{model}\PYG{p}{,}
+            \PYG{n}{response\PYGZus{}format}\PYG{o}{=}\PYG{p}{\PYGZob{}}\PYG{l+s+s2}{\PYGZdq{}type\PYGZdq{}}\PYG{p}{:} \PYG{l+s+s2}{\PYGZdq{}json\PYGZus{}object\PYGZdq{}}\PYG{p}{\PYGZcb{},}
+            \PYG{n}{messages}\PYG{o}{=}\PYG{p}{[\PYGZob{}}\PYG{l+s+s2}{\PYGZdq{}role\PYGZdq{}}\PYG{p}{:} \PYG{l+s+s2}{\PYGZdq{}user\PYGZdq{}}\PYG{p}{,} \PYG{l+s+s2}{\PYGZdq{}content\PYGZdq{}}\PYG{p}{:} \PYG{n}{prompt}\PYG{p}{\PYGZcb{}],}
+            \PYG{n}{temperature}\PYG{o}{=}\PYG{l+m+mf}{0.5}\PYG{p}{,}
+        \PYG{p}{)}
+        \PYG{n}{data} \PYG{o}{=} \PYG{n}{json}\PYG{o}{.}\PYG{n}{loads}\PYG{p}{(}\PYG{n}{response}\PYG{o}{.}\PYG{n}{choices}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]}\PYG{o}{.}\PYG{n}{message}\PYG{o}{.}\PYG{n}{content}\PYG{p}{)}
+        \PYG{k}{return} \PYG{n}{data}\PYG{p}{[}\PYG{l+s+s2}{\PYGZdq{}questions\PYGZdq{}}\PYG{p}{]}
+\end{MintedVerbatim}

@@ -1,0 +1,15 @@
+\begin{thebibliography}{1}
+
+\bibitem{evans2004ddd}
+Eric Evans.
+\newblock {\em Domain-Driven Design: Tackling Complexity in the Heart of
+  Software}.
+\newblock Addison-Wesley, 2004.
+
+\bibitem{vaswani2017attention}
+Ashish Vaswani, Noam Shazeer, et~al.
+\newblock Attention is all you need.
+\newblock In {\em Advances in Neural Information Processing Systems},
+  volume~30, 2017.
+
+\end{thebibliography}

@@ -1,0 +1,149 @@
+\babel@toc {english}{}\relax 
+\contentsline {section}{Danh mục bảng biểu}{11}{Item.5}%
+\contentsline {section}{Danh mục hình ảnh}{13}{Item.5}%
+\contentsline {section}{Danh mục từ viết tắt}{14}{Item.5}%
+\contentsline {section}{\numberline {1}Tổng quan}{16}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Mô tả đề tài}{16}{subsection.1.1}%
+\contentsline {subsubsection}{\numberline {1.1.1}Khảo sát sơ bộ}{16}{subsubsection.1.1.1}%
+\contentsline {subsubsection}{\numberline {1.1.2}Mục tiêu đề tài}{16}{subsubsection.1.1.2}%
+\contentsline {subsubsection}{\numberline {1.1.3}Định hướng sản phẩm}{17}{subsubsection.1.1.3}%
+\contentsline {subsubsection}{\numberline {1.1.4}Tiêu chí sản phẩm}{17}{subsubsection.1.1.4}%
+\contentsline {subsubsection}{\numberline {1.1.5}Mô hình dự kiến}{17}{subsubsection.1.1.5}%
+\contentsline {subsection}{\numberline {1.2}Phân công nhiệm vụ}{18}{subsection.1.2}%
+\contentsline {subsubsection}{\numberline {1.2.1}Phân công Giai đoạn 1}{18}{subsubsection.1.2.1}%
+\contentsline {subsection}{\numberline {1.3}Cấu trúc báo cáo}{18}{subsection.1.3}%
+\contentsline {subsection}{\numberline {1.4}Tổng kết Chương 1}{19}{subsection.1.4}%
+\contentsline {section}{\numberline {2}Khảo sát và phân tích đề tài}{20}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Khảo sát thực trạng}{20}{subsection.2.1}%
+\contentsline {subsubsection}{\numberline {2.1.1}Khảo sát quy trình giảng viên}{20}{subsubsection.2.1.1}%
+\contentsline {subsubsection}{\numberline {2.1.2}Khảo sát học viên}{20}{subsubsection.2.1.2}%
+\contentsline {subsection}{\numberline {2.2}Khảo sát giải pháp tương tự}{20}{subsection.2.2}%
+\contentsline {subsubsection}{\numberline {2.2.1}Coursera --- AI-generated Summaries}{20}{subsubsection.2.2.1}%
+\contentsline {subsubsection}{\numberline {2.2.2}Khan Academy --- Khanmigo (AI Tutor)}{20}{subsubsection.2.2.2}%
+\contentsline {subsubsection}{\numberline {2.2.3}Quizlet AI --- Smart Notes}{20}{subsubsection.2.2.3}%
+\contentsline {subsubsection}{\numberline {2.2.4}So sánh và đánh giá các giải pháp}{21}{subsubsection.2.2.4}%
+\contentsline {subsection}{\numberline {2.3}User Stories}{21}{subsection.2.3}%
+\contentsline {subsubsection}{\numberline {2.3.1}Giảng viên}{21}{subsubsection.2.3.1}%
+\contentsline {subsubsection}{\numberline {2.3.2}Học viên}{22}{subsubsection.2.3.2}%
+\contentsline {subsubsection}{\numberline {2.3.3}Quản trị viên}{22}{subsubsection.2.3.3}%
+\contentsline {subsection}{\numberline {2.4}Yêu cầu nghiệp vụ}{23}{subsection.2.4}%
+\contentsline {subsubsection}{\numberline {2.4.1}BR-01: Xác thực và phân quyền người dùng}{23}{subsubsection.2.4.1}%
+\contentsline {subsubsection}{\numberline {2.4.2}BR-02: Quản lý tài liệu và nội dung học tập}{23}{subsubsection.2.4.2}%
+\contentsline {subsubsection}{\numberline {2.4.3}BR-03: Xử lý và sinh nội dung AI}{23}{subsubsection.2.4.3}%
+\contentsline {subsubsection}{\numberline {2.4.4}BR-04: Trải nghiệm học tập và đánh giá}{23}{subsubsection.2.4.4}%
+\contentsline {subsection}{\numberline {2.5}Yêu cầu tính năng}{23}{subsection.2.5}%
+\contentsline {subsubsection}{\numberline {2.5.1}FR-01: Đăng nhập / Đăng xuất / Đăng ký tài khoản}{24}{subsubsection.2.5.1}%
+\contentsline {subsubsection}{\numberline {2.5.2}FR-02: Quản lý tài liệu}{24}{subsubsection.2.5.2}%
+\contentsline {subsubsection}{\numberline {2.5.3}FR-03: Xử lý tài liệu tự động (AI Pipeline)}{24}{subsubsection.2.5.3}%
+\contentsline {subsubsection}{\numberline {2.5.4}FR-04: Review và publish khóa học}{24}{subsubsection.2.5.4}%
+\contentsline {subsubsection}{\numberline {2.5.5}FR-05: Trải nghiệm học tập}{25}{subsubsection.2.5.5}%
+\contentsline {subsection}{\numberline {2.6}Yêu cầu phi tính năng}{25}{subsection.2.6}%
+\contentsline {subsection}{\numberline {2.7}Tổng kết Chương 2}{25}{subsection.2.7}%
+\contentsline {section}{\numberline {3}Cơ sở lý thuyết}{26}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Lý thuyết công nghệ sử dụng}{26}{subsection.3.1}%
+\contentsline {subsubsection}{\numberline {3.1.1}Mô hình Ngôn ngữ Lớn (Large Language Model)}{26}{subsubsection.3.1.1}%
+\contentsline {subsubsection}{\numberline {3.1.2}Prompt Engineering}{26}{subsubsection.3.1.2}%
+\contentsline {subsubsection}{\numberline {3.1.3}Text Chunking}{27}{subsubsection.3.1.3}%
+\contentsline {subsubsection}{\numberline {3.1.4}Vector Embedding}{27}{subsubsection.3.1.4}%
+\contentsline {subsubsection}{\numberline {3.1.5}Domain-Driven Design (DDD)}{27}{subsubsection.3.1.5}%
+\contentsline {subsection}{\numberline {3.2}Cân nhắc lựa chọn công nghệ}{28}{subsection.3.2}%
+\contentsline {subsubsection}{\numberline {3.2.1}Lựa chọn LLM API: GPT-4o-mini vs Gemini Flash}{28}{subsubsection.3.2.1}%
+\contentsline {subsubsection}{\numberline {3.2.2}Lựa chọn chiến lược Chunking}{28}{subsubsection.3.2.2}%
+\contentsline {subsubsection}{\numberline {3.2.3}Lựa chọn Vector Database: Qdrant vs Weaviate vs Pinecone}{29}{subsubsection.3.2.3}%
+\contentsline {subsubsection}{\numberline {3.2.4}Lựa chọn Embedding Model: bge-m3 vs text-embedding-3-small}{29}{subsubsection.3.2.4}%
+\contentsline {subsection}{\numberline {3.3}Tổng kết Chương 3}{29}{subsection.3.3}%
+\contentsline {section}{\numberline {4}Thiết kế hệ thống}{30}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Thiết kế kiến trúc hệ thống}{30}{subsection.4.1}%
+\contentsline {subsubsection}{\numberline {4.1.1}Tổng quan kiến trúc}{30}{subsubsection.4.1.1}%
+\contentsline {subsubsection}{\numberline {4.1.2}Kiến trúc phân tầng (Layered Architecture)}{30}{subsubsection.4.1.2}%
+\contentsline {subsubsection}{\numberline {4.1.3}Chi tiết các service}{31}{subsubsection.4.1.3}%
+\contentsline {subsubsection}{\numberline {4.1.4}Bài toán thiết kế và giải pháp}{32}{subsubsection.4.1.4}%
+\contentsline {paragraph}{\numberline {4.1.4.1}Giải pháp chi tiết Bài toán 1 --- Job Queue kết hợp State Machine.}{32}{paragraph.4.1.4.1}%
+\contentsline {paragraph}{\numberline {4.1.4.2}Giải pháp chi tiết Bài toán 2 \& 3 --- Hexagonal Architecture (Port/Adapter).}{33}{paragraph.4.1.4.2}%
+\contentsline {paragraph}{\numberline {4.1.4.3}Giải pháp chi tiết Bài toán 4 --- RAG (Retrieval-Augmented Generation) cho Chatbot Tutor.}{34}{paragraph.4.1.4.3}%
+\contentsline {paragraph}{\numberline {4.1.4.4}Giải pháp chi tiết Bài toán 5 --- Tối ưu chi phí API.}{34}{paragraph.4.1.4.4}%
+\contentsline {subsubsection}{\numberline {4.1.5}Thiết kế luồng dữ liệu (Data Flow)}{35}{subsubsection.4.1.5}%
+\contentsline {paragraph}{\numberline {4.1.5.1}Luồng dữ liệu: Text Processing Pipeline.}{35}{paragraph.4.1.5.1}%
+\contentsline {paragraph}{\numberline {4.1.5.2}Luồng dữ liệu: Video/Audio Processing Pipeline.}{35}{paragraph.4.1.5.2}%
+\contentsline {paragraph}{\numberline {4.1.5.3}Luồng dữ liệu: RAG Chatbot.}{36}{paragraph.4.1.5.3}%
+\contentsline {subsection}{\numberline {4.2}Thiết kế giao tiếp giữa các service (API Design)}{36}{subsection.4.2}%
+\contentsline {subsubsection}{\numberline {4.2.1}Tổng quan giao thức gRPC}{36}{subsubsection.4.2.1}%
+\contentsline {subsubsection}{\numberline {4.2.2}Định nghĩa Service Protobuf}{37}{subsubsection.4.2.2}%
+\contentsline {paragraph}{\numberline {4.2.2.1}Auth Service.}{37}{paragraph.4.2.2.1}%
+\contentsline {paragraph}{\numberline {4.2.2.2}Document Service.}{37}{paragraph.4.2.2.2}%
+\contentsline {paragraph}{\numberline {4.2.2.3}Content Service.}{38}{paragraph.4.2.2.3}%
+\contentsline {paragraph}{\numberline {4.2.2.4}Learning Service.}{38}{paragraph.4.2.2.4}%
+\contentsline {paragraph}{\numberline {4.2.2.5}Chat Service.}{38}{paragraph.4.2.2.5}%
+\contentsline {subsection}{\numberline {4.3}Thiết kế cơ sở dữ liệu}{39}{subsection.4.3}%
+\contentsline {subsubsection}{\numberline {4.3.1}Lược đồ ERD tổng quan (hai giai đoạn)}{39}{subsubsection.4.3.1}%
+\contentsline {subsubsection}{\numberline {4.3.2}Các bảng nghiệp vụ cốt lõi}{39}{subsubsection.4.3.2}%
+\contentsline {subsubsection}{\numberline {4.3.3}Các bảng bổ sung cho Video và Chatbot}{41}{subsubsection.4.3.3}%
+\contentsline {subsubsection}{\numberline {4.3.4}Mức độ chuẩn hóa và trade-off}{42}{subsubsection.4.3.4}%
+\contentsline {subsubsection}{\numberline {4.3.5}Chiến lược index}{43}{subsubsection.4.3.5}%
+\contentsline {subsection}{\numberline {4.4}Thiết kế Sequence Diagram}{43}{subsection.4.4}%
+\contentsline {subsubsection}{\numberline {4.4.1}Sequence Diagram: Upload và xử lý tài liệu}{43}{subsubsection.4.4.1}%
+\contentsline {subsubsection}{\numberline {4.4.2}Sequence Diagram: Học viên làm Quiz}{44}{subsubsection.4.4.2}%
+\contentsline {subsubsection}{\numberline {4.4.3}Sequence Diagram: RAG Chatbot}{44}{subsubsection.4.4.3}%
+\contentsline {subsubsection}{\numberline {4.4.4}Sequence Diagram: Video Processing}{45}{subsubsection.4.4.4}%
+\contentsline {subsection}{\numberline {4.5}Thiết kế bảo mật}{46}{subsection.4.5}%
+\contentsline {subsubsection}{\numberline {4.5.1}Xác thực và phân quyền}{46}{subsubsection.4.5.1}%
+\contentsline {subsubsection}{\numberline {4.5.2}Bảo mật dữ liệu và API}{46}{subsubsection.4.5.2}%
+\contentsline {subsection}{\numberline {4.6}Thiết kế triển khai (Deployment Architecture)}{47}{subsection.4.6}%
+\contentsline {subsubsection}{\numberline {4.6.1}Docker Compose topology}{47}{subsubsection.4.6.1}%
+\contentsline {subsubsection}{\numberline {4.6.2}Network và Volume}{47}{subsubsection.4.6.2}%
+\contentsline {subsubsection}{\numberline {4.6.3}Định hướng mở rộng sang Kubernetes (sau GĐ2)}{47}{subsubsection.4.6.3}%
+\contentsline {subsection}{\numberline {4.7}Thiết kế giao diện}{48}{subsection.4.7}%
+\contentsline {subsubsection}{\numberline {4.7.1}Bộ nhận diện thương hiệu}{48}{subsubsection.4.7.1}%
+\contentsline {subsubsection}{\numberline {4.7.2}Sơ đồ trang (Sitemap)}{48}{subsubsection.4.7.2}%
+\contentsline {subsubsection}{\numberline {4.7.3}Wireframe các màn hình chính}{49}{subsubsection.4.7.3}%
+\contentsline {paragraph}{\numberline {4.7.3.1}Wireframe 1: Dashboard Giảng viên.}{49}{paragraph.4.7.3.1}%
+\contentsline {paragraph}{\numberline {4.7.3.2}Wireframe 2: Màn hình Review nội dung AI.}{49}{paragraph.4.7.3.2}%
+\contentsline {paragraph}{\numberline {4.7.3.3}Wireframe 3: Màn hình học Card.}{49}{paragraph.4.7.3.3}%
+\contentsline {paragraph}{\numberline {4.7.3.4}Wireframe 4: Chatbot UI.}{50}{paragraph.4.7.3.4}%
+\contentsline {subsection}{\numberline {4.8}Thiết kế Use Case Diagram}{50}{subsection.4.8}%
+\contentsline {subsubsection}{\numberline {4.8.1}Nhóm use case Xác thực}{50}{subsubsection.4.8.1}%
+\contentsline {subsubsection}{\numberline {4.8.2}Nhóm use case Quản lý tài liệu và nội dung}{50}{subsubsection.4.8.2}%
+\contentsline {subsubsection}{\numberline {4.8.3}Nhóm use case Học tập}{50}{subsubsection.4.8.3}%
+\contentsline {subsubsection}{\numberline {4.8.4}Nhóm use case Quản trị}{51}{subsubsection.4.8.4}%
+\contentsline {subsection}{\numberline {4.9}Thiết kế Activity Diagram}{51}{subsection.4.9}%
+\contentsline {subsubsection}{\numberline {4.9.1}Quy trình upload và xử lý tài liệu}{51}{subsubsection.4.9.1}%
+\contentsline {subsubsection}{\numberline {4.9.2}Quy trình AI Pipeline (Job Queue + State Machine)}{51}{subsubsection.4.9.2}%
+\contentsline {subsubsection}{\numberline {4.9.3}Quy trình review và publish}{51}{subsubsection.4.9.3}%
+\contentsline {subsubsection}{\numberline {4.9.4}Quy trình học viên học bài và làm Quiz}{52}{subsubsection.4.9.4}%
+\contentsline {subsubsection}{\numberline {4.9.5}Quy trình Chatbot RAG}{52}{subsubsection.4.9.5}%
+\contentsline {subsection}{\numberline {4.10}Tổng kết Chương 4}{52}{subsection.4.10}%
+\contentsline {section}{\numberline {5}Hiện thực hệ thống}{54}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Nền tảng sử dụng}{54}{subsection.5.1}%
+\contentsline {subsubsection}{\numberline {5.1.1}Python 3.11 và gRPC}{54}{subsubsection.5.1.1}%
+\contentsline {subsubsection}{\numberline {5.1.2}MinIO Object Storage}{54}{subsubsection.5.1.2}%
+\contentsline {subsubsection}{\numberline {5.1.3}Qdrant Vector Database}{54}{subsubsection.5.1.3}%
+\contentsline {subsubsection}{\numberline {5.1.4}Redis Cache và Job Queue}{54}{subsubsection.5.1.4}%
+\contentsline {subsubsection}{\numberline {5.1.5}React + TypeScript --- Frontend}{54}{subsubsection.5.1.5}%
+\contentsline {subsubsection}{\numberline {5.1.6}Docker và Docker Compose}{54}{subsubsection.5.1.6}%
+\contentsline {subsection}{\numberline {5.2}Hiện thực AI Pipeline}{55}{subsection.5.2}%
+\contentsline {subsubsection}{\numberline {5.2.1}Module Document Parsing}{55}{subsubsection.5.2.1}%
+\contentsline {subsubsection}{\numberline {5.2.2}Module Text Chunking}{55}{subsubsection.5.2.2}%
+\contentsline {subsubsection}{\numberline {5.2.3}Module sinh nội dung AI}{55}{subsubsection.5.2.3}%
+\contentsline {subsubsection}{\numberline {5.2.4}Use Case ProcessDocument}{55}{subsubsection.5.2.4}%
+\contentsline {subsection}{\numberline {5.3}Hiện thực Web Application}{56}{subsection.5.3}%
+\contentsline {subsubsection}{\numberline {5.3.1}Giao diện Giảng viên}{56}{subsubsection.5.3.1}%
+\contentsline {subsubsection}{\numberline {5.3.2}Giao diện Học viên}{56}{subsubsection.5.3.2}%
+\contentsline {subsection}{\numberline {5.4}Tổng kết Chương 5}{56}{subsection.5.4}%
+\contentsline {section}{\numberline {6}Kiểm thử hệ thống}{57}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Kế hoạch kiểm thử}{57}{subsection.6.1}%
+\contentsline {subsubsection}{\numberline {6.1.1}Mục tiêu}{57}{subsubsection.6.1.1}%
+\contentsline {subsubsection}{\numberline {6.1.2}Phương pháp}{57}{subsubsection.6.1.2}%
+\contentsline {subsubsection}{\numberline {6.1.3}Phạm vi}{57}{subsubsection.6.1.3}%
+\contentsline {subsection}{\numberline {6.2}Kiểm thử tính năng (Functional Testing)}{58}{subsection.6.2}%
+\contentsline {subsubsection}{\numberline {6.2.1}Cấu hình môi trường kiểm thử}{58}{subsubsection.6.2.1}%
+\contentsline {subsubsection}{\numberline {6.2.2}Kiểm thử Hộp đen (Black-box Testing)}{58}{subsubsection.6.2.2}%
+\contentsline {subsection}{\numberline {6.3}Kiểm thử phi tính năng}{60}{subsection.6.3}%
+\contentsline {subsubsection}{\numberline {6.3.1}Cấu hình môi trường kiểm thử}{60}{subsubsection.6.3.1}%
+\contentsline {subsubsection}{\numberline {6.3.2}Kiểm thử hiệu năng (Benchmark \& Load Test)}{60}{subsubsection.6.3.2}%
+\contentsline {subsubsection}{\numberline {6.3.3}Kiểm thử chất lượng nội dung AI}{61}{subsubsection.6.3.3}%
+\contentsline {subsection}{\numberline {6.4}Tổng kết Chương 6}{61}{subsection.6.4}%
+\contentsline {section}{\numberline {7}Kết luận}{62}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Kết quả đạt được}{62}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Điểm cần cải thiện}{62}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Định hướng phát triển}{63}{subsection.7.3}%
+\contentsline {section}{Phụ lục}{65}{Item.89}%

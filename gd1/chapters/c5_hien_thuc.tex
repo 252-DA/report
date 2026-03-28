@@ -26,173 +26,65 @@ Qdrant chạy trong Docker container, persistent volume tại
 chiều, metric cosine, payload gồm \texttt{document\_id}, \texttt{chunk\_id},
 \texttt{heading}, \texttt{language}.
 
+\subsubsection{Redis Cache và Job Queue}
+
+Redis được sử dụng cho hai mục đích. Thứ nhất, Redis lưu semantic cache cho
+Chatbot để giảm số lần gọi LLM với các câu hỏi tương tự. Thứ hai, Redis đóng
+vai trò hàng đợi nhẹ cho AI Pipeline: API Service enqueue job sau khi upload
+tài liệu, còn AI Pipeline worker consume job và cập nhật trạng thái xử lý sau
+mỗi bước.
+
 \subsubsection{React + TypeScript --- Frontend}
 
 Frontend được xây dựng bằng \textbf{React 18 + TypeScript + Vite}. Thư viện
 UI: \textbf{Tailwind CSS} + \textbf{shadcn/ui} (headless components). Giao
-tiếp với Backend qua \textbf{gRPC-Web} (\texttt{@grpc/grpc-js} + Envoy proxy).
+tiếp với Backend qua \textbf{gRPC-Web client} thông qua Envoy proxy.
 
 \subsubsection{Docker và Docker Compose}
 
-\begin{lstlisting}[language=bash, caption={Cấu trúc \texttt{docker-compose.yml} (rút gọn)}]
-services:
-  ai-pipeline:    # Python gRPC server
-  frontend:       # React dev server
-  qdrant:         # Vector database
-  minio:          # Object storage
-  postgres:       # Relational database
-  envoy:          # gRPC-Web proxy
-
-networks:
-  internal:       # Service-to-service communication
-\end{lstlisting}
+Hệ thống được đóng gói bằng Docker Compose với các service chính gồm API,
+AI Pipeline worker, Frontend, Qdrant, MinIO, Postgres, Redis và Envoy proxy.
+Cách tổ chức này giúp triển khai đồng nhất giữa môi trường phát triển và môi
+trường demo, đồng thời đơn giản hóa việc cấu hình mạng nội bộ giữa các
+service.
 
 \subsection{Hiện thực AI Pipeline}
 
 \subsubsection{Module Document Parsing}
 
-Ba parser được triển khai, mỗi cái implement \texttt{ParserPort}:
-
-\begin{lstlisting}[language=Python, caption={Interface ParserPort}]
-from abc import ABC, abstractmethod
-from src.domain.entities.document import Document, ParsedDocument
-
-class ParserPort(ABC):
-    @abstractmethod
-    def parse(self, document: Document,
-              file_bytes: bytes) -> ParsedDocument:
-        """Trích xuất text và cấu trúc heading từ file."""
-        ...
-\end{lstlisting}
-
-\begin{lstlisting}[language=Python, caption={PDFParser sử dụng pdfplumber}]
-class PDFParser(ParserPort):
-    def parse(self, document: Document,
-              file_bytes: bytes) -> ParsedDocument:
-        sections = []
-        with pdfplumber.open(BytesIO(file_bytes)) as pdf:
-            for page in pdf.pages:
-                text = page.extract_text() or ""
-                # Phát hiện heading theo font size/bold
-                headings = self._detect_headings(page)
-                sections.extend(
-                    self._build_sections(text, headings, page.page_number)
-                )
-        return ParsedDocument(document_id=document.id,
-                              sections=sections)
-\end{lstlisting}
+Ba parser được triển khai thông qua cùng một interface trừu tượng để bảo đảm
+tính nhất quán trong luồng xử lý đầu vào. Mỗi parser nhận file gốc và trả về
+một cấu trúc tài liệu đã chuẩn hóa, bao gồm văn bản, heading và thông tin phân
+đoạn. Với PDF, hệ thống sử dụng \texttt{pdfplumber} để trích xuất nội dung và
+heuristic dựa trên font size hoặc định dạng chữ nhằm phát hiện heading.
 
 \subsubsection{Module Text Chunking}
 
-\begin{lstlisting}[language=Python, caption={HeadingChunker --- xử lý section dài}]
-class HeadingChunker(ChunkerPort):
-    def chunk(self, parsed_doc: ParsedDocument) -> list[Chunk]:
-        chunks = []
-        for section in parsed_doc.sections:
-            token_count = self._count_tokens(section.text)
-            if token_count <= self.max_chunk_size:
-                chunks.append(self._to_chunk(section))
-            else:
-                # Sliding window với overlap
-                sub_chunks = self._sliding_window(
-                    section, self.max_chunk_size, self.overlap
-                )
-                chunks.extend(sub_chunks)
-        return chunks
-
-    def _sliding_window(self, section: Section,
-                        size: int, overlap: int) -> list[Chunk]:
-        sentences = sent_tokenize(section.text)
-        windows, current, current_tokens = [], [], 0
-        for sent in sentences:
-            t = self._count_tokens(sent)
-            if current_tokens + t > size and current:
-                windows.append(self._join(section, current))
-                # Giữ lại phần overlap
-                current = current[-(overlap // 20):]
-                current_tokens = sum(self._count_tokens(s)
-                                     for s in current)
-            current.append(sent)
-            current_tokens += t
-        if current:
-            windows.append(self._join(section, current))
-        return windows
-\end{lstlisting}
+Sau khi parsing, tài liệu được chia thành các chunk theo cấu trúc heading.
+Những section ngắn được giữ nguyên, còn section dài được cắt bằng cơ chế
+sliding window có overlap để tránh mất ngữ cảnh ở ranh giới giữa các đoạn.
+Cách làm này giúp cân bằng giữa độ đầy đủ ngữ nghĩa và giới hạn token đầu vào
+của mô hình sinh nội dung.
 
 \subsubsection{Module sinh nội dung AI}
 
-\begin{lstlisting}[language=Python, caption={OpenAIAdapter --- sinh Summary và Quiz}]
-class OpenAIAdapter(LLMPort):
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
-        self.client = AsyncOpenAI(api_key=api_key)
-        self.model = model
-
-    async def generate_summary(self, text: str,
-                                language: str = "vi") -> list[str]:
-        prompt = SUMMARY_PROMPT.format(
-            text=text, language=language, n_points=5
-        )
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            response_format={"type": "json_object"},
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-        )
-        data = json.loads(response.choices[0].message.content)
-        return data["summary_points"]
-
-    async def generate_quiz(self, text: str,
-                             language: str = "vi") -> list[dict]:
-        prompt = QUIZ_PROMPT.format(
-            text=text, language=language, n_questions=5
-        )
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            response_format={"type": "json_object"},
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.5,
-        )
-        data = json.loads(response.choices[0].message.content)
-        return data["questions"]
-\end{lstlisting}
+Tầng sinh nội dung AI được hiện thực thông qua adapter kết nối tới LLM. Từ
+mỗi chunk đầu vào, hệ thống sinh ra hai loại đầu ra chính: tập ý tóm tắt ngắn
+gọn và bộ câu hỏi quiz trắc nghiệm. Các prompt được chuẩn hóa theo định dạng
+JSON để giảm sai khác cấu trúc đầu ra và đơn giản hóa bước kiểm tra dữ liệu ở
+backend.
 
 \subsubsection{Use Case ProcessDocument}
 
-\begin{lstlisting}[language=Python, caption={ProcessDocumentUseCase --- điều phối pipeline}]
-class ProcessDocumentUseCase:
-    async def execute(self, command: ProcessDocumentCommand):
-        doc = await self.doc_repo.get(command.document_id)
-        # 1. Parse
-        await self._update_status(doc.id, DocumentStatus.PARSING)
-        file_bytes = await self.storage.download(doc.file_key)
-        parser = self.parser_factory.get(doc.file_type)
-        parsed_doc = parser.parse(doc, file_bytes)
-        # 2. Chunk
-        await self._update_status(doc.id, DocumentStatus.CHUNKING)
-        chunks = self.chunker.chunk(parsed_doc)
-        await self.chunk_repo.save_all(chunks)
-        # 3. Embed + Generate (chạy theo batch để tránh rate limit)
-        await self._update_status(doc.id, DocumentStatus.GENERATING)
-        for batch in batched(chunks, size=5):
-            await asyncio.gather(*[
-                self._process_chunk(chunk) for chunk in batch
-            ])
-        await self._update_status(doc.id, DocumentStatus.DONE)
-
-    async def _process_chunk(self, chunk: Chunk):
-        # Embedding
-        vector = await self.embedder.embed(chunk.content)
-        await self.vector_db.upsert(str(chunk.id), vector,
-                                    chunk.metadata)
-        # Summary + Quiz song song
-        summary, quiz = await asyncio.gather(
-            self.llm.generate_summary(chunk.content),
-            self.llm.generate_quiz(chunk.content),
-        )
-        await self.card_repo.save(Card(chunk_id=chunk.id,
-                                       summary=summary,
-                                       quiz_questions=quiz))
-\end{lstlisting}
+Use case trung tâm của hệ thống điều phối toàn bộ pipeline xử lý tài liệu. Sau
+khi người dùng tải file lên, API Service lưu file vào MinIO, tạo bản ghi với
+trạng thái \texttt{QUEUED} và đẩy một job vào Redis queue. AI Pipeline worker
+sau đó consume job, lần lượt thực hiện các bước parse, chunking, sinh
+embedding, sinh nội dung AI và lưu kết quả vào cơ sở dữ liệu. Trạng thái xử
+lý của tài liệu được cập nhật sau từng giai đoạn để frontend có thể hiển thị
+tiến trình theo thời gian thực. Ở bước sinh nội dung, các chunk được xử lý
+theo batch nhằm giảm nguy cơ vượt rate limit và tận dụng khả năng xử lý song
+song.
 
 \subsection{Hiện thực Web Application}
 
