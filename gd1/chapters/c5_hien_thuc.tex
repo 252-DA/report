@@ -26,6 +26,15 @@ Qdrant chạy trong Docker container, persistent volume tại
 chiều, metric cosine, payload gồm \texttt{document\_id}, \texttt{chunk\_id},
 \texttt{heading}, \texttt{language}.
 
+\subsubsection{Neo4j Graph Database}
+
+Neo4j chạy trong Docker container (image \texttt{neo4j:5-community}), lưu
+Knowledge Graph Chuẩn đầu ra học phần. Schema gồm các node label
+\texttt{Course}, \texttt{Chapter}, \texttt{LearningOutcome},
+\texttt{Assessment}, \texttt{Chunk} và các relationship \texttt{HAS\_CHAPTER},
+\texttt{HAS\_LO}, \texttt{LINKED\_TO}, \texttt{SUPPORTS}. Dữ liệu được đồng
+bộ từ PostgreSQL thông qua Outbox Worker theo pattern event-driven.
+
 \subsubsection{Redis Cache và Job Queue}
 
 Redis được sử dụng cho hai mục đích. Thứ nhất, Redis lưu semantic cache cho
@@ -68,11 +77,13 @@ của mô hình sinh nội dung.
 
 \subsubsection{Module sinh nội dung AI}
 
-Tầng sinh nội dung AI được hiện thực thông qua adapter kết nối tới LLM. Từ
-mỗi chunk đầu vào, hệ thống sinh ra hai loại đầu ra chính: tập ý tóm tắt ngắn
-gọn và bộ câu hỏi quiz trắc nghiệm. Các prompt được chuẩn hóa theo định dạng
-JSON để giảm sai khác cấu trúc đầu ra và đơn giản hóa bước kiểm tra dữ liệu ở
-backend.
+Tầng sinh nội dung AI được hiện thực thông qua \texttt{GeminiAdapter} kết nối
+tới Gemini 2.0 Flash API. Từ mỗi chunk đầu vào, hệ thống sinh ra hai loại đầu
+ra chính: tập ý tóm tắt ngắn gọn (lesson cards) và bộ câu hỏi quiz trắc nghiệm.
+Các prompt được chuẩn hóa theo định dạng JSON (validate bằng Pydantic v2) để
+giảm sai khác cấu trúc đầu ra và đơn giản hóa bước kiểm tra dữ liệu ở backend.
+Hệ thống có cơ chế parse-repair hai bước: nếu JSON không hợp lệ, tự động gọi
+lại LLM với gợi ý sửa lỗi trước khi báo lỗi.
 
 \subsubsection{Use Case ProcessDocument}
 
@@ -85,6 +96,41 @@ lý của tài liệu được cập nhật sau từng giai đoạn để fronte
 tiến trình theo thời gian thực. Ở bước sinh nội dung, các chunk được xử lý
 theo batch nhằm giảm nguy cơ vượt rate limit và tận dụng khả năng xử lý song
 song.
+
+\subsection{Hiện thực Curriculum-Aware Layer}
+
+\subsubsection{DCMH Extractor}
+
+\texttt{DcmhExtractor} là parser cấu trúc sử dụng regex được kiểm chứng trên
+định dạng CDIO của ĐHBK TP.HCM. Module trích xuất:
+\begin{itemize}
+    \item \textbf{Header:} mã môn, tên Tiếng Việt/Anh, số tín chỉ, học kỳ.
+    \item \textbf{Learning Outcomes:} bắt theo pattern \texttt{L.O.N.x} kèm
+          phiên bản tiếng Việt và tiếng Anh; suy luận Bloom level từ từ điển
+          động từ (ví dụ: ``phân tích'' $\to$ \textit{analyze}).
+    \item \textbf{Assessment:} bắt \texttt{A.O.N}, suy luận loại (midterm/final).
+    \item \textbf{LO$\leftrightarrow$Assessment links:} từ bảng section 5.3.
+\end{itemize}
+
+Độ tin cậy (confidence) được tính trung bình theo section; từ chối trích xuất
+nếu dưới ngưỡng 0.5 --- trả về \texttt{Err(ProcessingError)}.
+
+\subsubsection{Heuristic LO Mapper}
+
+\texttt{HeuristicLoMapper} ánh xạ chunk nội dung với LO dựa trên hai tín hiệu:
+(1)~số chương trong heading (\texttt{Chương N} $\to$ LO có prefix \texttt{L.O.N}),
+(2)~fuzzy word match giữa text heading và statement của LO (boosted confidence 0.9
+nếu $\geq 2$ từ có nghĩa trùng). Kết quả là danh sách \texttt{ChunkLOMapping}
+với confidence score, được persist vào PostgreSQL và Neo4j (cạnh \texttt{SUPPORTS}).
+
+\subsubsection{GenerateCurriculumQuizUseCase}
+
+Use case sinh Quiz gắn LO nhận \texttt{target\_kind} (lo/chapter/assessment)
+và \texttt{target\_code}, giải quyết thành danh sách LO id, lấy chunk liên quan
+từ Neo4j (cạnh SUPPORTS), xây dựng prompt với context chunk và thông tin LO
+(code, statement, Bloom level), gọi Gemini sinh câu hỏi có trường
+\texttt{lo\_alignment\_rationale}. Kết quả lưu vào bảng \texttt{quiz\_items}
+với \texttt{lo\_id} và \texttt{bloom\_level}.
 
 \subsection{Hiện thực Web Application}
 
@@ -145,6 +191,8 @@ song.
 
 Chương 5 đã trình bày chi tiết việc hiện thực hệ thống: lý giải lựa chọn
 từng nền tảng công nghệ, mã nguồn cốt lõi của AI Pipeline (Parser, Chunker,
-LLM Adapter, Use Case) và giao diện Web Application cho cả hai nhóm người dùng.
-Toàn bộ mã nguồn được tổ chức theo kiến trúc DDD, đảm bảo tính modular và
-dễ kiểm thử --- cơ sở để tiến hành kiểm thử toàn diện trong Chương 6.
+Gemini Adapter, Use Case), Curriculum-Aware Layer (DCMH Extractor, Heuristic LO
+Mapper, GenerateCurriculumQuiz) và giao diện Web Application cho cả hai nhóm
+người dùng. Toàn bộ mã nguồn được tổ chức theo kiến trúc Hexagonal/DDD, đảm
+bảo tính modular và dễ kiểm thử --- cơ sở để tiến hành kiểm thử toàn diện
+trong Chương 6.

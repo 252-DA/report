@@ -25,9 +25,9 @@ Hệ thống gồm bốn nhóm thành phần lớn:
     \item \textbf{Service Layer:} Bốn service nghiệp vụ độc lập (API Service,
           AI Pipeline Service, Video Service, Chat Service), giao tiếp nội
           bộ qua gRPC cho tác vụ đồng bộ và qua job queue cho tác vụ nền.
-    \item \textbf{Infrastructure Layer:} PostgreSQL, Qdrant, MinIO, Redis ---
-          lưu trữ dữ liệu quan hệ, vector, file, cache và hàng đợi nhẹ cho
-          pipeline.
+    \item \textbf{Infrastructure Layer:} PostgreSQL, Qdrant, MinIO, Redis,
+          Neo4j --- lưu trữ dữ liệu quan hệ, vector, file, semantic cache,
+          hàng đợi pipeline và Knowledge Graph Chuẩn đầu ra học phần.
 \end{itemize}
 
 \subsubsection{Kiến trúc phân tầng (Layered Architecture)}
@@ -67,9 +67,9 @@ nhiệm rõ ràng và chỉ giao tiếp với tầng liền kề:
               giao tiếp nội bộ qua gRPC và job queue tùy loại tác vụ. \\
         \midrule
         \textbf{Infrastructure Layer}
-            & PostgreSQL, Qdrant, MinIO, Redis
-            & Lưu trữ dữ liệu quan hệ, vector, file, semantic cache và
-              job queue cho AI Pipeline. \\
+            & PostgreSQL, Qdrant, MinIO, Redis, Neo4j
+            & Lưu trữ dữ liệu quan hệ, vector, file, semantic cache,
+              job queue cho AI Pipeline và Knowledge Graph LO. \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -228,27 +228,30 @@ mới mà không sửa bất kỳ use case nào.
         \toprule
         \textbf{Port (Interface)} & \textbf{Production Adapter} & \textbf{Test Adapter} \\
         \midrule
-        \texttt{LLMPort}
-            & \texttt{OpenAIAdapter}, \texttt{GeminiAdapter}
-            & \texttt{MockLLMAdapter} (trả JSON cố định) \\
-        \texttt{ParserPort}
-            & \texttt{PDFParser}, \texttt{DocxParser}, \texttt{PptxParser}
+        \texttt{ILLMClient}
+            & \texttt{GeminiAdapter}
+            & \texttt{MockLLMClient} (trả JSON cố định) \\
+        \texttt{IDocumentParser}
+            & \texttt{PdfParser}, \texttt{DocxParser}, \texttt{PptxParser}
             & \texttt{MockParser} \\
-        \texttt{EmbeddingPort}
-            & \texttt{BGEm3Adapter} (local)
+        \texttt{IEmbeddingModel}
+            & \texttt{BGEm3Adapter} (local, 1024-dim)
             & \texttt{MockEmbeddingAdapter} (vector ngẫu nhiên) \\
-        \texttt{VectorDBPort}
-            & \texttt{QdrantAdapter}
-            & \texttt{InMemoryVectorDB} \\
-        \texttt{StoragePort}
+        \texttt{IVectorStore}
+            & \texttt{QdrantVectorStore}
+            & \texttt{InMemoryVectorStore} \\
+        \texttt{IMetadataStore}
+            & \texttt{PostgresMetadataStore}
+            & \texttt{MockMetadataStore} \\
+        \texttt{IGraphStore}
+            & \texttt{Neo4jGraphStore}
+            & \texttt{MockGraphStore} \\
+        \texttt{IObjectStorage}
             & \texttt{MinIOAdapter}
             & \texttt{LocalFSAdapter} \\
-        \texttt{STTPort}
-            & \texttt{WhisperAdapter}, \texttt{GoogleSTTAdapter}
-            & \texttt{MockSTTAdapter} \\
-        \texttt{VideoPort}
-            & \texttt{FFmpegAdapter}
-            & \texttt{MockVideoAdapter} \\
+        \texttt{ICurriculumExtractor}
+            & \texttt{DcmhExtractor} (regex CDIO)
+            & --- (structural, không cần mock) \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -1018,18 +1021,19 @@ Control (RBAC)} với ba vai trò:
     \centering
     \caption{Danh sách Docker containers.}
     \label{tab:docker-services}
-    \begin{tabular}{p{3cm}p{3cm}p{3cm}p{5.5cm}}
+    \begin{tabular}{p{3.5cm}p{3cm}p{2.5cm}p{5.5cm}}
         \toprule
         \textbf{Container} & \textbf{Image} & \textbf{Port} & \textbf{Ghi chú} \\
         \midrule
-        \texttt{frontend}     & node:20-alpine  & 3000 & React dev server (Vite). \\
-        \texttt{envoy}        & envoyproxy/envoy& 8080 & gRPC-Web $\to$ gRPC proxy. \\
-        \texttt{api}          & python:3.11-slim& 50051& API Service (gRPC). \\
-        \texttt{ai-pipeline}  & python:3.11-slim& 50052& AI Pipeline worker consume job queue. \\
-        \texttt{postgres}     & postgres:16     & 5432 & Database chính. \\
-        \texttt{qdrant}       & qdrant/qdrant   & 6333 & Vector database. \\
-        \texttt{minio}        & minio/minio     & 9000 & Object storage. \\
-        \texttt{redis}        & redis:7-alpine  & 6379 & Semantic cache cho chatbot và job queue cho pipeline. \\
+        \texttt{grpc-server}      & python:3.12-slim & 50051 & gRPC service chính (Hexagonal core). \\
+        \texttt{document-worker}  & python:3.10-slim & 8081  & Worker parse, chunk, embed. \\
+        \texttt{enrichment-worker}& python:3.10-slim & 8082  & Worker sinh Summary + Quiz (LLM). \\
+        \texttt{outbox-worker}    & python:3.10-slim & 8083  & Worker đồng bộ Postgres $\to$ Neo4j. \\
+        \texttt{postgres}         & postgres:16-alpine & 5432 & Database chính + bảng curriculum/LO. \\
+        \texttt{qdrant}           & qdrant/qdrant:v1.12.1 & 6333 & Vector database (bge-m3, 1024-dim). \\
+        \texttt{neo4j}            & neo4j:5-community & 7687 & Knowledge Graph LO (Cypher). \\
+        \texttt{minio}            & minio/minio     & 9000  & Object storage tài liệu gốc. \\
+        \texttt{redis}            & redis:7-alpine  & 6379  & Job queue + semantic cache. \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -1317,6 +1321,60 @@ Call LLM (streaming) $\to$ Hiển thị + Cache. [No] $\to$ Trả lời
 ``Nội dung không có trong bài học''.
 
 % ================================================================
+\subsection{Thiết kế Curriculum-Aware Layer}
+% ================================================================
+
+\subsubsection{Tổng quan}
+
+Curriculum-Aware Layer là lớp mở rộng bổ sung trên nền AI Pipeline cốt lõi,
+cho phép hệ thống \textit{hiểu cấu trúc môn học} và liên kết nội dung tài
+liệu với Chuẩn đầu ra học phần (LO). Lớp này hoạt động hoàn toàn theo nguyên
+tắc hexagonal: không sửa bất kỳ use case nào đã có, chỉ thêm adapter và use
+case mới.
+
+\subsubsection{Luồng Ingest Đề cương môn học (DCMH)}
+
+\begin{enumerate}
+    \item Giảng viên upload file PDF đề cương môn học (định dạng CDIO ĐHBK TP.HCM).
+    \item \texttt{IngestCurriculumUseCase} gọi \texttt{DcmhExtractor} ---
+          parser regex cấu trúc, không cần LLM --- để trích xuất:
+          Course metadata, danh sách LO phân cấp, Assessment, liên kết
+          LO$\leftrightarrow$Assessment.
+    \item Kết quả được lưu vào PostgreSQL (\texttt{courses}, \texttt{learning\_outcomes},
+          \texttt{assessments}) và đồng thời chiếu lên Neo4j qua
+          \texttt{Neo4jGraphStore.upsert\_curriculum\_graph()}.
+    \item \texttt{MapChunksToLOsUseCase} chạy sau khi tài liệu được chunked:
+          \texttt{HeuristicLoMapper} ánh xạ từng chunk với LO dựa trên số
+          chương (heading alignment) và fuzzy text match.
+\end{enumerate}
+
+\subsubsection{API gRPC mở rộng cho Curriculum}
+
+\begin{table}[H]
+    \centering
+    \caption{Các RPC mới cho Curriculum-Aware Layer.}
+    \label{tab:rpc-curriculum}
+    \begin{tabular}{p{4.5cm}p{4.5cm}p{6cm}}
+        \toprule
+        \textbf{RPC Method} & \textbf{Request / Response} & \textbf{Mô tả} \\
+        \midrule
+        \texttt{IngestCurriculum}
+            & \texttt{IngestCurriculumRequest} $\to$ \texttt{IngestCurriculumResponse}
+            & Upload và parse DCMH, lưu LO vào Postgres + Neo4j. \\
+        \texttt{GetCurriculum}
+            & \texttt{GetCurriculumRequest} $\to$ \texttt{GetCurriculumResponse}
+            & Lấy thông tin môn học + danh sách LO/Assessment. \\
+        \texttt{SearchByLearningOutcome}
+            & \texttt{SearchByLORequest} $\to$ \texttt{SearchByLOResponse}
+            & Tìm chunk liên quan đến một LO qua Neo4j graph traversal. \\
+        \texttt{GenerateCurriculumQuiz}
+            & \texttt{GenerateCurriculumQuizRequest} $\to$ \texttt{QuizListResponse}
+            & Sinh Quiz gắn LO cụ thể (target: lo/chapter/assessment). \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+% ================================================================
 \subsection{Tổng kết Chương 4}
 % ================================================================
 
@@ -1332,8 +1390,10 @@ cho \textbf{toàn bộ hệ thống}, bao gồm:
     \item \textbf{Thiết kế API:} Định nghĩa gRPC service cho Auth, Document,
           Content, Learning và Chat với request/response type cụ thể.
 
-    \item \textbf{Cơ sở dữ liệu:} 12 bảng đầy đủ, chuẩn hóa 3NF với
-          trade-off JSONB có chủ đích, chiến lược index.
+    \item \textbf{Cơ sở dữ liệu:} 15+ bảng (bao gồm \texttt{courses},
+          \texttt{learning\_outcomes}, \texttt{assessments},
+          \texttt{chunk\_lo\_mappings}), chuẩn hóa 3NF với trade-off JSONB
+          có chủ đích, chiến lược index.
 
     \item \textbf{Sequence Diagram:} 4 luồng chính (Upload Pipeline, Quiz,
           RAG Chatbot, Video Processing).
@@ -1341,8 +1401,11 @@ cho \textbf{toàn bộ hệ thống}, bao gồm:
     \item \textbf{Bảo mật:} JWT dual-token, RBAC 3 vai trò, HTTPS,
           rate limiting, input validation.
 
-    \item \textbf{Triển khai:} Docker Compose 8 container, network và
-          volume, định hướng Kubernetes.
+    \item \textbf{Triển khai:} Docker Compose 9 container (thêm Neo4j),
+          network và volume, định hướng Kubernetes.
+
+    \item \textbf{Curriculum-Aware Layer:} DCMH extractor (regex CDIO),
+          LO Knowledge Graph trên Neo4j, 4 RPC mới, heuristic chunk--LO mapper.
 
     \item \textbf{Giao diện:} Branding, Sitemap, 4 wireframe chính.
 

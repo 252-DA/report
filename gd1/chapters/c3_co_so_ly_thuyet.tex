@@ -83,7 +83,7 @@ theo độ đo cosine:
 \]
 
 \textbf{Ứng dụng:} Mỗi chunk được chuyển thành véc-tơ $\vec{e} \in
-\mathbb{R}^{768}$ và lưu vào Qdrant. Khi học viên tìm kiếm, query cũng được
+\mathbb{R}^{1024}$ và lưu vào Qdrant. Khi học viên tìm kiếm, query cũng được
 chuyển thành véc-tơ và Qdrant tìm top-K chunk có similarity cao nhất --- đây
 là nền tảng của tìm kiếm ngữ nghĩa và RAG.
 
@@ -93,17 +93,44 @@ là nền tảng của tìm kiếm ngữ nghĩa và RAG.
 mềm tổ chức code xung quanh mô hình nghiệp vụ. Nguyên tắc cốt lõi:
 logic nghiệp vụ phải độc lập với framework và hạ tầng kỹ thuật.
 
-\textbf{Áp dụng trong đề tài --- bốn lớp:}
+\textbf{Áp dụng trong đề tài --- bốn lớp (Hexagonal Architecture):}
 \begin{enumerate}
-    \item \textbf{Domain:} Entity (\texttt{Document}, \texttt{Chunk}), Port
-          interface khai báo contract (\texttt{LLMPort}, \texttt{ParserPort},
-          \texttt{VectorDBPort}).
+    \item \textbf{Domain:} Entity (\texttt{Document}, \texttt{Chunk},
+          \texttt{LearningOutcome}, \texttt{Curriculum}), Port interface khai
+          báo contract (\texttt{ILLMClient}, \texttt{IDocumentParser},
+          \texttt{IMetadataStore}, \texttt{IGraphStore}, \texttt{ICurriculumExtractor}).
     \item \textbf{Application:} Use case (\texttt{ProcessDocumentUseCase},
-          \texttt{SearchChunksUseCase}) --- chỉ phụ thuộc Port.
-    \item \textbf{Infrastructure:} Adapter cài đặt Port (\texttt{OpenAIAdapter},
-          \texttt{PDFParser}, \texttt{QdrantAdapter}, \texttt{MinIOAdapter}).
-    \item \textbf{Delivery:} gRPC Servicer nhận request, gọi use case.
+          \texttt{IngestCurriculumUseCase}, \texttt{SearchByLearningOutcomeUseCase},
+          \texttt{GenerateCurriculumQuizUseCase}) --- chỉ phụ thuộc Port.
+    \item \textbf{Infrastructure:} Adapter cài đặt Port (\texttt{GeminiAdapter},
+          \texttt{PdfParser}, \texttt{PostgresMetadataStore},
+          \texttt{Neo4jGraphStore}, \texttt{QdrantVectorStore}, \texttt{MinIOAdapter}).
+    \item \textbf{Delivery:} gRPC Servicer nhận request, gọi use case; Worker
+          tiêu thụ job từ Redis queue.
 \end{enumerate}
+
+\subsubsection{Knowledge Graph và Chuẩn đầu ra học phần (LO)}
+
+\textbf{Định nghĩa:} Knowledge Graph (KG) là cơ sở tri thức biểu diễn các
+thực thể và quan hệ giữa chúng dưới dạng đồ thị có hướng và có nhãn.
+Trong đề tài, KG được dùng để biểu diễn cấu trúc môn học theo chuẩn CDIO
+của ĐHBK TP.HCM.
+
+\textbf{Cấu trúc KG môn học:} Mỗi môn học bao gồm:
+\begin{itemize}
+    \item Nút \textbf{Course} --- thông tin môn học (mã môn, tên, tín chỉ).
+    \item Nút \textbf{Chapter} --- chương bài giảng (có thứ tự).
+    \item Nút \textbf{LearningOutcome (LO)} --- Chuẩn đầu ra học phần,
+          phân cấp cha--con (ví dụ: L.O.3 $\to$ L.O.3.1).
+    \item Nút \textbf{Assessment} --- Hình thức đánh giá (giữa kỳ, cuối kỳ).
+    \item Cạnh \textbf{SUPPORTS} --- từ Chunk nội dung đến LO, kèm trọng số
+          (confidence).
+\end{itemize}
+
+\textbf{Ứng dụng:} Khi giảng viên yêu cầu tạo Quiz cho một LO hoặc một
+chương, hệ thống duyệt KG để lấy các chunk nội dung liên quan (thông qua cạnh
+SUPPORTS) và đưa chúng vào context cho LLM --- đảm bảo Quiz được gắn với
+đúng Chuẩn đầu ra thay vì chỉ dựa trên similarity vector thuần túy.
 
 \subsection{Cân nhắc lựa chọn công nghệ}
 
@@ -115,10 +142,10 @@ logic nghiệp vụ phải độc lập với framework và hạ tầng kỹ thu
     \label{tab:llm-choice}
     \begin{tabular}{p{4cm}p{5cm}p{5.5cm}}
         \toprule
-        \textbf{Tiêu chí} & \textbf{GPT-4o-mini} & \textbf{Gemini 1.5 Flash} \\
+        \textbf{Tiêu chí} & \textbf{GPT-4o-mini} & \textbf{Gemini 2.0 Flash} \\
         \midrule
-        Chất lượng tiếng Việt & Tốt & Tốt (hỗ trợ tốt đa ngôn ngữ) \\
-        Chi phí (input/1M token) & \$0.15 & \$0.075 \\
+        Chất lượng tiếng Việt & Tốt & Tốt (đa ngôn ngữ tự nhiên) \\
+        Chi phí (input/1M token) & \$0.15 & \$0.10 (free tier rộng) \\
         Tốc độ                & Nhanh ($\sim$30 token/s) & Rất nhanh ($\sim$60 token/s) \\
         JSON mode             & Có (\texttt{json\_object}) & Có (\texttt{application/json}) \\
         Độ ổn định API        & Rất cao & Cao \\
@@ -126,9 +153,9 @@ logic nghiệp vụ phải độc lập với framework và hạ tầng kỹ thu
     \end{tabular}
 \end{table}
 
-\noindent\textbf{Quyết định:} Sử dụng \textbf{GPT-4o-mini} làm mặc định do
-hệ sinh thái OpenAI ổn định hơn và tài liệu phong phú hơn. Kiến trúc adapter
-cho phép chuyển sang Gemini Flash dễ dàng nếu cần tối ưu chi phí.
+\noindent\textbf{Quyết định:} Sử dụng \textbf{Gemini 2.0 Flash} làm mặc định do
+chi phí thấp hơn, tốc độ nhanh hơn, và free tier phù hợp cho môi trường nghiên
+cứu. Kiến trúc Port/Adapter cho phép chuyển sang GPT-4o-mini dễ dàng nếu cần.
 
 \subsubsection{Lựa chọn chiến lược Chunking}
 
@@ -184,7 +211,7 @@ hiệu năng cao, Python SDK thân thiện.
         \toprule
         \textbf{Tiêu chí} & \textbf{BAAI/bge-m3} & \textbf{text-embedding-3-small} \\
         \midrule
-        Chiều véc-tơ     & 768 & 1536 \\
+        Chiều véc-tơ     & 1024 & 1536 \\
         Hỗ trợ tiếng Việt & Rất tốt (đa ngôn ngữ) & Tốt \\
         Chi phí           & Miễn phí (local) & \$0.02/1M token \\
         Tốc độ inference  & Nhanh (CPU đủ dùng) & Rất nhanh (API call) \\
@@ -195,10 +222,19 @@ hiệu năng cao, Python SDK thân thiện.
 \noindent\textbf{Quyết định:} \textbf{BAAI/bge-m3} chạy local --- không tốn
 chi phí API, hỗ trợ tiếng Việt tốt, phù hợp môi trường staging.
 
+\subsubsection{Lựa chọn Graph Database: Neo4j}
+
+\textbf{Lý do chọn Neo4j:} Cấu trúc Course $\to$ Chapter $\to$ LO $\to$ Chunk
+là đồ thị phân cấp có nhãn, phù hợp tự nhiên với mô hình đồ thị. Truy vấn
+``Tìm tất cả chunk hỗ trợ LO.3.1'' viết bằng Cypher ngắn gọn hơn JOIN nhiều
+bảng trong SQL. Neo4j là lựa chọn mã nguồn mở, tự host, với Python driver
+\texttt{neo4j} chính thức.
+
 \subsection{Tổng kết Chương 3}
 
 Chương 3 đã trình bày nền tảng lý thuyết cho các công nghệ cốt lõi của hệ
-thống: LLM và Prompt Engineering, Text Chunking, Vector Embedding và kiến
-trúc DDD. Đặc biệt, phần cân nhắc lựa chọn công nghệ đã lý giải cụ thể lý do
-chọn GPT-4o-mini, Heading-based Chunking, Qdrant và bge-m3 so với các lựa
-chọn thay thế. Những quyết định này sẽ được hiện thực hóa trong Chương 4 và 5.
+thống: LLM và Prompt Engineering, Text Chunking, Vector Embedding, kiến trúc
+DDD (Hexagonal Architecture), và Knowledge Graph cho Chuẩn đầu ra học phần.
+Phần cân nhắc lựa chọn công nghệ đã lý giải cụ thể lý do chọn Gemini 2.0 Flash,
+Heading-based Chunking, Qdrant, bge-m3 và Neo4j so với các lựa chọn thay thế.
+Những quyết định này được hiện thực hóa trong Chương 4 và 5.

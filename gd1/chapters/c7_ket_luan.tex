@@ -31,12 +31,15 @@ Sau 15 tuần thực hiện, Giai đoạn 1 đã hoàn thành đầy đủ các 
 
 \textbf{Tóm tắt đóng góp kỹ thuật:}
 \begin{itemize}
-    \item Xây dựng pipeline AI hoàn chỉnh 5 bước theo kiến trúc DDD với
+    \item Xây dựng pipeline AI hoàn chỉnh theo kiến trúc Hexagonal/DDD với
           khả năng thay thế LLM provider mà không sửa use case.
     \item Module Heading-based Chunker xử lý đúng cấu trúc tài liệu học
-          thuật tiếng Việt.
-    \item Tích hợp vector search với \texttt{bge-m3} + Qdrant phục vụ tìm
-          kiếm ngữ nghĩa đa ngôn ngữ.
+          thuật tiếng Việt; vector embedding 1024 chiều với \texttt{bge-m3}.
+    \item \textbf{Curriculum-Aware Layer:} parser đề cương môn học (DCMH)
+          theo chuẩn CDIO của ĐHBK TP.HCM; Knowledge Graph LO trên Neo4j;
+          ánh xạ chunk--LO bằng heuristic; sinh Quiz gắn Chuẩn đầu ra học phần.
+    \item Tích hợp vector search với Qdrant phục vụ tìm kiếm ngữ nghĩa
+          đa ngôn ngữ.
     \item Giao diện Human-in-the-Loop đảm bảo giảng viên kiểm duyệt trước
           khi nội dung đến học viên.
 \end{itemize}
@@ -52,7 +55,11 @@ Sau 15 tuần thực hiện, Giai đoạn 1 đã hoàn thành đầy đủ các 
     \item \textbf{Giao diện chưa hoàn thiện:} Một số UX flow còn thô (drag-
           and-drop sort chưa mượt); chưa responsive hoàn toàn trên mobile.
     \item \textbf{Thiếu cá nhân hóa:} Học viên chưa thể hỏi đáp trực tiếp
-          với nội dung bài học (cần RAG Chatbot ở Giai đoạn 2).
+          với nội dung bài học; Curriculum-Aware RAG Chatbot sẽ tích hợp ở
+          Giai đoạn 2.
+    \item \textbf{LO Mapper còn heuristic:} Ánh xạ chunk--LO dựa trên số
+          chương và fuzzy match; Phase 2 sẽ bổ sung embedding similarity
+          để xử lý tài liệu không có cấu trúc heading rõ ràng.
 \end{enumerate}
 
 \subsection{Định hướng phát triển}

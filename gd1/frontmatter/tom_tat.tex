@@ -9,8 +9,7 @@
 bằng Generative AI\\[4pt]
 \noindent\textbf{Giai đoạn:} Giai đoạn 1 (Tuần 1--15)\\[4pt]
 \noindent\textbf{Giảng viên hướng dẫn:} [Tên Giảng Viên]\\[4pt]
-\noindent\textbf{Nhóm thực hiện:} Nguyễn Nam Phương (2212698), Nguyễn Minh
-Triết (2213608), Phùng Xương Cận (2210348)
+\noindent\textbf{Sinh viên thực hiện:} Phùng Xương Cận (2210348)
 
 \vspace{0.7cm}
 
@@ -41,16 +40,19 @@ Nhóm xây dựng một hệ thống Micro-learning tích hợp AI với pipelin
     \item \textbf{Vector Embedding:} Tạo embedding 768 chiều bằng mô hình
           \texttt{BAAI/bge-m3} đa ngôn ngữ; lưu vào Qdrant Vector Database để
           hỗ trợ tìm kiếm ngữ nghĩa.
-    \item \textbf{Sinh nội dung AI:} Gọi LLM API (GPT-4o-mini) với prompt
+    \item \textbf{Sinh nội dung AI:} Gọi LLM API (Gemini Flash) với prompt
           được thiết kế để sinh bài tóm tắt (Summary) và bộ câu hỏi trắc
           nghiệm (Quiz) cho từng chunk.
     \item \textbf{Human-in-the-Loop:} Giao diện web cho giảng viên review,
           chỉnh sửa và publish; giao diện học viên xem Card và làm Quiz.
 \end{enumerate}
 
-Hệ thống sử dụng kiến trúc \textbf{Domain-Driven Design (DDD)} với giao thức
-\textbf{gRPC} cho phép dễ dàng thay thế LLM provider hoặc thêm parser mới mà
-không ảnh hưởng đến logic nghiệp vụ.
+Hệ thống sử dụng kiến trúc \textbf{Domain-Driven Design (DDD)} kết hợp
+\textbf{Hexagonal Architecture} với giao thức \textbf{gRPC}, cho phép thay thế
+LLM provider hoặc thêm parser mới mà không ảnh hưởng đến logic nghiệp vụ.
+Ngoài ra, hệ thống tích hợp \textbf{Curriculum-Aware Layer} --- phân tích đề
+cương môn học (DCMH), xây dựng Knowledge Graph các Chuẩn đầu ra học phần (LO)
+trên Neo4j và liên kết chunk nội dung với từng LO để sinh Quiz gắn chuẩn đầu ra.
 
 \vspace{0.5cm}
 
