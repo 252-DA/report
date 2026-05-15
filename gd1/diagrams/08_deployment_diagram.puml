@@ -1,0 +1,117 @@
+@startuml deployment_diagram
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam NodeBorderColor #555555
+skinparam NodeBackgroundColor #F0F4F8
+skinparam ArrowColor #333333
+skinparam DatabaseBackgroundColor #FFF8DC
+skinparam DatabaseBorderColor #888855
+
+title Deployment Diagram — Docker Compose (Development / Staging)
+
+node "Host Machine\n(Linux / WSL2)" as Host {
+
+    node "Container: frontend\n[React + Vite + Nginx]" as FE {
+        component [React SPA] as ReactApp
+        note right : Port 80 (HTTP)\nPort 443 (HTTPS)
+    }
+
+    node "Container: envoy\n[Envoy Proxy]" as EnvoyNode {
+        component [Envoy Config] as EnvoyConf
+        note right : Port 8080 (HTTP)\nPort 8443 (HTTPS/TLS)\nRoutes: :50051 | :50053 | :50054
+    }
+
+    node "Container: api-service\n[Python / FastAPI + gRPC]" as APINode {
+        component [AuthService] as AuthSvc
+        component [DocumentService] as DocSvc
+        component [CourseService] as CourseSvc
+        component [LearningService] as LearnSvc
+        note right : Port 50051 (gRPC)\nJWT auth middleware
+    }
+
+    node "Container: ai-pipeline\n[Python + Celery workers × N]" as AINode {
+        component [Celery Worker 1] as W1
+        component [Celery Worker 2] as W2
+        component [BGE-M3 Model\n<<in-process>>] as BGE
+        note right : Scale: replicas=2 (configurable)\nBGE-M3 loaded in-memory per worker\nModel: BAAI/bge-m3 (768-dim)
+    }
+
+    node "Container: video-service\n[Python + FFmpeg + Whisper]" as VideoNode {
+        component [Video Service] as VidSvc
+        note right : Port 50053 (gRPC)
+    }
+
+    node "Container: chat-service\n[Python]" as ChatNode {
+        component [Chat Service] as ChatSvc
+        note right : Port 50054 (gRPC)\nServer-streaming responses
+    }
+
+    node "Container: postgres\n[PostgreSQL 16]" as PGNode {
+        database [PostgreSQL] as PGdb
+        note right : Port 5432\nVolume: pg_data
+    }
+
+    node "Container: qdrant\n[Qdrant 1.9]" as QdrantNode {
+        database [Qdrant] as QdrantDB
+        note right : Port 6333\nVolume: qdrant_data
+    }
+
+    node "Container: minio\n[MinIO]" as MinIONode {
+        storage [MinIO Object Store] as MinIOStore
+        note right : Port 9000 (S3 API)\nPort 9001 (Web Console)\nVolume: minio_data
+    }
+
+    node "Container: redis\n[Redis 7]" as RedisNode {
+        database [Redis] as RedisDB
+        component [Celery Broker\n+ Result Backend] as CeleryB
+        note right : Port 6379\nVolume: redis_data\nBroker + backend for Celery\nSemantic cache for Chat Service
+    }
+
+    node "Container: flower\n[Celery Flower]" as FlowerNode {
+        component [Flower Monitor] as FlowerUI
+        note right : Port 5555 (Web UI)\nMonitor: workers, tasks, retries
+    }
+}
+
+'--- NETWORK CONNECTIONS ---
+ReactApp     -down-> EnvoyConf  : gRPC-Web (HTTPS :8443)
+
+EnvoyConf    -down-> DocSvc     : gRPC :50051
+EnvoyConf    -down-> AuthSvc    : gRPC :50051
+EnvoyConf    -down-> CourseSvc  : gRPC :50051
+EnvoyConf    -down-> LearnSvc   : gRPC :50051
+EnvoyConf    -down-> VidSvc     : gRPC :50053
+EnvoyConf    -down-> ChatSvc    : gRPC :50054
+
+DocSvc       -down-> PGdb       : SQL (port 5432)
+DocSvc       -down-> MinIOStore : S3 API — PUT file
+DocSvc       -right-> CeleryB   : enqueue job (Celery.apply_async)
+
+DocSvc       ..>      ReactApp  : StatusUpdate stream\n(server-streaming gRPC)
+
+W1           -left->  CeleryB   : consume job
+W2           -left->  CeleryB   : consume job
+W1           -down->  PGdb      : UPDATE status / INSERT cards+quiz
+W1           -down->  QdrantDB  : upsert vectors (port 6333)
+W1           -down->  MinIOStore : GET/PUT files (port 9000)
+W1           -right-> VidSvc    : gRPC Transcribe + ClipVideo (port 50053)
+
+VidSvc       -down->  MinIOStore : read/write media + clips
+VidSvc       -down->  PGdb      : INSERT media_clips
+
+ChatSvc      -down->  PGdb      : chat history
+ChatSvc      -down->  QdrantDB  : similarity search
+ChatSvc      -left->  RedisDB   : semantic cache (GET/SET)
+
+FlowerUI     -left->  RedisDB   : read Celery events (monitor)
+
+note bottom of Host
+  Docker Compose network: bridge (microlearning_net)
+  Tất cả container cùng network → giao tiếp qua service name
+  BGE-M3: load in-process trong mỗi Celery worker (không phải container riêng)
+  Celery: Redis làm broker + result backend
+end note
+
+@enduml

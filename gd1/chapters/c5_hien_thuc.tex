@@ -2,197 +2,536 @@
 
 \subsection{Nền tảng sử dụng}
 
-\subsubsection{Python 3.11 và gRPC}
+\subsubsection{Python 3.10+ và gRPC}
 
-\textbf{Python 3.11} là ngôn ngữ chính cho AI Pipeline. Lý do chọn Python:
-hệ sinh thái ML/AI phong phú nhất (\texttt{sentence-transformers},
-\texttt{pdfplumber}, \texttt{openai}); cộng đồng lớn; asyncio native hỗ trợ
-I/O-bound workload hiệu quả.
+\textbf{Python 3.10} là ngôn ngữ chính cho AI Backend chunking\_v2.
+Lý do chọn Python: hệ sinh thái ML/AI phong phú
+(\texttt{sentence-transformers} cho BGE-M3, \texttt{pdfplumber} cho
+PDF parsing, \texttt{psycopg} cho PostgreSQL); hỗ trợ typing
+(\texttt{dataclass}, \texttt{ABC}) giúp Hexagonal Architecture rõ ràng;
+hệ thống container hóa qua Docker không phụ thuộc phiên bản Python hệ
+thống.
 
-\textbf{gRPC + Protobuf:} Giao thức giao tiếp giữa các service. Ưu điểm so
-với REST/JSON: binary encoding nhanh hơn $\sim$3--5x, schema strongly typed
-qua \texttt{.proto}, hỗ trợ streaming response.
+\textbf{gRPC + Protobuf:} Giao thức giao tiếp giữa frontend Next.js
+và backend chunking\_v2. 12 RPCs được định nghĩa trong file
+\texttt{chunking.proto} (305 dòng). Ưu điểm so với REST/JSON:
+binary encoding nhanh hơn $\sim$3--5x, schema strongly typed qua
+\texttt{.proto}, hỗ trợ 4 kiểu giao tiếp (unary, server-streaming,
+client-streaming, bidirectional).
 
-\subsubsection{MinIO Object Storage}
+\subsubsection{Next.js 15 + TypeScript}
 
-MinIO là hệ thống object storage mã nguồn mở tương thích S3 API. Trong đề
-tài, MinIO lưu trữ file tài liệu gốc (PDF, DOCX, PPTX). Bucket chính:
-\texttt{documents}. Mỗi file có key: \texttt{\{owner\_id\}/\{doc\_id\}/original.\{ext\}}.
+Frontend sử dụng \textbf{Next.js 15 App Router} với TypeScript.
+Thư viện chính: \texttt{ltijs} (LTI 1.3 Provider), \texttt{ioredis}
+(Redis client), \texttt{@grpc/grpc-js} (gRPC client), \texttt{jose}
+(JWT/JWK). UI dùng Tailwind CSS.
+
+Lý do chọn Next.js thay vì React SPA: App Router cho phép server-side
+rendering các route cần bảo mật (đọc Redis session, gọi gRPC), giảm
+lộ thông tin session ra client; API route xử lý LTI callback không
+cần setup Express riêng; file-based routing đơn giản.
+
+\subsubsection{PostgreSQL 16 + psycopg}
+
+PostgreSQL lưu toàn bộ metadata của hệ thống qua 14 bảng. Thư viện
+\texttt{psycopg} (v3) với connection pool
+(\texttt{psycopg\_pool.ConnectionPool}) cho performance cao.
+Schema được quản lý qua \texttt{\_ensure\_schema()} tự động migration
+khi container khởi động --- không cần công cụ migration riêng (Alembic)
+cho giai đoạn đồ án.
 
 \subsubsection{Qdrant Vector Database}
 
-Qdrant chạy trong Docker container, persistent volume tại
-\texttt{./data/qdrant}. Collection \texttt{document\_chunks}: vector 768
-chiều, metric cosine, payload gồm \texttt{document\_id}, \texttt{chunk\_id},
-\texttt{heading}, \texttt{language}.
+Qdrant v1.12.1 chạy trong Docker container, collection
+\texttt{documents} với vector 1024 chiều (BGE-M3), metric cosine.
+Payload filter hỗ trợ lọc theo \texttt{course\_id}, \texttt{doc\_type},
+\texttt{language}. Qdrant được chọn thay vì Pinecone/Weaviate vì:
+self-hosted (không phụ thuộc cloud), Rust backend hiệu năng cao,
+có Docker image chính thức.
 
-\subsubsection{Neo4j Graph Database}
+\subsubsection{Neo4j 5 Community}
 
-Neo4j chạy trong Docker container (image \texttt{neo4j:5-community}), lưu
-Knowledge Graph Chuẩn đầu ra học phần. Schema gồm các node label
-\texttt{Course}, \texttt{Chapter}, \texttt{LearningOutcome},
-\texttt{Assessment}, \texttt{Chunk} và các relationship \texttt{HAS\_CHAPTER},
-\texttt{HAS\_LO}, \texttt{LINKED\_TO}, \texttt{SUPPORTS}. Dữ liệu được đồng
-bộ từ PostgreSQL thông qua Outbox Worker theo pattern event-driven.
+Neo4j 5 Community Edition lưu Knowledge Graph Chuẩn đầu ra học phần.
+Bolt protocol qua cổng 7687, driver chính thức
+\texttt{neo4j} (Python). Graph schema gồm 5 node label
+(Course, Chapter, LearningOutcome, Assessment, Chunk) và 5
+relationship type (HAS\_CHAPTER, HAS\_LO, ASSESSED\_BY, SUPPORTS,
+MASTERY). Dữ liệu được đồng bộ từ PostgreSQL qua Outbox Worker
+theo pattern event-driven --- Postgres là source of truth, Neo4j
+là read-optimized projection.
 
-\subsubsection{Redis Cache và Job Queue}
+\subsubsection{MinIO Object Storage}
 
-Redis được sử dụng cho hai mục đích. Thứ nhất, Redis lưu semantic cache cho
-Chatbot để giảm số lần gọi LLM với các câu hỏi tương tự. Thứ hai, Redis đóng
-vai trò hàng đợi nhẹ cho AI Pipeline: API Service enqueue job sau khi upload
-tài liệu, còn AI Pipeline worker consume job và cập nhật trạng thái xử lý sau
-mỗi bước.
+MinIO latest chạy single-node single-drive, tương thích S3 API.
+Bucket \texttt{documents} lưu file tài liệu gốc. Service account
+\texttt{chunking-svc} với policy read+write bucket documents.
+MinIO được chọn vì: self-hosted (không phụ thuộc AWS S3), UI
+console tích hợp sẵn (:9001), SDK Python \texttt{minio} đơn giản.
 
-\subsubsection{React + TypeScript --- Frontend}
+\subsubsection{Redis 7 + BullMQ}
 
-Frontend được xây dựng bằng \textbf{React 18 + TypeScript + Vite}. Thư viện
-UI: \textbf{Tailwind CSS} + \textbf{shadcn/ui} (headless components). Giao
-tiếp với Backend qua \textbf{gRPC-Web client} thông qua Envoy proxy.
+Redis 7 Alpine được sử dụng cho ba mục đích:
+\begin{enumerate}
+    \item \textbf{Job Queue:} BullMQ (thư viện Node.js chạy trong
+          worker Python qua adapter) quản lý hàng đợi xử lý tài
+          liệu bất đồng bộ.
+    \item \textbf{Session Store:} Lưu LTI session với TTL 30 phút,
+          key format \texttt{session:lms:\{uid\}:\{course\_id\}}.
+    \item \textbf{Cache:} Semantic cache cho Chatbot (GĐ2) ---
+          lưu cặp (câu hỏi, câu trả lời) với similarity $\geq$ 0.95.
+\end{enumerate}
 
 \subsubsection{Docker và Docker Compose}
 
-Hệ thống được đóng gói bằng Docker Compose với các service chính gồm API,
-AI Pipeline worker, Frontend, Qdrant, MinIO, Postgres, Redis và Envoy proxy.
-Cách tổ chức này giúp triển khai đồng nhất giữa môi trường phát triển và môi
-trường demo, đồng thời đơn giản hóa việc cấu hình mạng nội bộ giữa các
-service.
+Hệ thống sử dụng Docker Compose cho cả hai stack:
 
-\subsection{Hiện thực AI Pipeline}
-
-\subsubsection{Module Document Parsing}
-
-Ba parser được triển khai thông qua cùng một interface trừu tượng để bảo đảm
-tính nhất quán trong luồng xử lý đầu vào. Mỗi parser nhận file gốc và trả về
-một cấu trúc tài liệu đã chuẩn hóa, bao gồm văn bản, heading và thông tin phân
-đoạn. Với PDF, hệ thống sử dụng \texttt{pdfplumber} để trích xuất nội dung và
-heuristic dựa trên font size hoặc định dạng chữ nhằm phát hiện heading.
-
-\subsubsection{Module Text Chunking}
-
-Sau khi parsing, tài liệu được chia thành các chunk theo cấu trúc heading.
-Những section ngắn được giữ nguyên, còn section dài được cắt bằng cơ chế
-sliding window có overlap để tránh mất ngữ cảnh ở ranh giới giữa các đoạn.
-Cách làm này giúp cân bằng giữa độ đầy đủ ngữ nghĩa và giới hạn token đầu vào
-của mô hình sinh nội dung.
-
-\subsubsection{Module sinh nội dung AI}
-
-Tầng sinh nội dung AI được hiện thực thông qua \texttt{GeminiAdapter} kết nối
-tới Gemini 2.0 Flash API. Từ mỗi chunk đầu vào, hệ thống sinh ra hai loại đầu
-ra chính: tập ý tóm tắt ngắn gọn (lesson cards) và bộ câu hỏi quiz trắc nghiệm.
-Các prompt được chuẩn hóa theo định dạng JSON (validate bằng Pydantic v2) để
-giảm sai khác cấu trúc đầu ra và đơn giản hóa bước kiểm tra dữ liệu ở backend.
-Hệ thống có cơ chế parse-repair hai bước: nếu JSON không hợp lệ, tự động gọi
-lại LLM với gợi ý sửa lỗi trước khi báo lỗi.
-
-\subsubsection{Use Case ProcessDocument}
-
-Use case trung tâm của hệ thống điều phối toàn bộ pipeline xử lý tài liệu. Sau
-khi người dùng tải file lên, API Service lưu file vào MinIO, tạo bản ghi với
-trạng thái \texttt{QUEUED} và đẩy một job vào Redis queue. AI Pipeline worker
-sau đó consume job, lần lượt thực hiện các bước parse, chunking, sinh
-embedding, sinh nội dung AI và lưu kết quả vào cơ sở dữ liệu. Trạng thái xử
-lý của tài liệu được cập nhật sau từng giai đoạn để frontend có thể hiển thị
-tiến trình theo thời gian thực. Ở bước sinh nội dung, các chunk được xử lý
-theo batch nhằm giảm nguy cơ vượt rate limit và tận dụng khả năng xử lý song
-song.
-
-\subsection{Hiện thực Curriculum-Aware Layer}
-
-\subsubsection{DCMH Extractor}
-
-\texttt{DcmhExtractor} là parser cấu trúc sử dụng regex được kiểm chứng trên
-định dạng CDIO của ĐHBK TP.HCM. Module trích xuất:
 \begin{itemize}
-    \item \textbf{Header:} mã môn, tên Tiếng Việt/Anh, số tín chỉ, học kỳ.
-    \item \textbf{Learning Outcomes:} bắt theo pattern \texttt{L.O.N.x} kèm
-          phiên bản tiếng Việt và tiếng Anh; suy luận Bloom level từ từ điển
-          động từ (ví dụ: ``phân tích'' $\to$ \textit{analyze}).
-    \item \textbf{Assessment:} bắt \texttt{A.O.N}, suy luận loại (midterm/final).
-    \item \textbf{LO$\leftrightarrow$Assessment links:} từ bảng section 5.3.
+    \item \textbf{DA stack:} 12 service (postgres, redis, qdrant,
+          minio, neo4j, grpc-server, http-api, document-worker,
+          enrichment-worker, outbox-worker, web, web-proto).
+          Network nội bộ \texttt{default} + external network
+          \texttt{lms\_shared} để giao tiếp với Tutor.
+    \item \textbf{Tutor stack:} Tutor 18.2.2 native Docker Compose
+          với plugin \texttt{da\_network} inject network
+          \texttt{lms\_shared} và \texttt{extra\_hosts} để LMS
+          container resolve \texttt{localhost:3000}.
 \end{itemize}
 
-Độ tin cậy (confidence) được tính trung bình theo section; từ chối trích xuất
-nếu dưới ngưỡng 0.5 --- trả về \texttt{Err(ProcessingError)}.
+\subsection{Hiện thực AI Backend (chunking\_v2)}
 
-\subsubsection{Heuristic LO Mapper}
+\subsubsection{Cấu trúc thư mục}
 
-\texttt{HeuristicLoMapper} ánh xạ chunk nội dung với LO dựa trên hai tín hiệu:
-(1)~số chương trong heading (\texttt{Chương N} $\to$ LO có prefix \texttt{L.O.N}),
-(2)~fuzzy word match giữa text heading và statement của LO (boosted confidence 0.9
-nếu $\geq 2$ từ có nghĩa trùng). Kết quả là danh sách \texttt{ChunkLOMapping}
-với confidence score, được persist vào PostgreSQL và Neo4j (cạnh \texttt{SUPPORTS}).
+\begin{lstlisting}[language=sh, caption={Cau truc thu muc chunking\_v2 (simplified)}]
+chunking_v2/
+  src/
+    domain/               # Entities + Ports (ABC)
+      entities/           # document, chunk, curriculum, card, quiz
+      ports/              # IParser, IVectorStore, IMetadataStore, ...
+      exceptions.py       # ChunkingError, ProcessingError
+    application/          # Use Cases (12 files)
+      use_cases/          # process_document, ingest_curriculum, ...
+      dto/                # Request/Response DTOs
+    adapters/             # Adapter implementations
+      metadata/           # PostgresMetadataStore (1594 dong)
+      graph/              # Neo4jGraphStore (727 dong)
+      vector/             # QdrantVectorStore
+      storage/            # MinIOAdapter
+      llm/                # GeminiAdapter
+      embedder/           # BGEEmbedder (BGE-M3)
+      curriculum/         # DcmhExtractor (388 dong) + HeuristicLoMapper (91 dong)
+      parser/             # PdfParser, DocxParser, PptxParser
+    delivery/             # Primary adapters
+      grpc/               # gRPC server + proto (chunking.proto 305 dong)
+      http/               # FastAPI HTTP API (api.py 771 dong)
+    infrastructure/       # Config, Container (DI), logging, tracing
+    shared/               # Result monad, logger, metrics
+  worker/                 # BullMQ workers
+    runners/              # document_worker, enrichment_worker, outbox_worker
+  file-LO/                # DCMH PDF files for curriculum extraction
+  docker-compose.yml      # 12 services
+\end{lstlisting}
+
+\subsubsection{Dependency Injection Container}
+
+Toàn bộ dependency được quản lý qua class \texttt{Container} trong
+\texttt{src/infrastructure/container.py}. Container đọc config từ
+environment variables, khởi tạo các adapter, và inject vào use case
+khi khởi tạo gRPC server:
+
+\begin{lstlisting}[language=Python, caption={Dependency Injection qua Container}]
+class Container:
+    def __init__(self, config: AppConfig):
+        self.metadata_store = PostgresMetadataStore(config.sql, config.outbox)
+        self.vector_store = QdrantVectorStore(config.qdrant)
+        self.graph_store = Neo4jGraphStore(config.neo4j)
+        self.llm_client = GeminiAdapter(config.llm)
+        self.embedder = BGEEmbedder(config.embedder)
+        # ...
+
+    @property
+    def process_document_use_case(self):
+        return ProcessDocumentUseCase(
+            parsers=[self.pdf_parser, self.docx_parser],
+            chunker=self.chunker,
+            embedder=self.embedder,
+            vector_store=self.vector_store,
+            metadata_store=self.metadata_store,
+        )
+\end{lstlisting}
+
+\subsection{Hiện thực Workers (BullMQ)}
+
+Pipeline xử lý bất đồng bộ được hiện thực qua 3 worker độc lập,
+mỗi worker lắng nghe một queue riêng:
+
+\begin{table}[H]
+    \centering
+    \caption{3 BullMQ Workers và queue tương ứng.}
+    \label{tab:workers}
+    \begin{tabular}{p{3.5cm}p{3cm}p{2.5cm}p{5cm}}
+        \toprule
+        \textbf{Worker} & \textbf{Queue} & \textbf{Concurrency} & \textbf{Trách nhiệm} \\
+        \midrule
+        \texttt{document-worker}
+            & \texttt{document\_processing}
+            & 3
+            & Parse PDF/DOCX $\to$ chunk $\to$ embed $\to$
+              upsert Qdrant + Postgres. \\
+        \texttt{enrichment-worker}
+            & \texttt{enrichment}
+            & 4
+            & Gọi Gemini sinh LessonCard + QuizItem $\to$
+              lưu Postgres. \\
+        \texttt{outbox-worker}
+            & \texttt{outbox}
+            & 1
+            & Đọc outbox\_events từ Postgres $\to$ project
+              sang Neo4j (best-effort). \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\paragraph{State Machine Pipeline.}
+
+Mỗi job trong pipeline theo dõi trạng thái qua state machine:
+
+\begin{lstlisting}[language=Python, caption={State machine trong document-worker}]
+class IngestionStatus(str, Enum):
+    QUEUED = "QUEUED"
+    PARSING = "PARSING"
+    CHUNKING = "CHUNKING"
+    EMBEDDING = "EMBEDDING"
+    UPSERTING = "UPSERTING"
+    ENRICHING = "ENRICHING"
+    ENRICHED = "ENRICHED"
+    DONE = "DONE"
+    ERROR = "ERROR"
+\end{lstlisting}
+
+\paragraph{Idempotency.}
+
+Worker kiểm tra trạng thái hiện tại trước khi xử lý --- nếu document
+đã ở trạng thái \texttt{DONE} hoặc \texttt{ENRICHED}, worker skip
+để tránh xử lý trùng lặp.
+
+\paragraph{Retry Strategy.}
+
+Khi gặp lỗi tạm thời (Gemini API timeout, Qdrant unavailable),
+worker retry tối đa 3 lần với exponential backoff
+($1s \to 2s \to 4s$). Sau 3 lần thất bại, job chuyển sang trạng
+thái \texttt{ERROR} và ghi nhận \texttt{last\_success\_state}
+để hỗ trợ retry từ điểm dừng.
+
+\subsection{Hiện thực Curriculum Extraction}
+
+\subsubsection{DcmhExtractor --- Regex-Based Parser}
+
+\texttt{DcmhExtractor} (388 dòng) là adapter chính để trích xuất
+thông tin chuẩn đầu ra từ Đề cương môn học định dạng CDIO của
+BKHCM. Parser hoạt động theo 4 bước:
+
+\begin{enumerate}
+    \item \textbf{Parse PDF:} Dùng \texttt{pdfplumber} trích xuất
+          toàn bộ text từ DCMH PDF.
+    \item \textbf{Extract LO codes:} Regex pattern
+          \texttt{r"L\textbackslash.O\textbackslash.
+          \textbackslash d+\textbackslash.\textbackslash d+"}
+          tìm tất cả mã LO.
+    \item \textbf{Extract course info:} Regex tìm mã học phần
+          (CO3115), tên học phần, số tín chỉ, học kỳ.
+    \item \textbf{Bloom level classification:} Ánh xạ 40+ động từ
+          tiếng Việt + tiếng Anh sang 6 mức Bloom taxonomy:
+
+\begin{lstlisting}[language=Python, caption={Bloom verb mapping (excerpt)}]
+_BLOOM_VERBS: dict[str, str] = {
+    # Remember
+    "nho": "remember", "liet ke": "remember", "mo ta": "remember",
+    # Understand
+    "hieu": "understand", "giai thich": "understand", "tom tat": "understand",
+    # Apply
+    "ap dung": "apply", "thuc hien": "apply", "van dung": "apply",
+    # Analyze
+    "phan tich": "analyze", "so sanh": "analyze", "phan loai": "analyze",
+    # Evaluate
+    "danh gia": "evaluate", "nhan xet": "evaluate",
+    # Create
+    "thiet ke": "create", "xay dung": "create", "phat trien": "create",
+}
+\end{lstlisting}
+
+\end{enumerate}
+
+\subsubsection{HeuristicLoMapper --- Chunk-LO Alignment}
+
+\texttt{HeuristicLoMapper} (91 dòng) tự động liên kết chunk tài liệu
+với LO tương ứng qua heading matching:
+
+\begin{lstlisting}[language=Python, caption={LO heading text matching}]
+def _heading_text_matches_lo(heading_path, lo) -> bool:
+    heading_lower = " ".join(heading_path).lower()
+    lo_vi_words = lo.statement_vi.lower().split()[:4]
+    matches = sum(1 for w in lo_vi_words if len(w) > 3 and w in heading_lower)
+    return matches >= 2
+\end{lstlisting}
+
+Kết quả mapping được persist vào cả PostgreSQL
+(\texttt{chunk\_lo\_mappings}) và Neo4j (relationship
+\texttt{SUPPORTS} với attribute \texttt{confidence}
+và \texttt{source}).
+
+\subsection{Hiện thực Curriculum-Aware Quiz}
 
 \subsubsection{GenerateCurriculumQuizUseCase}
 
-Use case sinh Quiz gắn LO nhận \texttt{target\_kind} (lo/chapter/assessment)
-và \texttt{target\_code}, giải quyết thành danh sách LO id, lấy chunk liên quan
-từ Neo4j (cạnh SUPPORTS), xây dựng prompt với context chunk và thông tin LO
-(code, statement, Bloom level), gọi Gemini sinh câu hỏi có trường
-\texttt{lo\_alignment\_rationale}. Kết quả lưu vào bảng \texttt{quiz\_items}
-với \texttt{lo\_id} và \texttt{bloom\_level}.
+Use case nhận \texttt{lo\_id} (hoặc \texttt{chapter\_code},
+\texttt{assessment\_code}), truy vấn Neo4j để lấy chunk liên
+quan qua \texttt{find\_chunks\_for\_lo}, xây dựng prompt đặc
+thù theo LO, gọi Gemini sinh quiz:
 
-\subsection{Hiện thực Web Application}
+\begin{lstlisting}[language=Python, caption={Gemini quiz generation prompt (simplified)}]
+PROMPT = """Ban la giao vien thiet ke cau hoi kiem tra.
+Hay sinh {count} cau hoi dua tren:
+- Chuan dau ra (LO): {lo_code} -- {lo_statement}
+- Muc do Bloom: {bloom_level}
+- Boi canh: (chi su dung noi dung tai lieu duoi day)
 
-\subsubsection{Giao diện Giảng viên}
+Yeu cau:
+- Sinh {mcq_count} cau MCQ (moi cau 4 lua chon, 1 dap an dung)
+- Sinh {sa_count} cau tra loi ngan (2-3 cau)
+- Moi cau hoi phai kem giai thich dap an
+- Dinh dang: JSON array
+"""
+\end{lstlisting}
 
-\begin{figure}[H]
-    \centering
-    % \includegraphics[width=0.9\textwidth]{figures/screen_dashboard.png}
-    \caption{Màn hình Dashboard Giảng viên.}
-    \label{fig:screen-dashboard}
-\end{figure}
+\subsubsection{Quality Validation}
 
-\begin{figure}[H]
-    \centering
-    % \includegraphics[width=0.9\textwidth]{figures/screen_upload.png}
-    \caption{Màn hình Upload tài liệu.}
-    \label{fig:screen-upload}
-\end{figure}
+Quiz generated được validate qua các quy tắc:
+\begin{itemize}
+    \item Mỗi MCQ phải có đúng 4 lựa chọn.
+    \item \texttt{correct\_index} phải nằm trong [0, 3].
+    \item Câu hỏi không được trùng lặp (check similarity
+          $\geq$ 0.9 với quiz đã có).
+    \item Distractor (đáp án sai) phải hợp lý --- không được
+          quá hiển nhiên sai (độ dài tối thiểu 5 từ).
+\end{itemize}
 
-\begin{figure}[H]
-    \centering
-    % \includegraphics[width=0.9\textwidth]{figures/screen_progress.png}
-    \caption{Màn hình theo dõi tiến trình xử lý AI (4 bước).}
-    \label{fig:screen-progress}
-\end{figure}
+\subsection{Hiện thực Frontend (Next.js)}
 
-\begin{figure}[H]
-    \centering
-    % \includegraphics[width=0.9\textwidth]{figures/screen_review.png}
-    \caption{Màn hình Review nội dung AI (layout 2 cột).}
-    \label{fig:screen-review}
-\end{figure}
+\subsubsection{Cấu trúc dự án}
 
-\subsubsection{Giao diện Học viên}
+\begin{lstlisting}[language=Java, caption={Cau truc Next.js web/}]
+web/
+  Dockerfile
+  keys/lti.pem  keys/lti.pub.pem
+  proto/                       # symlink chunking.proto
+  src/
+    app/
+      lti/login/route.ts        # OIDC initiation (GET)
+      lti/launch/route.ts       # LTI launch handler (POST)
+      .well-known/jwks.json/route.ts
+      learn/cards/page.tsx      # Card viewer (server component)
+      learn/quiz/[id]/page.tsx  # Quiz UI
+      manage/upload/page.tsx    # Document upload
+      manage/review/page.tsx    # Card review/edit
+      api/grpc/proxy/route.ts   # Server-side gRPC proxy
+    lib/
+      redis.ts                  # ioredis wrapper
+      pg.ts                     # Postgres pool (psycopg)
+      lti.ts                    # ltijs Provider config
+      grpc.ts                   # Dynamic gRPC client
+\end{lstlisting}
 
-\begin{figure}[H]
-    \centering
-    % \includegraphics[width=0.85\textwidth]{figures/screen_courses.png}
-    \caption{Màn hình danh sách khóa học của Học viên.}
-    \label{fig:screen-courses}
-\end{figure}
+\subsubsection{LTI 1.3 Implementation}
 
-\begin{figure}[H]
-    \centering
-    % \includegraphics[width=0.85\textwidth]{figures/screen_card.png}
-    \caption{Màn hình xem bài học dạng Card.}
-    \label{fig:screen-card}
-\end{figure}
+File \texttt{lti/login/route.ts} --- OIDC initiation handler:
 
-\begin{figure}[H]
-    \centering
-    % \includegraphics[width=0.85\textwidth]{figures/screen_quiz.png}
-    \caption{Màn hình làm Quiz (hiển thị phản hồi tức thì sau khi chọn đáp án).}
-    \label{fig:screen-quiz}
-\end{figure}
+\begin{lstlisting}[language=Java, caption={OIDC login initiation (simplified)}]
+export async function GET(req: NextRequest) {
+  const iss = req.nextUrl.searchParams.get("iss");
+  const loginHint = req.nextUrl.searchParams.get("login_hint");
+  const targetLinkUri = req.nextUrl.searchParams.get("target_link_uri");
 
-\subsection{Tổng kết Chương 5}
+  const authUrl = new URL(`${iss}/oauth2/authorize`);
+  authUrl.searchParams.set("client_id", process.env.LTI_CLIENT_ID!);
+  authUrl.searchParams.set("response_type", "id_token");
+  authUrl.searchParams.set("redirect_uri", targetLinkUri!);
+  authUrl.searchParams.set("scope", "openid");
+  authUrl.searchParams.set("login_hint", loginHint!);
+  authUrl.searchParams.set("state", crypto.randomUUID());
+  authUrl.searchParams.set("nonce", crypto.randomUUID());
 
-Chương 5 đã trình bày chi tiết việc hiện thực hệ thống: lý giải lựa chọn
-từng nền tảng công nghệ, mã nguồn cốt lõi của AI Pipeline (Parser, Chunker,
-Gemini Adapter, Use Case), Curriculum-Aware Layer (DCMH Extractor, Heuristic LO
-Mapper, GenerateCurriculumQuiz) và giao diện Web Application cho cả hai nhóm
-người dùng. Toàn bộ mã nguồn được tổ chức theo kiến trúc Hexagonal/DDD, đảm
-bảo tính modular và dễ kiểm thử --- cơ sở để tiến hành kiểm thử toàn diện
-trong Chương 6.
+  return NextResponse.redirect(authUrl);
+}
+\end{lstlisting}
+
+File \texttt{lti/launch/route.ts} --- LTI launch handler:
+
+\begin{lstlisting}[language=Java, caption={LTI launch: validate JWT + set session}]
+export async function POST(req: NextRequest) {
+  const form = await req.formData();
+  const idToken = form.get("id_token") as string;
+
+  // Validate JWT via ltijs
+  const token = await ltijs.validateJWT(idToken, {
+    platformUrl: process.env.LTI_PLATFORM_URL,
+    clientId: process.env.LTI_CLIENT_ID,
+    deploymentId: "1",
+  });
+
+  const userId = token.sub;
+  const courseId = token["https://purl.imsglobal.org/spec/lti/claim/context"].id;
+  const roles = token["https://purl.imsglobal.org/spec/lti/claim/roles"];
+
+  // Upsert mapping
+  const { internal_user_id } = await pg.upsertUserMapping("openedx", userId);
+
+  // Set Redis session
+  await redis.setex(`session:lms:${internal_user_id}:${courseId}`,
+    1800, JSON.stringify({ role: roles[0], document_id: "...", lo_ids: [...] }));
+
+  // Redirect
+  const isInstructor = roles.some(r => r.includes("Instructor"));
+  const url = isInstructor ? "/manage/review" : "/learn/cards";
+  const res = NextResponse.redirect(new URL(url, req.url));
+  res.cookies.set("sid", `${internal_user_id}:${courseId}`, {
+    httpOnly: true, sameSite: "none", secure: true, maxAge: 1800,
+  });
+  return res;
+}
+\end{lstlisting}
+
+\subsection{Hiện thực Tích hợp LMS (Open edX)}
+
+\subsubsection{AILessonBlock XBlock}
+
+XBlock \texttt{AILessonBlock} được hiện thực trong
+\texttt{/home/canxphung/lms\_edx/ai\_lesson\_xblock/}.
+File chính \texttt{ai\_lesson.py} (161 dòng) với các thành phần:
+
+\begin{itemize}
+    \item \textbf{Fields:} document\_id, lo\_ids, display\_mode,
+          chatbot\_enabled, card\_set\_id, quiz\_set\_id --- lưu
+          trong \texttt{Scope.settings}.
+    \item \textbf{student\_view:} Render iframe trỏ đến Next.js
+          OIDC login URL.
+    \item \textbf{studio\_view:} Config panel cho phép giảng viên
+          chọn document\_id và LO IDs từ danh sách có sẵn.
+    \item \textbf{save\_settings:} JSON handler lưu config từ
+          Studio.
+\end{itemize}
+
+\subsubsection{OIDC Initiation URL}
+
+Method \texttt{\_build\_oidc\_login\_url} xây dựng URL khởi tạo
+OIDC flow đúng chuẩn LTI 1.3:
+
+\begin{lstlisting}[language=Python, caption={OIDC login URL construction}]
+def _build_oidc_login_url(self) -> str:
+    params = {
+        "iss": "http://local.edly.io",
+        "target_link_uri": f"{NEXTJS_URL_BROWSER}/lti/launch",
+        "login_hint": str(self.runtime.user_id),
+        "lti_message_hint": json.dumps({
+            "course_id": str(self.scope_ids.usage_id.course_key),
+            "document_id": self.document_id,
+            "lo_ids": self.lo_ids,
+        }),
+    }
+    return f"{NEXTJS_URL_BROWSER}/lti/login?{urllib.parse.urlencode(params)}"
+\end{lstlisting}
+
+\subsubsection{Mount vào edX}
+
+XBlock được cài đặt vào LMS container qua cơ chế \texttt{MOUNTS}
+của Tutor:
+
+\begin{lstlisting}[language=sh, caption={Tutor config: mount XBlock}]
+# ~/.local/share/tutor/config.yml
+MOUNTS:
+  - /home/canxphung/lms_edx/ai_lesson_xblock
+\end{lstlisting}
+
+Sau đó cài đặt thủ công qua \texttt{pip install -e}:
+
+\begin{lstlisting}[language=sh]
+tutor local exec lms pip install -e /mounts/ai_lesson_xblock
+tutor local restart
+\end{lstlisting}
+
+\subsubsection{Tutor Plugin \texttt{da\_network}}
+
+Plugin \texttt{da\_network} được tạo để inject Docker network
+\texttt{lms\_shared} vào LMS/CMS container và thêm
+\texttt{extra\_hosts} để LMS container có thể resolve
+\texttt{localhost:3000} (browser-facing URL của Next.js):
+
+\begin{lstlisting}[language=sh, caption={da\_network plugin patch (simplified)}]
+# local-docker-compose-services
+lms:
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+    - "localhost:host-gateway"
+  networks:
+    default: {}
+    lms_shared:
+      aliases: [openedx_lms]
+
+# local-docker-compose-networks
+lms_shared:
+  external: true
+\end{lstlisting}
+
+\subsection{Kiểm thử}
+
+Hệ thống đã có 282+ dòng unit test cho tầng Domain và Application:
+
+\begin{itemize}
+    \item \textbf{Domain entity tests:} Kiểm tra frozen dataclass
+          behavior, validation rules, Result monad.
+    \item \textbf{Use case tests:} Test từng use case với
+          Mock Adapter (MockLLMClient, MockMetadataStore,
+          MockVectorStore, \dots) --- không gọi API thật.
+    \item \textbf{Adapter tests:} Test Postgres schema migration
+          (\texttt{\_ensure\_schema}), Qdrant upsert/search,
+          Neo4j Cypher query syntax.
+    \item \textbf{Parser tests:} Test PdfParser với file PDF mẫu,
+          DocxParser với file DOCX mẫu, verify output structure.
+\end{itemize}
+
+Integration test E2E sẽ được thực hiện ở Stage 1D sau khi các
+thành phần tích hợp hoàn chỉnh (Next.js, LTI, Tutor).
+
+\subsection{Triển khai với Docker Compose}
+
+Hệ thống được triển khai qua hai file Docker Compose:
+
+\begin{enumerate}
+    \item \texttt{/home/canxphung/DA/docker-compose.yml} --- 12
+          service cho AI Backend + Next.js Frontend.
+    \item Tutor-managed Compose --- LMS, CMS, MySQL, MongoDB,
+          Elasticsearch, Caddy, SMTP.
+\end{enumerate}
+
+Hai stack giao tiếp qua external Docker network
+\texttt{lms\_shared}. Các service quan trọng có health check
+để đảm bảo thứ tự khởi động:
+
+\begin{lstlisting}[language=sh, caption={Health check example: grpc-server}]
+grpc-server:
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    qdrant:
+      condition: service_healthy
+    minio:
+      condition: service_healthy
+    neo4j:
+      condition: service_healthy
+\end{lstlisting}
+
+Môi trường được cấu hình qua biến môi trường trong
+\texttt{docker-compose.yml} (non-secrets) và file
+\texttt{.env} (secrets: \texttt{GEMINI\_API\_KEY},
+\texttt{MINIO\_ROOT\_PASSWORD}, \dots).

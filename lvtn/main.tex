@@ -1,4 +1,4 @@
-\documentclass[a4paper,12pt]{article}
+\documentclass[a4paper,12pt]{report}
 
 % ============================================================
 % PACKAGES
@@ -14,7 +14,6 @@
 \usepackage[lined,boxed,commentsnumbered]{algorithm2e}
 \usepackage{enumerate}
 \usepackage{enumitem}
-\usepackage{color}
 \usepackage[table]{xcolor}
 \usepackage{graphicx}
 \usepackage{array}
@@ -35,6 +34,7 @@
 \hypersetup{urlcolor=blue, linkcolor=black, citecolor=black, colorlinks=true}
 \usepackage{titlesec}
 \usepackage{pdfpages}
+\usepackage{indentfirst}
 
 % ============================================================
 % COLORS
@@ -71,22 +71,17 @@
 }
 \lstset{style=mystyle}
 
-% minted config
 \usemintedstyle{friendly}
 \newminted[pycode]{python}{linenos=true, texcl=true, bgcolor=backcolour, fontsize=\footnotesize}
 \newminted[bashcode]{bash}{linenos=true, texcl=true, bgcolor=backcolour, fontsize=\footnotesize}
 
 % ============================================================
-% SPACING
+% SPACING AND NUMBERING
 % ============================================================
 \onehalfspacing
 \tolerance=2000
 \emergencystretch=3em
 \hbadness=10000
-
-% ============================================================
-% SECTION DEPTH
-% ============================================================
 \setcounter{secnumdepth}{4}
 \setcounter{tocdepth}{3}
 
@@ -102,7 +97,7 @@
 \makeatother
 
 % ============================================================
-% CUSTOM LIST: use-case flow enumeration
+% CUSTOM LISTS
 % ============================================================
 \newlist{flowenum}{enumerate}{4}
 \setlist[flowenum,1]{label=\arabic*., ref=\arabic*}
@@ -148,9 +143,10 @@
 % LOCALIZATION
 % ============================================================
 \AtBeginDocument{\renewcommand*\contentsname{Mục lục}}
-\AtBeginDocument{\renewcommand*\refname{Tài liệu tham khảo}}
+\AtBeginDocument{\renewcommand*\bibname{Tài liệu tham khảo}}
 \AtBeginDocument{\renewcommand*\listfigurename{Danh sách hình}}
 \AtBeginDocument{\renewcommand*\listtablename{Danh sách bảng}}
+\AtBeginDocument{\renewcommand{\chaptername}{Chương}}
 
 % ============================================================
 % THEOREMS
@@ -164,7 +160,6 @@
 % ============================================================
 \begin{document}
 
-% ------ TITLE PAGE -------------------------------------------
 \begin{titlepage}
 \thispagestyle{empty}
   \centering
@@ -191,8 +186,8 @@
     {\LARGE\bfseries HỆ THỐNG LMS TỰ ĐỘNG TẠO MICRO-CONTENT \& QUIZ\par}
     \vspace{0.2cm}
     {\Large\bfseries BẰNG GENERATIVE AI\par}
-    \vspace{0.45cm}
-    {\large\itshape (Tuần 1 -- 15)\par}
+    % \vspace{0.45cm}
+    % {\large\itshape Tích hợp RAG, Knowledge Graph và LTI cho môi trường LMS\par}
     \vspace{0.35cm}
     \rule{0.72\textwidth}{0.5pt}
   \end{center}
@@ -211,35 +206,6 @@
   {\footnotesize THÀNH PHỐ HỒ CHÍ MINH, \the\year\par}
 \end{titlepage}
 
-% ------ TASK ASSIGNMENT TABLE --------------------------------
-\newpage
-\thispagestyle{fancy}
-\begin{longtable}{%
-    |>{\centering\arraybackslash}m{1cm}|
-    >{\arraybackslash}m{4.5cm}|
-    >{\centering\arraybackslash}m{1.5cm}|
-    >{\arraybackslash}m{5cm}|
-    >{\centering\arraybackslash}m{2cm}|
-    >{\centering\arraybackslash}m{1.25cm}|}
-  \caption{Bảng phân công nhiệm vụ và nhận xét của giảng viên.} \\
-  \hline
-  \textbf{STT} & \textbf{Họ tên} & \textbf{MSSV} & \textbf{Nhiệm vụ} & \textbf{Đóng góp} & \textbf{Ký tên} \\
-  \hline
-  \endfirsthead
-
-  3 & Phùng Xương Cận & 2210348
-    & Frontend Giảng viên \& Học viên; Demo \& Kiểm thử
-    & 100\% & \\ \hline
-
-  \multicolumn{4}{|c|}{\textbf{Nhận xét của giảng viên:}} &
-  \multicolumn{2}{c|}{\textbf{Ký tên}} \\ \hline
-  \multicolumn{4}{|p{0.58\textwidth}|}{%
-    \emph{(Đây là khu vực nhận xét của giảng viên)}\vspace{3cm}
-  } & \multicolumn{2}{l|}{} \\ \hline
-\end{longtable}
-\clearpage
-
-% ------ FRONT MATTER ----------------------------------------
 \newpage
 \include{frontmatter/loi_cam_doan}
 
@@ -249,49 +215,46 @@
 \newpage
 \include{frontmatter/tom_tat}
 
-% ------ LISTS ------------------------------------------------
 \newpage
 \tableofcontents
 
 \newpage
 \listoftables
-\addcontentsline{toc}{section}{Danh mục bảng biểu}
+\addcontentsline{toc}{chapter}{Danh mục bảng biểu}
 
 \newpage
 \listoffigures
-\addcontentsline{toc}{section}{Danh mục hình ảnh}
+\addcontentsline{toc}{chapter}{Danh mục hình ảnh}
 
 \newpage
 \include{frontmatter/danh_muc_viet_tat}
 
-% ------ MAIN CONTENT -----------------------------------------
 \newpage
-\include{chapters/c1_tong_quan}
+\include{chapters/c1_gioi_thieu}
 
 \newpage
-\include{chapters/c2_khao_sat}
+\include{chapters/c2_phan_tich_yeu_cau}
 
 \newpage
-\include{chapters/c3_co_so_ly_thuyet}
+\include{chapters/c3_usecase_nghiep_vu}
 
 \newpage
-\include{chapters/c4_thiet_ke}
+\include{chapters/c4_thiet_ke_he_thong}
 
 \newpage
-\include{chapters/c5_hien_thuc}
+\include{chapters/c5_hien_thuc_trien_khai}
 
 \newpage
-\include{chapters/c6_kiem_thu}
+\include{chapters/c6_danh_gia_he_thong}
 
 \newpage
-\include{chapters/c7_ket_luan}
+\include{chapters/c7_ket_luan_huong_phat_trien}
 
-% ------ REFERENCES -------------------------------------------
 \newpage
 \bibliographystyle{plain}
+\nocite{*}
 \bibliography{references}
 
-% ------ APPENDICES -------------------------------------------
 \newpage
 \appendix
 \include{appendix/phu_luc}

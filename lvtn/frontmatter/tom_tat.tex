@@ -1,0 +1,43 @@
+\thispagestyle{fancy}
+\begin{center}
+    \textbf{\Large TÓM TẮT LUẬN VĂN}
+\end{center}
+
+\vspace{0.5cm}
+
+\noindent\textbf{Tên đề tài:} Hệ thống LMS tự động tạo Micro-Content \& Quiz
+bằng Generative AI\\[4pt]
+\noindent\textbf{Giảng viên hướng dẫn:} [Tên Giảng Viên]\\[4pt]
+\noindent\textbf{Sinh viên thực hiện:} Phùng Xương Cận (2210348)
+
+\vspace{0.7cm}
+
+Việc chuyển đổi giáo trình, slide và tài liệu học thuật thành nội dung học tập
+ngắn gọn, câu hỏi kiểm tra và tài nguyên ôn tập thường tiêu tốn nhiều thời
+gian của giảng viên. Các công cụ AI phổ biến có khả năng tóm tắt hoặc sinh câu
+hỏi, nhưng thường thiếu quy trình kiểm duyệt học thuật, thiếu tích hợp LMS và
+khó gắn kết câu hỏi với chuẩn đầu ra học phần.
+
+Luận văn đề xuất và hiện thực một hệ thống LMS mở rộng bằng Generative AI,
+cho phép giảng viên đưa tài liệu vào hệ thống, tự động phân tích tài liệu,
+chia nhỏ nội dung, sinh Micro-Content và Quiz, sau đó kiểm duyệt trước khi
+công bố cho học viên. Hệ thống sử dụng kiến trúc Hexagonal/DDD, backend Python
+gRPC, frontend Next.js, hàng đợi xử lý bất đồng bộ, PostgreSQL, MinIO, Qdrant
+Vector Database và Neo4j Knowledge Graph. Lớp Curriculum-Aware phân tích đề
+cương môn học, trích xuất chuẩn đầu ra học phần và liên kết chunk nội dung với
+Learning Outcome để hỗ trợ sinh câu hỏi theo mục tiêu học tập.
+
+Các thành phần AI cốt lõi gồm parser tài liệu, chunking theo heading, embedding
+đa ngôn ngữ, truy xuất vector, RAG, GraphRAG định hướng thiết kế và sinh Quiz
+theo Bloom taxonomy. Hệ thống được tích hợp với LMS thông qua LTI 1.3/OIDC,
+cho phép triển khai như một công cụ học tập bên ngoài trong Open edX hoặc
+Moodle. Phần đánh giá bao gồm kiểm thử chức năng, kiểm thử tích hợp, kế hoạch
+đánh giá truy xuất, đánh giá chất lượng Quiz, hiệu năng và phân tích hạn chế.
+Các số liệu chưa đo thực nghiệm được đánh dấu rõ để bổ sung trong giai đoạn
+pilot.
+
+\vspace{0.5cm}
+
+\noindent\textbf{\large Từ khóa:} Micro-learning, Large Language Model,
+Retrieval-Augmented Generation, Knowledge Graph, Bloom Taxonomy, Vector
+Database, LTI, Learning Management System.

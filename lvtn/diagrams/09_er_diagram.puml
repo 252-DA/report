@@ -1,0 +1,201 @@
+@startuml er_diagram
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+skinparam EntityBorderColor #555555
+skinparam EntityBackgroundColor #EBF5FB
+skinparam ArrowColor #333333
+
+title Entity-Relationship Diagram — PostgreSQL Schema
+
+entity "users" as users {
+    *id : UUID <<PK>>
+    --
+    email : VARCHAR(255) UNIQUE
+    password_hash : VARCHAR
+    role : ENUM(instructor, student, admin)
+    full_name : VARCHAR(100)
+    created_at : TIMESTAMP
+    is_active : BOOLEAN
+}
+
+entity "courses" as courses {
+    *id : UUID <<PK>>
+    --
+    instructor_id : UUID <<FK>>
+    title : VARCHAR(255)
+    description : TEXT
+    is_published : BOOLEAN
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+}
+
+entity "documents" as documents {
+    *id : UUID <<PK>>
+    --
+    course_id : UUID <<FK>>
+    uploaded_by : UUID <<FK>>
+    file_name : VARCHAR
+    file_type : ENUM(pdf, docx, pptx, mp4, mp3, wav)
+    storage_path : VARCHAR
+    status : ENUM(QUEUED, PARSING, CHUNKING,\n  EMBEDDING, EXTRACTING, GRAPHING,\n  GENERATING, CLIPPING,\n  TRANSCRIBING, DONE, ERROR)
+    error_msg : TEXT
+    last_success_state : VARCHAR
+    created_at : TIMESTAMP
+}
+
+entity "chunks" as chunks {
+    *id : UUID <<PK>>
+    --
+    document_id : UUID <<FK>>
+    course_id : UUID <<FK>>
+    owner_id : UUID <<FK>>
+    heading_path : TEXT[]
+    heading_level : INTEGER
+    content : TEXT
+    enriched_content : TEXT
+    chunk_index : INTEGER
+    page_number : INTEGER
+    token_count : INTEGER
+    language : VARCHAR(10)
+    qdrant_point_id : UUID
+}
+
+entity "concepts" as concepts {
+    *id : UUID <<PK>>
+    --
+    name : VARCHAR(255)
+    canonical_name : VARCHAR(255) UNIQUE
+    domain : VARCHAR(100)
+    category : ENUM(definition, theorem,\n  algorithm, formula, other)
+    language : VARCHAR(10)
+    created_at : TIMESTAMP
+}
+
+entity "chunk_concepts" as chunk_concepts {
+    *chunk_id : UUID <<FK, PK>>
+    *concept_id : UUID <<FK, PK>>
+    --
+    confidence : FLOAT
+    source : ENUM(llm, order, manual)
+    created_at : TIMESTAMP
+}
+
+entity "outbox_events" as outbox {
+    *id : UUID <<PK>>
+    --
+    event_type : VARCHAR
+    aggregate_type : VARCHAR
+    aggregate_id : UUID
+    payload_json : JSONB
+    status : ENUM(PENDING, DONE, FAILED)
+    attempts : INTEGER
+    error_msg : TEXT
+    created_at : TIMESTAMP
+    updated_at : TIMESTAMP
+}
+
+entity "cards" as cards {
+    *id : UUID <<PK>>
+    --
+    chunk_id : UUID <<FK>>
+    course_id : UUID <<FK>>
+    title : VARCHAR
+    summary_points : JSONB
+    is_approved : BOOLEAN
+    approved_by : UUID <<FK>>
+    created_at : TIMESTAMP
+}
+
+entity "quiz_questions" as quiz {
+    *id : UUID <<PK>>
+    --
+    card_id : UUID <<FK>>
+    course_id : UUID <<FK>>
+    question_text : TEXT
+    options : JSONB
+    correct_index : SMALLINT
+    explanation : TEXT
+    bloom_level : SMALLINT
+    is_approved : BOOLEAN
+    created_at : TIMESTAMP
+}
+
+entity "media_clips" as clips {
+    *id : UUID <<PK>>
+    --
+    document_id : UUID <<FK>>
+    clip_url : VARCHAR
+    start_ms : INTEGER
+    end_ms : INTEGER
+    transcript_segment : TEXT
+    clip_index : INTEGER
+}
+
+entity "enrollments" as enrollments {
+    *id : UUID <<PK>>
+    --
+    student_id : UUID <<FK>>
+    course_id : UUID <<FK>>
+    enrolled_at : TIMESTAMP
+}
+
+entity "quiz_attempts" as attempts {
+    *id : UUID <<PK>>
+    --
+    student_id : UUID <<FK>>
+    quiz_question_id : UUID <<FK>>
+    selected_index : SMALLINT
+    is_correct : BOOLEAN
+    answered_at : TIMESTAMP
+}
+
+entity "card_progress" as card_prog {
+    *id : UUID <<PK>>
+    --
+    student_id : UUID <<FK>>
+    card_id : UUID <<FK>>
+    viewed : BOOLEAN
+    viewed_at : TIMESTAMP
+}
+
+entity "chat_history" as chat {
+    *id : UUID <<PK>>
+    --
+    student_id : UUID <<FK>>
+    course_id : UUID <<FK>>
+    session_id : UUID
+    question : TEXT
+    answer : TEXT
+    intent : VARCHAR(30)
+    chunks_used : JSONB
+    created_at : TIMESTAMP
+}
+
+'--- RELATIONSHIPS ---
+users ||--o{ courses : "teaches (instructor_id)"
+courses ||--o{ documents : "has"
+users ||--o{ documents : "uploaded_by"
+documents ||--o{ chunks : "splits into"
+chunks ||--o{ chunk_concepts : "has"
+concepts ||--o{ chunk_concepts : "mentioned in"
+chunks ||--o{ cards : "summarized as"
+cards ||--o{ quiz : "has"
+users ||--o{ cards : "approved_by"
+documents ||--o{ clips : "clips from"
+documents ||--o{ outbox : "events for"
+
+users ||--o{ enrollments : "enrolls"
+courses ||--o{ enrollments : "enrolled in"
+
+users ||--o{ attempts : "answers"
+quiz ||--o{ attempts : "answered in"
+
+users ||--o{ card_prog : "viewed by"
+cards ||--o{ card_prog : "tracked in"
+
+users ||--o{ chat : "asks"
+courses ||--o{ chat : "context of"
+
+@enduml

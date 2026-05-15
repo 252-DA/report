@@ -1,0 +1,40 @@
+\chapter*{Phụ lục}
+\addcontentsline{toc}{chapter}{Phụ lục}
+
+\section*{Đường dẫn quan trọng}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{p{4.3cm}p{8.7cm}}
+        \toprule
+        \textbf{Tài nguyên} & \textbf{Đường dẫn} \\
+        \midrule
+        Repository hệ thống        & \texttt{https://github.com/...} \\
+        Báo cáo LaTeX              & \texttt{https://github.com/...} \\
+        Video demo                 & \texttt{https://...} \\
+        Bộ dữ liệu đánh giá pilot  & \texttt{TODO: cập nhật sau khi pilot} \\
+        \bottomrule
+    \end{tabular}
+    \caption*{Bảng đường dẫn quan trọng.}
+\end{table}
+
+\section*{Danh mục use case tóm tắt}
+
+\begin{table}[H]
+    \centering
+    \caption*{Danh mục use case của hệ thống.}
+    \begin{tabular}{p{1.3cm}p{3.8cm}p{2.5cm}p{5.6cm}}
+        \toprule
+        \textbf{ID} & \textbf{Tên} & \textbf{Tác nhân chính} & \textbf{Kết quả chính} \\
+        \midrule
+        UC-01 & Upload tài liệu & Giảng viên & File lưu vào MinIO, document ở trạng thái chờ xử lý. \\
+        UC-02 & Xử lý tài liệu tự động & AI Pipeline & Tạo chunk, embedding, card và quiz từ tài liệu. \\
+        UC-03 & Review nội dung AI & Giảng viên & Card/Quiz được chỉnh sửa và đánh dấu đã duyệt. \\
+        UC-04 & Publish khóa học & Giảng viên & Nội dung được công bố cho học viên. \\
+        UC-05 & Học bằng card & Học viên & Tiến độ học tập được cập nhật. \\
+        UC-06 & Làm quiz & Học viên & Điểm và phản hồi tức thì được lưu. \\
+        UC-07 & Tìm kiếm ngữ nghĩa & Học viên & Trả về top-K nội dung liên quan. \\
+        UC-08 & Quản lý tài khoản & Quản trị viên & Tài khoản, vai trò và trạng thái người dùng được quản lý. \\
+        \bottomrule
+    \end{tabular}
+\end{table}

@@ -1,0 +1,82 @@
+@startuml dataflow_video_pipeline
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+skinparam SequenceParticipantBorderColor #555555
+skinparam SequenceLifeLineBorderColor #999999
+
+title Luồng dữ liệu: Video/Audio Processing Pipeline\n(Upload → Clip + Card + Quiz)
+
+actor "Giảng viên" as GV
+participant "API\nService" as API
+participant "Redis\nQueue" as Redis
+participant "AI Pipeline\nWorker" as Worker
+participant "Video\nService" as Video
+participant "MinIO\nStorage" as MinIO
+participant "Whisper\nAPI (STT)" as Whisper
+participant "FFmpeg" as FFmpeg
+database "PostgreSQL" as PG
+
+note over Worker, Video : Giao tiếp nội bộ qua gRPC
+
+== 1. Upload Video ==
+GV -> API : UploadDocument(video.mp4)
+API -> MinIO : PUT file (bucket: media)
+API -> PG : INSERT documents (status=QUEUED, type=VIDEO)
+API -> Redis : LPUSH job {doc_id, type=VIDEO}
+API --> GV : {document_id, status=QUEUED}
+
+== 2. Transcribe ==
+Worker -> Redis : BRPOP job
+Worker -> PG : UPDATE status=TRANSCRIBING
+Worker -> Video : Transcribe(doc_id) [gRPC]
+Video -> MinIO : GET video file
+Video -> Whisper : transcribe(audio_bytes)
+note right of Whisper
+  Output: transcript với
+  word-level timestamp
+  cho từng câu / đoạn
+end note
+Whisper --> Video : transcript[{text, start_ms, end_ms}]
+Video --> Worker : {transcript, timestamps}
+
+== 3. Segment ==
+Worker -> Worker : AI phân tích transcript\n→ xác định ý chính\n+ timestamp bắt đầu/kết thúc
+note right of Worker
+  Mỗi segment: 1–5 phút
+  Dựa trên topic shift
+  trong transcript
+end note
+
+== 4. Clip ==
+Worker -> PG : UPDATE status=CLIPPING
+Worker -> Video : ClipVideo({segments[]}) [gRPC]
+loop mỗi segment
+    Video -> FFmpeg : cut(video, start_ms, end_ms)
+    FFmpeg --> Video : clip_bytes
+    Video -> MinIO : PUT clip\n(bucket: media/clips)
+    Video -> PG : INSERT media_clips\n({doc_id, clip_url, start_ms, end_ms})
+end
+Video --> Worker : clips_metadata[]
+
+== 5. Text Pipeline (per clip) ==
+Worker -> PG : UPDATE status=CHUNKING
+loop mỗi clip transcript
+    Worker -> Worker : Chunk(transcript_segment)
+    Worker -> Worker : Embed(chunks) → Qdrant
+    Worker -> Worker : Generate(chunks) → LLM
+    Worker -> PG : INSERT cards, quiz_questions\n(linked to clip_id)
+end
+
+== 6. Done ==
+Worker -> PG : UPDATE status=DONE
+note right of PG
+  Mỗi section (clip) gồm:
+  - Video clip (MinIO URL)
+  - Card tóm tắt
+  - Quiz (MCQ)
+end note
+
+@enduml

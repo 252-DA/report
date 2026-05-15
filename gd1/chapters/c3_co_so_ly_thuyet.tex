@@ -132,6 +132,55 @@ chương, hệ thống duyệt KG để lấy các chunk nội dung liên quan (
 SUPPORTS) và đưa chúng vào context cho LLM --- đảm bảo Quiz được gắn với
 đúng Chuẩn đầu ra thay vì chỉ dựa trên similarity vector thuần túy.
 
+\subsubsection{GraphRAG: Truy xuất Tăng cường dựa trên Đồ thị}
+
+\textbf{Định nghĩa:} GraphRAG (Graph-based Retrieval-Augmented Generation) là
+phương pháp kết hợp Knowledge Graph với RAG truyền thống nhằm khắc phục hạn
+chế của việc tìm kiếm thuần vector-similarity. Thay vì chỉ so khớp đoạn văn
+gần nhất về mặt ngữ nghĩa, GraphRAG duyệt các quan hệ có cấu trúc giữa các
+thực thể trong đồ thị tri thức để truy xuất ngữ cảnh chính xác hơn.
+
+\textbf{Hạn chế của RAG truyền thống:}
+\begin{itemize}
+    \item \textbf{Chunking cơ học:} Cắt văn bản theo kích thước cố định làm
+          đứt gãy ngữ cảnh giữa các đoạn liền kề.
+    \item \textbf{Thiếu tư duy tổng hợp:} Câu hỏi ở mức độ \textit{Vận dụng}
+          và \textit{Phân tích} (Bloom) đòi hỏi liên kết nhiều khái niệm ---
+          RAG thuần túy không mô hình hóa được các liên kết này.
+    \item \textbf{Ảo giác (Hallucination):} Khi không tìm được đoạn phù hợp,
+          LLM có xu hướng bịa thông tin.
+\end{itemize}
+
+\textbf{Giải pháp GraphRAG:} Văn bản thô được chuyển đổi thành các bộ ba cấu
+trúc (Triplets) $\langle$Chủ thể, Mối quan hệ, Khách thể$\rangle$. Khi cần
+sinh câu hỏi, hệ thống duyệt đồ thị từ nút khái niệm đích, thu thập các nút
+lân cận liên quan, và đưa ngữ cảnh có cấu trúc này vào LLM --- thay vì chỉ
+cung cấp các đoạn văn tương đồng theo cosine.
+
+\begin{table}[H]
+    \centering
+    \caption{So sánh RAG truyền thống và GraphRAG.}
+    \label{tab:rag-vs-graphrag}
+    \begin{tabular}{p{4cm}p{5cm}p{5cm}}
+        \toprule
+        \textbf{Tiêu chí} & \textbf{RAG truyền thống} & \textbf{GraphRAG} \\
+        \midrule
+        Đơn vị lưu trữ     & Chunk văn bản        & Node + Edge (Triplet) \\
+        Tìm kiếm            & Cosine similarity    & Graph traversal + similarity \\
+        Liên kết khái niệm  & Ngầm định            & Tường minh (có nhãn) \\
+        Câu hỏi tổng hợp    & Khó                  & Tự nhiên \\
+        Chi phí xây dựng    & Thấp                 & Cao hơn (cần Graph Extraction) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\noindent\textbf{Ứng dụng trong đề tài:} GraphRAG được áp dụng để sinh câu
+hỏi ở mức độ cao theo thang Bloom (Vận dụng, Phân tích). Các node trong đồ
+thị ánh xạ tới các khái niệm chủ chốt; các edge mã hóa mối quan hệ ngữ nghĩa
+(ví dụ: \textit{``Overfitting''} $\xrightarrow{\text{giải pháp}}$
+\textit{``Regularization''}). LLM nhận subgraph thay vì đoạn văn thuần túy,
+cho phép đặt câu hỏi đòi hỏi lập luận chéo.
+
 \subsection{Cân nhắc lựa chọn công nghệ}
 
 \subsubsection{Lựa chọn LLM API: GPT-4o-mini vs Gemini Flash}
@@ -156,6 +205,33 @@ SUPPORTS) và đưa chúng vào context cho LLM --- đảm bảo Quiz được g
 \noindent\textbf{Quyết định:} Sử dụng \textbf{Gemini 2.0 Flash} làm mặc định do
 chi phí thấp hơn, tốc độ nhanh hơn, và free tier phù hợp cho môi trường nghiên
 cứu. Kiến trúc Port/Adapter cho phép chuyển sang GPT-4o-mini dễ dàng nếu cần.
+
+\subsubsection{Chiến lược Hybrid LLMs: Open-weights kết hợp Closed API}
+
+Để cân bằng giữa chi phí, bảo mật và hiệu năng, hệ thống áp dụng chiến lược
+kết hợp hai loại mô hình ngôn ngữ với vai trò phân công rõ ràng:
+
+\begin{table}[H]
+    \centering
+    \caption{Phân công vai trò trong chiến lược Hybrid LLMs.}
+    \label{tab:hybrid-llm}
+    \begin{tabular}{p{3.5cm}p{5.5cm}p{5.5cm}}
+        \toprule
+        \textbf{Tiêu chí} & \textbf{Open-weights (Local)} & \textbf{Closed API (Cloud)} \\
+        \midrule
+        Ví dụ mô hình      & Gemma 3, Llama 3.3            & Gemini 2.5 Flash, GPT-4o \\
+        Triển khai         & Cục bộ / On-premise           & Qua API \\
+        Bảo mật dữ liệu    & Tuyệt đối (offline)           & Phụ thuộc chính sách provider \\
+        Tinh chỉnh         & Có (LoRA/QLoRA)               & Không \\
+        Vai trò trong pipeline & Graph Extraction (trích xuất triplet) & Sinh câu hỏi \& Đánh giá chất lượng \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\noindent\textbf{Lý do phân công:} Tác vụ Graph Extraction chạy trên toàn bộ
+nội dung tài liệu (nhiều token, lặp lại nhiều lần) nên ưu tiên mô hình local
+để kiểm soát chi phí và bảo mật. Tác vụ sinh câu hỏi yêu cầu lập luận mạnh,
+tốc độ cao và chất lượng đầu ra tốt --- phù hợp với các Closed API hiện đại.
 
 \subsubsection{Lựa chọn chiến lược Chunking}
 
@@ -230,11 +306,62 @@ là đồ thị phân cấp có nhãn, phù hợp tự nhiên với mô hình đ
 bảng trong SQL. Neo4j là lựa chọn mã nguồn mở, tự host, với Python driver
 \texttt{neo4j} chính thức.
 
+\subsubsection{Lựa chọn nền tảng LMS tích hợp: Open edX vs Moodle}
+
+Hệ thống cần tích hợp với một nền tảng LMS hiện có để quản lý người dùng,
+khóa học và tiến độ học tập. Hai lựa chọn được đánh giá là \textbf{Open edX}
+(triển khai qua Tutor) và \textbf{Moodle}.
+
+\paragraph{Hạ tầng \& Vận hành}
+
+\begin{table}[H]
+    \centering
+    \caption{So sánh hạ tầng và vận hành giữa Open edX và Moodle.}
+    \label{tab:edx-moodle-infra}
+    \begin{tabular}{p{4.5cm}p{4.5cm}p{5cm}}
+        \toprule
+        \textbf{Tiêu chí} & \textbf{Open edX (Tutor)} & \textbf{Moodle} \\
+        \midrule
+        RAM tối thiểu           & $\geq$ 4--6 GB                           & $\geq$ 1--2 GB \\
+        Thời gian cài đặt       & $\sim$30--60 phút                        & $\sim$15--30 phút \\
+        Cài Plugin/XBlock       & CLI (\texttt{tutor plugins} + \texttt{pip}) & Upload \texttt{.zip} qua Admin UI \\
+        CI/CD                   & Phức tạp (build custom image)            & Đơn giản \\
+        Cập nhật phiên bản      & Theo release (Sumac, Redwood\ldots)      & Tự động / dễ dàng \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\paragraph{Plugin \& Khả năng mở rộng}
+
+\begin{table}[H]
+    \centering
+    \caption{So sánh khả năng mở rộng giữa Open edX và Moodle.}
+    \label{tab:edx-moodle-plugin}
+    \begin{tabular}{p{4.5cm}p{4.5cm}p{5cm}}
+        \toprule
+        \textbf{Tiêu chí} & \textbf{Open edX} & \textbf{Moodle} \\
+        \midrule
+        Cơ chế mở rộng             & XBlock (Python)           & Plugin (PHP, AMD JS + Mustache) \\
+        Chuẩn liên thông LTI       & LTI 1.3 (chỉ nhận)        & LTI 1.3 (nhận \textbf{và} phát) \\
+        Tích hợp app ngoài no-code & Hạn chế (cần code Python) & Linh hoạt (iframe qua LTI) \\
+        Độ khó phát triển          & Trung bình (cần hiểu XBlock) & Cao hơn nếu yếu PHP \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\noindent\textbf{Nhận xét:} Moodle có ưu thế về tài nguyên thấp, cài đặt đơn
+giản và hỗ trợ LTI 1.3 hai chiều --- phù hợp với chiến lược tích hợp module
+AI dưới dạng \textit{LTI Tool Provider} độc lập. Open edX phù hợp hơn khi đội
+ngũ có nền tảng Python mạnh và hạ tầng server lớn. Quyết định cuối cùng sẽ
+được xác nhận sau khi tham khảo ý kiến GVHD về môi trường triển khai thực tế.
+
 \subsection{Tổng kết Chương 3}
 
 Chương 3 đã trình bày nền tảng lý thuyết cho các công nghệ cốt lõi của hệ
 thống: LLM và Prompt Engineering, Text Chunking, Vector Embedding, kiến trúc
-DDD (Hexagonal Architecture), và Knowledge Graph cho Chuẩn đầu ra học phần.
-Phần cân nhắc lựa chọn công nghệ đã lý giải cụ thể lý do chọn Gemini 2.0 Flash,
-Heading-based Chunking, Qdrant, bge-m3 và Neo4j so với các lựa chọn thay thế.
+DDD (Hexagonal Architecture), Knowledge Graph cho Chuẩn đầu ra học phần, và
+GraphRAG --- phương pháp truy xuất có cấu trúc vượt trội so với RAG thuần
+vector. Phần cân nhắc lựa chọn công nghệ đã lý giải cụ thể lý do chọn chiến
+lược Hybrid LLMs, Gemini 2.0 Flash, Heading-based Chunking, Qdrant, bge-m3,
+Neo4j, và so sánh hai nền tảng LMS tích hợp (Open edX vs Moodle).
 Những quyết định này được hiện thực hóa trong Chương 4 và 5.

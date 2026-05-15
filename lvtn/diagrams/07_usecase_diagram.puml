@@ -1,0 +1,105 @@
+@startuml usecase_diagram
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ActorBorderColor #555555
+skinparam UsecaseBorderColor #0070C0
+skinparam UsecaseBackgroundColor #EBF5FB
+skinparam ArrowColor #333333
+skinparam PackageBorderColor #888888
+
+title Use Case Diagram — Hệ thống Micro-learning
+
+left to right direction
+
+actor "Giảng viên\n(Instructor)" as GV
+actor "Học viên\n(Student)" as HV
+actor "Quản trị viên\n(Admin)" as Admin
+actor "AI Pipeline\n(System)" as AI
+actor "LLM API\n(External)" as LLM
+
+rectangle "Hệ thống Micro-learning" {
+
+    package "Xác thực" {
+        usecase "Đăng ký tài khoản" as UC_Register
+        usecase "Đăng nhập" as UC_Login
+        usecase "Đổi mật khẩu" as UC_ChangePwd
+    }
+
+    package "Quản lý tài liệu (Giảng viên)" {
+        usecase "Upload tài liệu\n(PDF/DOCX/PPTX/Video)" as UC_Upload
+        usecase "Theo dõi tiến trình\nxử lý (real-time)" as UC_Watch
+        usecase "Review & chỉnh sửa\nCard / Quiz" as UC_Review
+        usecase "Publish khóa học" as UC_Publish
+        usecase "Retry xử lý\nnếu lỗi" as UC_Retry
+    }
+
+    package "AI Pipeline (Background)" {
+        usecase "Parse tài liệu" as UC_Parse
+        usecase "Chunk văn bản" as UC_Chunk
+        usecase "Tạo Vector Embedding" as UC_Embed
+        usecase "Sinh Summary + Quiz\n(LLM)" as UC_Generate
+        usecase "Transcribe Video\n(Whisper)" as UC_Transcribe
+        usecase "Cắt Video\n(FFmpeg)" as UC_Clip
+    }
+
+    package "Học tập (Học viên)" {
+        usecase "Duyệt danh sách\nkhóa học" as UC_Browse
+        usecase "Học Card\n(Micro-content)" as UC_StudyCard
+        usecase "Làm Quiz\n(MCQ)" as UC_DoQuiz
+        usecase "Xem kết quả\n& tiến độ" as UC_Progress
+        usecase "Hỏi Chatbot Tutor\n(RAG)" as UC_Chat
+    }
+
+    package "Quản trị (Admin)" {
+        usecase "Quản lý tài khoản\nngười dùng" as UC_ManageUser
+        usecase "Xem thống kê\nhệ thống" as UC_Stats
+    }
+}
+
+'--- ACTOR → USE CASE ---
+GV --> UC_Register
+GV --> UC_Login
+GV --> UC_Upload
+GV --> UC_Watch
+GV --> UC_Review
+GV --> UC_Publish
+GV --> UC_Retry
+GV --> UC_ChangePwd
+
+HV --> UC_Register
+HV --> UC_Login
+HV --> UC_Browse
+HV --> UC_StudyCard
+HV --> UC_DoQuiz
+HV --> UC_Progress
+HV --> UC_Chat
+
+Admin --> UC_Login
+Admin --> UC_ManageUser
+Admin --> UC_Stats
+
+AI --> UC_Parse
+AI --> UC_Chunk
+AI --> UC_Embed
+AI --> UC_Generate
+AI --> UC_Transcribe
+AI --> UC_Clip
+
+LLM --> UC_Generate
+
+'--- INCLUDE / EXTEND ---
+UC_Upload ..> UC_Watch : <<triggers>>
+UC_Upload ..> UC_Parse : <<triggers>>
+UC_Parse ..> UC_Chunk : <<include>>
+UC_Chunk ..> UC_Embed : <<include>>
+UC_Embed ..> UC_Generate : <<include>>
+UC_Transcribe ..> UC_Parse : <<include>>
+UC_Clip ..> UC_Generate : <<extends>>
+
+UC_DoQuiz ..> UC_Progress : <<include>>
+UC_StudyCard ..> UC_Progress : <<include>>
+UC_Retry ..> UC_Parse : <<triggers>>
+
+@enduml

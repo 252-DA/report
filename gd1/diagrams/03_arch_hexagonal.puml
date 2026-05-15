@@ -1,0 +1,92 @@
+@startuml arch_hexagonal
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ComponentBorderColor #555555
+skinparam InterfaceBorderColor #0070C0
+skinparam ArrowColor #333333
+skinparam PackageBorderColor #888888
+
+title Kiến trúc Hexagonal (Port/Adapter) — AI Pipeline Service
+
+'--- DOMAIN CORE ---
+package "Domain Core (Use Cases)" #FEF9E7 {
+    component [ProcessDocumentUseCase] as UC1
+    component [GenerateContentUseCase] as UC2
+    component [EmbedChunksUseCase] as UC3
+    component [TranscribeVideoUseCase] as UC4
+}
+
+'--- PORTS (Interfaces) ---
+package "Ports (Interfaces)" #EAF2FF {
+    interface "LLMPort" as LLMPort
+    interface "ParserPort" as ParserPort
+    interface "EmbeddingPort" as EmbedPort
+    interface "VectorDBPort" as VectorDBPort
+    interface "StoragePort" as StoragePort
+    interface "STTPort" as STTPort
+    interface "VideoPort" as VideoPort
+}
+
+'--- PRODUCTION ADAPTERS ---
+package "Production Adapters" #E9F7EF {
+    component [OpenAIAdapter] as OAI
+    component [GeminiAdapter] as Gemini
+    component [PDFParser\nDocxParser\nPptxParser] as Parsers
+    component [BGEm3Adapter\n(local model)] as BGE
+    component [QdrantAdapter] as QdrantA
+    component [MinIOAdapter] as MinIOA
+    component [WhisperAdapter\nGoogleSTTAdapter] as STT
+    component [FFmpegAdapter] as FFmpeg
+}
+
+'--- TEST ADAPTERS ---
+package "Test Adapters" #FDF2F8 {
+    component [MockLLMAdapter\n(JSON cố định)] as MockLLM
+    component [MockParser] as MockParser
+    component [MockEmbeddingAdapter\n(vector ngẫu nhiên)] as MockEmbed
+    component [InMemoryVectorDB] as MemVec
+    component [LocalFSAdapter] as LocalFS
+    component [MockSTTAdapter] as MockSTT
+    component [MockVideoAdapter] as MockVideo
+}
+
+'--- USE CASE → PORT ---
+UC1 --> ParserPort
+UC1 --> StoragePort
+UC2 --> LLMPort
+UC3 --> EmbedPort
+UC3 --> VectorDBPort
+UC4 --> STTPort
+UC4 --> VideoPort
+
+'--- PORT → PROD ADAPTER ---
+LLMPort <|.. OAI
+LLMPort <|.. Gemini
+ParserPort <|.. Parsers
+EmbedPort <|.. BGE
+VectorDBPort <|.. QdrantA
+StoragePort <|.. MinIOA
+STTPort <|.. STT
+VideoPort <|.. FFmpeg
+
+'--- PORT → TEST ADAPTER ---
+LLMPort <|.. MockLLM
+ParserPort <|.. MockParser
+EmbedPort <|.. MockEmbed
+VectorDBPort <|.. MemVec
+StoragePort <|.. LocalFS
+STTPort <|.. MockSTT
+VideoPort <|.. MockVideo
+
+note bottom of "Production Adapters"
+  Dùng khi chạy thực tế (production / staging)
+end note
+
+note bottom of "Test Adapters"
+  Dùng trong unit tests — không gọi API thật
+  Tiết kiệm chi phí & không phụ thuộc mạng
+end note
+
+@enduml

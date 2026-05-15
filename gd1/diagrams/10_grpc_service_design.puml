@@ -1,0 +1,142 @@
+@startuml grpc_service_design
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+skinparam ClassBorderColor #555555
+skinparam ClassBackgroundColor #F0F8FF
+skinparam ArrowColor #333333
+skinparam PackageBorderColor #888888
+
+title gRPC Service Design — Protobuf Interface
+
+package "auth.proto" #EBF5FB {
+    class AuthService <<gRPC Service>> {
+        + Register(RegisterReq) : UserResp
+        + Login(LoginReq) : TokenPair
+        + RefreshToken(RefreshReq) : TokenPair
+        + Logout(LogoutReq) : Empty
+    }
+    class RegisterReq {
+        email: string
+        password: string
+        role: Role
+        full_name: string
+    }
+    class TokenPair {
+        access_token: string
+        refresh_token: string
+        expires_in: int64
+    }
+}
+
+package "document.proto" #E9F7EF {
+    class DocumentService <<gRPC Service>> {
+        + UploadDocument(UploadDocumentReq) : DocumentResp
+        + GetDocument(DocIdReq) : DocumentResp
+        + ListDocuments(ListDocsReq) : DocListResp
+        + DeleteDocument(DocIdReq) : Empty
+        + WatchStatus(DocIdReq) : **stream** StatusUpdate
+    }
+    class StatusUpdate {
+        doc_id: string
+        status: PipelineStatus
+        progress_pct: int32
+        message: string
+        timestamp: int64
+    }
+    note right of DocumentService
+      WatchStatus: server-streaming
+      Client nhận real-time updates
+      khi pipeline chạy
+    end note
+}
+
+package "course.proto" #FEF9E7 {
+    class CourseService <<gRPC Service>> {
+        + CreateCourse(CreateCourseReq) : CourseResp
+        + GetCourse(CourseIdReq) : CourseResp
+        + ListCourses(ListCoursesReq) : CourseListResp
+        + PublishCourse(CourseIdReq) : CourseResp
+        + GetCards(CourseIdReq) : CardListResp
+        + GetQuiz(CardIdReq) : QuizListResp
+        + ApproveCard(ApproveReq) : CardResp
+        + ApproveQuiz(ApproveReq) : QuizResp
+    }
+}
+
+package "learning.proto" #FDF2F8 {
+    class LearningService <<gRPC Service>> {
+        + GetEnrolledCourses(UserIdReq) : CourseListResp
+        + EnrollCourse(EnrollReq) : EnrollResp
+        + MarkCardViewed(CardViewReq) : Empty
+        + SubmitQuizAnswer(SubmitAnswerReq) : AnswerResultResp
+        + GetProgress(ProgressReq) : ProgressResp
+    }
+    class AnswerResultResp {
+        is_correct: bool
+        correct_index: int32
+        explanation: string
+    }
+}
+
+package "video.proto" #E8F5E9 {
+    class VideoService <<gRPC Service>> {
+        + Transcribe(TranscribeReq) : TranscribeResp
+        + ClipVideo(ClipVideoReq) : **stream** ClipProgress
+    }
+    class TranscribeReq {
+        doc_id: string
+        storage_path: string
+    }
+    class TranscribeResp {
+        segments: repeated TranscriptSegment
+    }
+    class TranscriptSegment {
+        text: string
+        start_ms: int64
+        end_ms: int64
+    }
+    class ClipVideoReq {
+        doc_id: string
+        storage_path: string
+        segments: repeated TranscriptSegment
+    }
+    class ClipProgress {
+        clip_index: int32
+        total_clips: int32
+        clip_url: string
+        start_ms: int64
+        end_ms: int64
+        is_final: bool
+    }
+    note right of VideoService
+      Transcribe: unary call
+      ClipVideo: server-streaming
+      — trả về từng clip khi xong
+    end note
+}
+
+package "chat.proto" #FEF5E4 {
+    class ChatService <<gRPC Service>> {
+        + SendMessage(ChatMessageReq) : **stream** ChatChunk
+        + GetHistory(HistoryReq) : ChatHistoryResp
+    }
+    note right of ChatService
+      SendMessage: server-streaming
+      Trả về token từng phần
+      (streaming response từ LLM)
+    end note
+    class ChatChunk {
+        chunk_text: string
+        is_final: bool
+        citations: repeated Citation
+    }
+    class Citation {
+        chunk_id: string
+        heading: string
+        page: int32
+    }
+}
+
+@enduml

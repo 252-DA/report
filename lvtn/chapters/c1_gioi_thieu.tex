@@ -1,0 +1,140 @@
+\chapter{Tổng quan đề tài}
+
+\section{Bối cảnh và Vấn đề}
+
+Sự phát triển của các nền tảng học trực tuyến giúp giảng viên phân phối tài
+liệu, bài tập và bài kiểm tra nhanh hơn so với lớp học truyền thống. Tuy
+nhiên, trong nhiều học phần kỹ thuật, quy trình chuẩn bị nội dung vẫn phụ
+thuộc nhiều vào thao tác thủ công: giảng viên đọc giáo trình, slide, đề cương
+môn học, tóm tắt lại thành bài học ngắn, sau đó tự soạn câu hỏi kiểm tra và
+đáp án. Khi tài liệu thay đổi hoặc môn học có nhiều chương, quy trình này tốn
+thời gian, khó duy trì chất lượng đồng đều và khó cá nhân hóa cho từng nhóm
+học viên.
+
+Ở phía học viên, tài liệu dài gây khó khăn cho việc ôn tập theo từng đơn vị
+kiến thức nhỏ. Học viên thường cần nội dung ngắn gọn, câu hỏi tự kiểm tra và
+phản hồi tức thì để biết phần nào đã hiểu, phần nào cần học lại. Nhu cầu này
+phù hợp với Micro-learning, trong đó nội dung học tập được chia thành các đơn
+vị nhỏ, dễ tiếp cận, dễ lặp lại và có thể đánh giá thường xuyên.
+
+Các mô hình ngôn ngữ lớn (Large Language Models --- LLMs) và Generative AI mở
+ra khả năng tự động hóa một phần quy trình tạo nội dung học tập. LLM có thể
+tóm tắt, diễn giải, sinh câu hỏi và giải thích đáp án. Tuy vậy, nếu gọi LLM
+trực tiếp trên tài liệu thô, hệ thống dễ gặp các vấn đề như sinh nội dung
+không bám nguồn, câu hỏi không gắn với chuẩn đầu ra học phần, thiếu kiểm soát
+chất lượng và khó tích hợp vào Learning Management System (LMS) hiện hữu.
+
+Từ đó, đề tài đặt ra bài toán: xây dựng một hệ thống tích hợp LMS có khả năng
+chuyển đổi tài liệu học thuật thành Micro-Content và Quiz bằng Generative AI,
+đồng thời vẫn đảm bảo khả năng kiểm duyệt học thuật, truy xuất nguồn tri thức
+và gắn kết với chuẩn đầu ra học phần.
+
+Các thách thức chính gồm:
+\begin{itemize}
+    \item \textbf{Tài liệu đầu vào không đồng nhất:} PDF, DOCX, PPTX có cấu
+          trúc, heading, bảng biểu và định dạng khác nhau.
+    \item \textbf{Ngữ cảnh dài:} LLM không nên nhận toàn bộ tài liệu một lần;
+          hệ thống cần chunking và truy xuất phù hợp.
+    \item \textbf{Độ tin cậy nội dung:} nội dung sinh ra phải bám sát tài
+          liệu gốc và cần có bước Human-in-the-Loop để giảng viên review.
+    \item \textbf{Liên kết chuẩn đầu ra:} Quiz cần đo đúng Learning Outcome
+          thay vì chỉ hỏi rời rạc theo từng đoạn văn bản.
+    \item \textbf{Tích hợp LMS:} hệ thống phải hoạt động bên cạnh Open edX
+          hoặc Moodle, tránh buộc cơ sở đào tạo thay đổi toàn bộ LMS.
+    \item \textbf{Đánh giá chất lượng:} cần đánh giá cả chức năng, truy xuất,
+          chất lượng nội dung sinh ra, hiệu năng và trải nghiệm sử dụng.
+\end{itemize}
+
+\section{Mục tiêu đề tài}
+
+\subsection{Mục tiêu tổng quát}
+
+Xây dựng và đánh giá một hệ thống LMS tích hợp Generative AI có khả năng tự
+động chuyển đổi tài liệu học thuật thành Micro-Content và Quiz, hỗ trợ review
+của giảng viên, tìm kiếm ngữ nghĩa, truy xuất dựa trên RAG/GraphRAG và liên
+kết nội dung với chuẩn đầu ra học phần.
+
+\subsection{Mục tiêu cụ thể}
+
+\begin{enumerate}
+    \item Thiết kế kiến trúc hệ thống gồm frontend, backend gRPC, worker xử lý
+          bất đồng bộ, PostgreSQL, Qdrant, Neo4j, MinIO và Redis/Queue.
+    \item Xây dựng pipeline xử lý tài liệu gồm trích xuất nội dung, OCR khi
+          cần, chunking, embedding, retrieval và generation.
+    \item Thiết kế Curriculum-Aware Layer để trích xuất Course, Chapter,
+          Learning Outcome và ánh xạ nội dung học tập với chuẩn đầu ra.
+    \item Tích hợp hệ thống với LMS thông qua LTI 1.3/OIDC, ưu tiên Open edX
+          và phân tích khả năng tương thích với Moodle.
+    \item Xây dựng giao diện cho giảng viên review/publish nội dung và học
+          viên học card/làm quiz.
+    \item Đề xuất phương pháp đánh giá chức năng, tích hợp, chất lượng truy
+          xuất, chất lượng nội dung sinh ra và hiệu năng hệ thống.
+\end{enumerate}
+
+\section{Phạm vi và Giới hạn}
+
+Trong phạm vi luận văn, hệ thống tập trung vào các nội dung sau:
+\begin{itemize}
+    \item Tài liệu đầu vào dạng PDF, DOCX, PPTX và đề cương môn học dạng văn
+          bản/PDF có cấu trúc tương đối rõ.
+    \item Sinh Micro-Content, Flashcard/Lesson Card, câu hỏi trắc nghiệm và
+          giải thích đáp án.
+    \item Tìm kiếm ngữ nghĩa và RAG dựa trên chunk đã embedding.
+    \item Knowledge Graph cho Course, Chapter, Learning Outcome, Assessment
+          và quan hệ chunk hỗ trợ LO.
+    \item Tích hợp LMS bằng LTI 1.3 với Open edX; Moodle được phân tích như
+          hướng triển khai tương thích.
+    \item Triển khai local/staging bằng Docker Compose.
+\end{itemize}
+
+Các giới hạn hiện tại gồm:
+\begin{itemize}
+    \item OCR production cho tài liệu scan chất lượng thấp chưa phải trọng tâm
+          hiện thực; phần này được trình bày như thiết kế mở rộng.
+    \item Kubernetes production đầy đủ chưa được triển khai trong phạm vi luận
+          văn; hệ thống chỉ nêu định hướng chuyển đổi từ Docker Compose.
+    \item GraphRAG nhiều bước và reasoning trên graph chưa được đánh giá như
+          một module hoàn chỉnh.
+    \item Đánh giá pilot quy mô lớn chưa thuộc phạm vi chính; các chỉ số chưa
+          đo thực nghiệm được đánh dấu rõ để tránh kết luận vượt quá dữ liệu.
+\end{itemize}
+
+\section{Ý nghĩa thực tiễn}
+
+Đề tài có ý nghĩa thực tiễn ở ba khía cạnh. Thứ nhất, hệ thống hỗ trợ giảng
+viên giảm thời gian chuẩn bị học liệu ngắn và câu hỏi kiểm tra, đồng thời vẫn
+giữ quyền kiểm duyệt trước khi công bố cho học viên. Thứ hai, học viên có thể
+tiếp cận tài liệu theo từng đơn vị nhỏ, làm quiz và nhận phản hồi nhanh để ôn
+tập hiệu quả hơn. Thứ ba, cách tiếp cận tích hợp qua LTI giúp hệ thống có thể
+được đưa vào LMS hiện hữu như Open edX hoặc Moodle mà không phải thay thế hạ
+tầng học tập đang sử dụng.
+
+Về mặt kỹ thuật, đề tài minh họa cách kết hợp RAG, Knowledge Graph, Bloom
+taxonomy và kiến trúc xử lý bất đồng bộ để xây dựng một pipeline AI có khả
+năng truy xuất nguồn, kiểm soát chất lượng và mở rộng trong môi trường giáo
+dục.
+
+\section{Cấu trúc luận văn}
+
+Luận văn được tổ chức thành 7 chương:
+\begin{itemize}
+    \item \textbf{Chương 1 --- Tổng quan đề tài:} trình bày bối cảnh, vấn đề,
+          mục tiêu, phạm vi, giới hạn và ý nghĩa thực tiễn.
+    \item \textbf{Chương 2 --- Nền tảng lý thuyết và công nghệ:} trình bày
+          Micro-learning, Bloom taxonomy, LLM, Generative AI, RAG, GraphRAG,
+          LTI 1.3 và các công nghệ lõi.
+    \item \textbf{Chương 3 --- Phân tích yêu cầu và nghiệp vụ:} phân tích tác
+          nhân, yêu cầu hệ thống, use case và luồng nghiệp vụ chính.
+    \item \textbf{Chương 4 --- Thiết kế hệ thống:} trình bày kiến trúc tổng
+          thể, tích hợp LMS, AI pipeline, thiết kế dữ liệu, Knowledge Graph,
+          giao tiếp nội bộ và system flows.
+    \item \textbf{Chương 5 --- Hiện thực và triển khai:} mô tả môi trường phát
+          triển, frontend, backend, workers, tích hợp LMS và đóng gói triển
+          khai.
+    \item \textbf{Chương 6 --- Đánh giá hệ thống:} trình bày phương pháp đánh
+          giá chức năng, tích hợp, retrieval, chất lượng nội dung sinh ra và
+          hiệu năng.
+    \item \textbf{Chương 7 --- Kết luận và hướng phát triển:} tổng kết kết
+          quả, hạn chế, định hướng mở rộng và kế hoạch triển khai giai đoạn
+          luận văn tốt nghiệp.
+\end{itemize}

@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Micro-learning System — Full Architecture (GĐ1 + GĐ2)</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'JetBrains Mono',monospace;background:#020617;min-height:100vh;padding:1.2rem;color:white}
+.header{margin-bottom:1rem}
+.header-row{display:flex;align-items:center;gap:1rem;margin-bottom:.3rem}
+.pulse-dot{width:10px;height:10px;background:#22d3ee;border-radius:50%;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+h1{font-size:1.2rem;font-weight:700}
+.subtitle{color:#94a3b8;font-size:.75rem;margin-left:1.5rem}
+.diagram-container{background:rgba(15,23,42,.5);border-radius:1rem;border:1px solid #1e293b;padding:.75rem;overflow-x:auto}
+svg{width:100%;min-width:1400px;display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.6rem;margin-top:1rem}
+.card{background:rgba(15,23,42,.5);border-radius:.6rem;border:1px solid #1e293b;padding:.75rem}
+.card-header{display:flex;align-items:center;gap:.4rem;margin-bottom:.4rem}
+.card-dot{width:7px;height:7px;border-radius:50%}
+.card-dot.cyan{background:#22d3ee}.card-dot.emerald{background:#34d399}.card-dot.violet{background:#a78bfa}
+.card-dot.amber{background:#fbbf24}.card-dot.rose{background:#fb7185}.card-dot.orange{background:#fb923c}
+.card-dot.pink{background:#f472b6}.card-dot.blue{background:#60a5fa}
+.card h3{font-size:.75rem;font-weight:600}
+.card ul{list-style:none;color:#94a3b8;font-size:.65rem}
+.card li{margin-bottom:.2rem}
+.footer{text-align:center;margin-top:.8rem;color:#475569;font-size:.65rem}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<div class="header-row"><div class="pulse-dot"></div><h1>Micro-learning System — Full Architecture (GĐ1 + GĐ2)</h1></div>
+<p class="subtitle">Document → Micro-content → Quiz | Video → RAG Chatbot | BKT → Mastery → RL Recommendation → Dashboard</p>
+</div>
+
+<div class="diagram-container">
+<svg viewBox="0 0 1500 980">
+<defs>
+<marker id="ahc" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#22d3ee"/></marker>
+<marker id="ahg" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#34d399"/></marker>
+<marker id="ahv" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#a78bfa"/></marker>
+<marker id="ahr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#fb7185"/></marker>
+<marker id="aho" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#fb923c"/></marker>
+<marker id="ahp" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#f472b6"/></marker>
+<marker id="ahb" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#60a5fa"/></marker>
+<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/></pattern>
+</defs>
+<rect width="100%" height="100%" fill="url(#grid)"/>
+
+<!-- ====== BROWSER ====== -->
+<rect x="500" y="10" width="250" height="48" rx="6" fill="rgba(30,41,59,.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="625" y="32" fill="white" font-size="11" font-weight="600" text-anchor="middle">Browser (Student / Lecturer)</text>
+<text x="625" y="48" fill="#94a3b8" font-size="7" text-anchor="middle">localhost:3000 | local.edly.io</text>
+
+<!-- ====== LTI AUTH FLOW (top left) ====== -->
+<rect x="10" y="10" width="180" height="48" rx="6" fill="rgba(136,19,55,.3)" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="4,3"/>
+<text x="100" y="32" fill="#fb7185" font-size="9" font-weight="600" text-anchor="middle">LTI 1.3 OIDC Auth</text>
+<text x="100" y="46" fill="#94a3b8" font-size="7" text-anchor="middle">ltijs Provider + JWKS</text>
+
+<!-- ====== FRONTEND (Next.js) ====== -->
+<rect x="220" y="80" width="280" height="170" rx="8" fill="rgba(8,51,68,.06)" stroke="#22d3ee" stroke-width="2"/>
+<text x="360" y="100" fill="#22d3ee" font-size="10" font-weight="700" text-anchor="middle">Next.js 15 — Frontend</text>
+
+<rect x="235" y="112" width="120" height="55" rx="5" fill="rgba(8,51,68,.4)" stroke="#22d3ee" stroke-width="1.2"/>
+<text x="295" y="133" fill="white" font-size="8" font-weight="600" text-anchor="middle">/learn/cards</text>
+<text x="295" y="148" fill="#94a3b8" font-size="6" text-anchor="middle">Card viewer + Quiz</text>
+<text x="295" y="160" fill="#22d3ee" font-size="6" text-anchor="middle">inline MCQ + AGS</text>
+
+<rect x="365" y="112" width="120" height="55" rx="5" fill="rgba(8,51,68,.4)" stroke="#22d3ee" stroke-width="1.2"/>
+<text x="425" y="133" fill="white" font-size="8" font-weight="600" text-anchor="middle">/learn/chat</text>
+<text x="425" y="148" fill="#94a3b8" font-size="6" text-anchor="middle">RAG Chatbot</text>
+<text x="425" y="160" fill="#f472b6" font-size="6" text-anchor="middle">SSE streaming</text>
+
+<rect x="235" y="175" width="120" height="55" rx="5" fill="rgba(8,51,68,.4)" stroke="#22d3ee" stroke-width="1.2"/>
+<text x="295" y="196" fill="white" font-size="8" font-weight="600" text-anchor="middle">/learn/next</text>
+<text x="295" y="211" fill="#94a3b8" font-size="6" text-anchor="middle">Adaptive Path</text>
+<text x="295" y="223" fill="#60a5fa" font-size="6" text-anchor="middle">Thompson/LinUCB</text>
+
+<rect x="365" y="175" width="120" height="55" rx="5" fill="rgba(8,51,68,.4)" stroke="#22d3ee" stroke-width="1.2"/>
+<text x="425" y="196" fill="white" font-size="8" font-weight="600" text-anchor="middle">/dashboard</text>
+<text x="425" y="211" fill="#94a3b8" font-size="6" text-anchor="middle">Instructor View</text>
+<text x="425" y="223" fill="#a78bfa" font-size="6" text-anchor="middle">Mastery Heatmap</text>
+
+<!-- ====== AUTH GATE ====== -->
+<rect x="220" y="260" width="280" height="35" rx="5" fill="rgba(136,19,55,.2)" stroke="#fb7185" stroke-width="1" stroke-dasharray="3,3"/>
+<text x="360" y="282" fill="#fb7185" font-size="8" text-anchor="middle">Auth Gate: Redis Session (sid cookie, TTL 30')</text>
+
+<!-- ====== LMS LAYER (left) ====== -->
+<rect x="540" y="80" width="200" height="215" rx="8" fill="rgba(34,211,238,.04)" stroke="#22d3ee" stroke-width="1" stroke-dasharray="6,3"/>
+<text x="640" y="100" fill="#22d3ee" font-size="9" font-weight="600" text-anchor="middle">LMS Layer (LTI 1.3)</text>
+
+<rect x="555" y="115" width="170" height="75" rx="5" fill="rgba(8,51,68,.35)" stroke="#22d3ee" stroke-width="1.2"/>
+<text x="640" y="136" fill="white" font-size="9" font-weight="600" text-anchor="middle">Open edX (Redwood)</text>
+<text x="640" y="152" fill="#94a3b8" font-size="7" text-anchor="middle">Tutor 18 + lti_consumer</text>
+<text x="640" y="166" fill="#94a3b8" font-size="7" text-anchor="middle">AILessonBlock XBlock</text>
+<text x="640" y="180" fill="#22d3ee" font-size="6" text-anchor="middle">ENABLE_OAUTH2_PROVIDER</text>
+
+<rect x="555" y="200" width="170" height="55" rx="5" fill="rgba(8,51,68,.15)" stroke="#475569" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="640" y="220" fill="#94a3b8" font-size="9" font-weight="600" text-anchor="middle">Moodle (Planned)</text>
+<text x="640" y="238" fill="#64748b" font-size="7" text-anchor="middle">mod_lti + OIDC</text>
+<text x="640" y="250" fill="#64748b" font-size="6" text-anchor="middle">lms_type_enum = 'moodle'</text>
+
+<!-- ====== gRPC CORE ====== -->
+<rect x="780" y="80" width="310" height="215" rx="8" fill="rgba(6,78,59,.05)" stroke="#34d399" stroke-width="1.5"/>
+<text x="935" y="100" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle">chunking_v2 — gRPC Backend (Hexagonal)</text>
+
+<!-- gRPC server -->
+<rect x="795" y="115" width="135" height="50" rx="5" fill="rgba(6,78,59,.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="863" y="136" fill="white" font-size="8" font-weight="600" text-anchor="middle">gRPC Server :50051</text>
+<text x="863" y="152" fill="#94a3b8" font-size="6" text-anchor="middle">12 RPCs (proto3)</text>
+<text x="863" y="162" fill="#34d399" font-size="5" text-anchor="middle">ProcessDoc, GetCards, Search...</text>
+
+<!-- http-api -->
+<rect x="940" y="115" width="135" height="50" rx="5" fill="rgba(6,78,59,.4)" stroke="#34d399" stroke-width="1.2"/>
+<text x="1008" y="136" fill="white" font-size="8" font-weight="600" text-anchor="middle">HTTP API :8000</text>
+<text x="1008" y="152" fill="#94a3b8" font-size="6" text-anchor="middle">FastAPI /docs</text>
+<text x="1008" y="162" fill="#34d399" font-size="5" text-anchor="middle">/api/documents, /ingest</text>
+
+<!-- Curriculum-aware -->
+<rect x="795" y="175" width="280" height="40" rx="5" fill="rgba(6,78,59,.25)" stroke="#34d399" stroke-width="1" stroke-dasharray="3,3"/>
+<text x="935" y="194" fill="#34d399" font-size="8" text-anchor="middle">Curriculum-Aware: DcmhExtractor (388 lines) + HeuristicLoMapper (91 lines)</text>
+<text x="935" y="208" fill="#94a3b8" font-size="6" text-anchor="middle">LO Knowledge Graph → LO-Driven Quiz Generation (Gemini)</text>
+
+<!-- Container -->
+<rect x="795" y="225" width="280" height="55" rx="5" fill="rgba(6,78,59,.15)" stroke="#34d399" stroke-width="0.8" stroke-dasharray="2,2"/>
+<text x="935" y="243" fill="#94a3b8" font-size="7" text-anchor="middle">DI Container → Domain Ports (ABC) → Adapters</text>
+<text x="935" y="258" fill="#94a3b8" font-size="6" text-anchor="middle">PostgreSQL | Qdrant | Neo4j | MinIO | Gemini | BGE-M3</text>
+<text x="935" y="272" fill="#34d399" font-size="6" text-anchor="middle">Result[T,E] Monad · Frozen Dataclasses · Unit Tests 282+</text>
+
+<!-- ====== WORKERS LAYER ====== -->
+<rect x="780" y="315" width="310" height="140" rx="8" fill="rgba(251,146,60,.04)" stroke="#fb923c" stroke-width="1.5"/>
+<text x="935" y="338" fill="#fb923c" font-size="10" font-weight="700" text-anchor="middle">Async Workers (BullMQ)</text>
+
+<rect x="795" y="350" width="88" height="45" rx="4" fill="rgba(251,146,60,.3)" stroke="#fb923c" stroke-width="1"/>
+<text x="839" y="368" fill="white" font-size="7" font-weight="600" text-anchor="middle">document</text>
+<text x="839" y="382" fill="#94a3b8" font-size="6" text-anchor="middle">parse→chunk→embed</text>
+<text x="839" y="392" fill="#34d399" font-size="5" text-anchor="middle">GĐ1 ✓</text>
+
+<rect x="893" y="350" width="88" height="45" rx="4" fill="rgba(251,146,60,.3)" stroke="#fb923c" stroke-width="1"/>
+<text x="937" y="368" fill="white" font-size="7" font-weight="600" text-anchor="middle">enrichment</text>
+<text x="937" y="382" fill="#94a3b8" font-size="6" text-anchor="middle">Gemini card+quiz</text>
+<text x="937" y="392" fill="#34d399" font-size="5" text-anchor="middle">GĐ1 ✓</text>
+
+<rect x="991" y="350" width="84" height="45" rx="4" fill="rgba(251,146,60,.15)" stroke="#fb923c" stroke-width="0.8" stroke-dasharray="3,3"/>
+<text x="1033" y="368" fill="white" font-size="7" font-weight="600" text-anchor="middle">video (Go)</text>
+<text x="1033" y="382" fill="#94a3b8" font-size="6" text-anchor="middle">Whisper+scene</text>
+<text x="1033" y="392" fill="#64748b" font-size="5" text-anchor="middle">GĐ2</text>
+
+<rect x="795" y="403" width="88" height="42" rx="4" fill="rgba(251,146,60,.3)" stroke="#fb923c" stroke-width="1"/>
+<text x="839" y="420" fill="white" font-size="7" font-weight="600" text-anchor="middle">outbox</text>
+<text x="839" y="435" fill="#94a3b8" font-size="6" text-anchor="middle">PG→Neo4j sync</text>
+<text x="839" y="444" fill="#34d399" font-size="5" text-anchor="middle">GĐ1 ✓</text>
+
+<rect x="893" y="403" width="182" height="42" rx="4" fill="rgba(251,146,60,.15)" stroke="#fb923c" stroke-width="0.8" stroke-dasharray="3,3"/>
+<text x="984" y="420" fill="white" font-size="7" font-weight="600" text-anchor="middle">tracer + recommender (Python)</text>
+<text x="984" y="435" fill="#94a3b8" font-size="6" text-anchor="middle">BKT 4-param · Thompson · LinUCB</text>
+<text x="984" y="444" fill="#64748b" font-size="5" text-anchor="middle">GĐ2</text>
+
+<!-- ====== GĐ2 SERVICES (bottom left) ====== -->
+<rect x="10" y="473" width="200" height="155" rx="8" fill="rgba(244,114,182,.04)" stroke="#f472b6" stroke-width="1.5"/>
+<text x="110" y="493" fill="#f472b6" font-size="9" font-weight="700" text-anchor="middle">Chat AI (RAG) [GĐ2]</text>
+
+<rect x="25" y="508" width="170" height="35" rx="4" fill="rgba(244,114,182,.2)" stroke="#f472b6" stroke-width="1"/>
+<text x="110" y="524" fill="white" font-size="7" text-anchor="middle">Hybrid Retrieval</text>
+<text x="110" y="537" fill="#94a3b8" font-size="6" text-anchor="middle">BM25 (sparse) + BGE-M3 (dense)</text>
+
+<rect x="25" y="550" width="170" height="35" rx="4" fill="rgba(244,114,182,.2)" stroke="#f472b6" stroke-width="1"/>
+<text x="110" y="566" fill="white" font-size="7" text-anchor="middle">Gemini Chat (SSE stream)</text>
+<text x="110" y="579" fill="#94a3b8" font-size="6" text-anchor="middle">Grounded answer + citation</text>
+
+<rect x="25" y="592" width="170" height="28" rx="4" fill="rgba(244,114,182,.15)" stroke="#f472b6" stroke-width="0.8" stroke-dasharray="3,3"/>
+<text x="110" y="610" fill="#94a3b8" font-size="6" text-anchor="middle">Cross-encoder re-rank top-5</text>
+
+<!-- ====== BKT + MASTERY ====== -->
+<rect x="225" y="473" width="200" height="155" rx="8" fill="rgba(96,165,250,.04)" stroke="#60a5fa" stroke-width="1.5"/>
+<text x="325" y="493" fill="#60a5fa" font-size="9" font-weight="700" text-anchor="middle">BKT + Mastery [GĐ2]</text>
+
+<rect x="240" y="508" width="170" height="35" rx="4" fill="rgba(96,165,250,.2)" stroke="#60a5fa" stroke-width="1"/>
+<text x="325" y="524" fill="white" font-size="7" text-anchor="middle">BKT 4-Parameter</text>
+<text x="325" y="537" fill="#94a3b8" font-size="6" text-anchor="middle">P(L0), P(T), P(G), P(S) + EM</text>
+
+<rect x="240" y="550" width="170" height="35" rx="4" fill="rgba(96,165,250,.2)" stroke="#60a5fa" stroke-width="1"/>
+<text x="325" y="566" fill="white" font-size="7" text-anchor="middle">Spaced Repetition</text>
+<text x="325" y="579" fill="#94a3b8" font-size="6" text-anchor="middle">Ebbinghaus decay + SM-2</text>
+
+<rect x="240" y="592" width="170" height="28" rx="4" fill="rgba(96,165,250,.15)" stroke="#60a5fa" stroke-width="0.8" stroke-dasharray="3,3"/>
+<text x="325" y="610" fill="#94a3b8" font-size="6" text-anchor="middle">Cold-start: Pretest 5 MCQ + IRT</text>
+
+<!-- ====== RL RECOMMENDATION ====== -->
+<rect x="440" y="473" width="200" height="155" rx="8" fill="rgba(251,191,36,.04)" stroke="#fbbf24" stroke-width="1.5"/>
+<text x="540" y="493" fill="#fbbf24" font-size="9" font-weight="700" text-anchor="middle">RL Recommendation [GĐ2]</text>
+
+<rect x="455" y="508" width="170" height="35" rx="4" fill="rgba(251,191,36,.2)" stroke="#fbbf24" stroke-width="1"/>
+<text x="540" y="524" fill="white" font-size="7" text-anchor="middle">Thompson Sampling</text>
+<text x="540" y="537" fill="#94a3b8" font-size="6" text-anchor="middle">Beta(α,β) per (student, LO)</text>
+
+<rect x="455" y="550" width="170" height="35" rx="4" fill="rgba(251,191,36,.2)" stroke="#fbbf24" stroke-width="1"/>
+<text x="540" y="566" fill="white" font-size="7" text-anchor="middle">LinUCB Bandit</text>
+<text x="540" y="579" fill="#94a3b8" font-size="6" text-anchor="middle">32-dim context, A/B test</text>
+
+<rect x="455" y="592" width="170" height="28" rx="4" fill="rgba(251,191,36,.15)" stroke="#fbbf24" stroke-width="0.8" stroke-dasharray="3,3"/>
+<text x="540" y="610" fill="#94a3b8" font-size="6" text-anchor="middle">Path Planner (Beam search)</text>
+
+<!-- ====== INSTRUCTOR DASHBOARD ====== -->
+<rect x="655" y="473" width="185" height="155" rx="8" fill="rgba(168,85,247,.04)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="748" y="493" fill="#a78bfa" font-size="9" font-weight="700" text-anchor="middle">Dashboard [GĐ2]</text>
+
+<rect x="670" y="508" width="155" height="35" rx="4" fill="rgba(168,85,247,.2)" stroke="#a78bfa" stroke-width="1"/>
+<text x="748" y="524" fill="white" font-size="7" text-anchor="middle">Mastery Heatmap</text>
+<text x="748" y="537" fill="#94a3b8" font-size="6" text-anchor="middle">Student × LO matrix</text>
+
+<rect x="670" y="550" width="155" height="35" rx="4" fill="rgba(168,85,247,.2)" stroke="#a78bfa" stroke-width="1"/>
+<text x="748" y="566" fill="white" font-size="7" text-anchor="middle">AB Test Analytics</text>
+<text x="748" y="579" fill="#94a3b8" font-size="6" text-anchor="middle">NDCG@5, MRR, time-to-mastery</text>
+
+<rect x="670" y="592" width="155" height="28" rx="4" fill="rgba(168,85,247,.15)" stroke="#a78bfa" stroke-width="0.8" stroke-dasharray="3,3"/>
+<text x="748" y="610" fill="#94a3b8" font-size="6" text-anchor="middle">CSV + PDF Export</text>
+
+<!-- ====== INFRASTRUCTURE ====== -->
+<rect x="10" y="645" width="1475" height="135" rx="8" fill="rgba(168,85,247,.04)" stroke="#a78bfa" stroke-width="1" stroke-dasharray="6,3"/>
+<text x="748" y="668" fill="#a78bfa" font-size="10" font-weight="700" text-anchor="middle">Infrastructure Layer</text>
+
+<rect x="25" y="683" width="160" height="50" rx="5" fill="rgba(76,29,149,.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="105" y="703" fill="white" font-size="8" font-weight="600" text-anchor="middle">PostgreSQL :5432</text>
+<text x="105" y="720" fill="#94a3b8" font-size="6" text-anchor="middle">14 tables · psycopg pool</text>
+<text x="105" y="731" fill="#a78bfa" font-size="5" text-anchor="middle">lms mappings · quiz_attempts</text>
+
+<rect x="200" y="683" width="160" height="50" rx="5" fill="rgba(76,29,149,.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="280" y="703" fill="white" font-size="8" font-weight="600" text-anchor="middle">Qdrant :6333</text>
+<text x="280" y="720" fill="#94a3b8" font-size="6" text-anchor="middle">cosine · 1024-dim</text>
+<text x="280" y="731" fill="#a78bfa" font-size="5" text-anchor="middle">documents + video_chunks</text>
+
+<rect x="375" y="683" width="160" height="50" rx="5" fill="rgba(76,29,149,.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="455" y="703" fill="white" font-size="8" font-weight="600" text-anchor="middle">Neo4j :7687</text>
+<text x="455" y="720" fill="#94a3b8" font-size="6" text-anchor="middle">LO Knowledge Graph</text>
+<text x="455" y="731" fill="#a78bfa" font-size="5" text-anchor="middle">SUPPORTS · MASTERY · PREREQ</text>
+
+<rect x="550" y="683" width="160" height="50" rx="5" fill="rgba(76,29,149,.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="630" y="703" fill="white" font-size="8" font-weight="600" text-anchor="middle">Redis :6379</text>
+<text x="630" y="720" fill="#94a3b8" font-size="6" text-anchor="middle">Session 30' TTL</text>
+<text x="630" y="731" fill="#a78bfa" font-size="5" text-anchor="middle">BullMQ · Semantic Cache</text>
+
+<rect x="725" y="683" width="160" height="50" rx="5" fill="rgba(76,29,149,.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="805" y="703" fill="white" font-size="8" font-weight="600" text-anchor="middle">MinIO :9000</text>
+<text x="805" y="720" fill="#94a3b8" font-size="6" text-anchor="middle">S3-compatible</text>
+<text x="805" y="731" fill="#a78bfa" font-size="5" text-anchor="middle">documents · videos · media</text>
+
+<rect x="900" y="683" width="190" height="50" rx="5" fill="rgba(76,29,149,.25)" stroke="#a78bfa" stroke-width="0.8" stroke-dasharray="3,3"/>
+<text x="995" y="703" fill="white" font-size="8" font-weight="600" text-anchor="middle">Gemini + BGE-M3</text>
+<text x="995" y="720" fill="#94a3b8" font-size="6" text-anchor="middle">LLM (gemini-3-flash)</text>
+<text x="995" y="731" fill="#a78bfa" font-size="5" text-anchor="middle">Embedding 1024-dim (local)</text>
+
+<rect x="1105" y="683" width="190" height="50" rx="5" fill="rgba(76,29,149,.25)" stroke="#a78bfa" stroke-width="0.8" stroke-dasharray="3,3"/>
+<text x="1200" y="703" fill="white" font-size="8" font-weight="600" text-anchor="middle">faster-whisper</text>
+<text x="1200" y="720" fill="#94a3b8" font-size="6" text-anchor="middle">Vietnamese STT (local)</text>
+<text x="1200" y="731" fill="#a78bfa" font-size="5" text-anchor="middle">Video → Transcript</text>
+
+<!-- ====== ARROWS ====== -->
+<!-- Browser → LMS -->
+<line x1="560" y1="58" x2="640" y2="113" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#ahc)"/>
+
+<!-- Browser → Frontend -->
+<line x1="560" y1="58" x2="360" y2="78" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#ahc)"/>
+
+<!-- LMS → Frontend (LTI launch) -->
+<path d="M 555 180 L 510 180 Q 500 180 500 190 L 500 260" fill="none" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#ahr)"/>
+<text x="510" y="225" fill="#fb7185" font-size="6">id_token</text>
+
+<!-- Frontend → gRPC -->
+<line x1="500" y1="170" x2="793" y2="140" stroke="#34d399" stroke-width="1.2" marker-end="url(#ahg)"/>
+<text x="650" y="145" fill="#94a3b8" font-size="6">gRPC :50051</text>
+
+<!-- gRPC → Workers -->
+<line x1="863" y1="165" x2="839" y2="348" stroke="#fb923c" stroke-width="1" marker-end="url(#aho)"/>
+<line x1="1008" y1="165" x2="937" y2="348" stroke="#fb923c" stroke-width="1" marker-end="url(#aho)"/>
+<line x1="790" y1="130" x2="1033" y2="348" stroke="#fb923c" stroke-width="0.8" stroke-dasharray="3,3" marker-end="url(#aho)"/>
+<text x="820" y="260" fill="#fb923c" font-size="6">BullMQ dispatch</text>
+
+<!-- Workers → DBs -->
+<line x1="280" y1="395" x2="280" y2="681" stroke="#a78bfa" stroke-width="0.8" marker-end="url(#ahv)"/>
+<line x1="455" y1="395" x2="455" y2="681" stroke="#a78bfa" stroke-width="0.8" marker-end="url(#ahv)"/>
+<line x1="630" y1="395" x2="630" y2="681" stroke="#a78bfa" stroke-width="0.8" marker-end="url(#ahv)"/>
+<line x1="805" y1="395" x2="805" y2="681" stroke="#a78bfa" stroke-width="0.8" marker-end="url(#ahv)"/>
+
+<!-- Chat → Qdrant + Gemini -->
+<line x1="110" y1="508" x2="280" y2="683" stroke="#f472b6" stroke-width="0.8" marker-end="url(#ahp)"/>
+<text x="200" y="600" fill="#f472b6" font-size="5">vector search</text>
+<line x1="110" y1="558" x2="995" y2="683" stroke="#f472b6" stroke-width="0.8" marker-end="url(#ahp)"/>
+
+<!-- BKT → Neo4j -->
+<line x1="325" y1="558" x2="455" y2="683" stroke="#60a5fa" stroke-width="0.8" marker-end="url(#ahb)"/>
+<text x="395" y="625" fill="#60a5fa" font-size="5">MASTERY edge</text>
+
+<!-- RL → BKT (read state) -->
+<line x1="440" y1="540" x2="425" y2="540" stroke="#fbbf24" stroke-width="0.8" stroke-dasharray="3,3"/>
+<text x="433" y="555" fill="#94a3b8" font-size="5">read p_know</text>
+
+<!-- Dashboard → Neo4j -->
+<line x1="748" y1="558" x2="748" y2="625" stroke="#a78bfa" stroke-width="0.8" marker-end="url(#ahv)"/>
+
+<!-- ====== LEGEND ====== -->
+<rect x="1310" y="10" width="16" height="10" rx="2" fill="rgba(8,51,68,.4)" stroke="#22d3ee" stroke-width="1"/>
+<text x="1330" y="18" fill="#94a3b8" font-size="6">Frontend / LMS</text>
+<rect x="1310" y="24" width="16" height="10" rx="2" fill="rgba(6,78,59,.4)" stroke="#34d399" stroke-width="1"/>
+<text x="1330" y="32" fill="#94a3b8" font-size="6">Backend Core</text>
+<rect x="1310" y="38" width="16" height="10" rx="2" fill="rgba(251,146,60,.3)" stroke="#fb923c" stroke-width="1"/>
+<text x="1330" y="46" fill="#94a3b8" font-size="6">Workers / Queue</text>
+<rect x="1310" y="52" width="16" height="10" rx="2" fill="rgba(76,29,149,.4)" stroke="#a78bfa" stroke-width="1"/>
+<text x="1330" y="60" fill="#94a3b8" font-size="6">Infrastructure</text>
+<line x1="1310" y1="68" x2="1326" y2="68" stroke="#fb7185" stroke-width="0.8" stroke-dasharray="3,3"/>
+<text x="1330" y="71" fill="#94a3b8" font-size="6">LTI Auth</text>
+<rect x="1310" y="78" width="16" height="10" rx="2" fill="rgba(244,114,182,.2)" stroke="#f472b6" stroke-width="1"/>
+<text x="1330" y="86" fill="#94a3b8" font-size="6">Chat AI (RAG)</text>
+<rect x="1310" y="92" width="16" height="10" rx="2" fill="rgba(96,165,250,.2)" stroke="#60a5fa" stroke-width="1"/>
+<text x="1330" y="100" fill="#94a3b8" font-size="6">BKT + Mastery</text>
+<rect x="1310" y="106" width="16" height="10" rx="2" fill="rgba(251,191,36,.2)" stroke="#fbbf24" stroke-width="1"/>
+<text x="1330" y="114" fill="#94a3b8" font-size="6">RL Recommender</text>
+<text x="1326" y="130" fill="#64748b" font-size="6">Dashed box = GĐ2</text>
+<text x="1326" y="142" fill="#64748b" font-size="6">GĐ1 ✓ = implemented</text>
+</svg>
+</div>
+
+<div class="cards">
+<div class="card"><div class="card-header"><div class="card-dot cyan"></div><h3>GĐ1: Document → Micro-content</h3></div>
+<ul><li>• Upload PDF/DOCX → pipeline</li><li>• Parse → Chunk → Embed (BGE-M3)</li><li>• Gemini sinh Card + Quiz (MCQ)</li><li>• Curriculum-Aware (DCMH extractor)</li><li>• LTI 1.3 + Open edX Redwood</li></ul></div>
+<div class="card"><div class="card-header"><div class="card-dot pink"></div><h3>GĐ2: Video + RAG Chatbot</h3></div>
+<ul><li>• Whisper transcription (Vietnamese)</li><li>• Scene detection + video chunking</li><li>• Hybrid retrieval: BM25 + BGE-M3</li><li>• Gemini grounded answer + citation</li><li>• Go video worker (polyglot)</li></ul></div>
+<div class="card"><div class="card-header"><div class="card-dot blue"></div><h3>GĐ2: BKT + Mastery</h3></div>
+<ul><li>• BKT 4-parameter (P(L0),T,G,S)</li><li>• EM parameter calibration per LO</li><li>• Neo4j MASTERY edge real-time</li><li>• Spaced Repetition (SM-2)</li><li>• Cold-start: Pretest + IRT bootstrap</li></ul></div>
+<div class="card"><div class="card-header"><div class="card-dot amber"></div><h3>GĐ2: RL Recommendation</h3></div>
+<ul><li>• Thompson Sampling (baseline MAB)</li><li>• LinUCB Contextual Bandit</li><li>• 32-dim context featurizer</li><li>• Adaptive Learning Path (beam search)</li><li>• A/B test: NDCG@5, MRR</li></ul></div>
+<div class="card"><div class="card-header"><div class="card-dot violet"></div><h3>Polyglot + LMS-Agnostic</h3></div>
+<ul><li>• Python: AI/ML + gRPC + workers</li><li>• TypeScript: Next.js + LTI auth</li><li>• Go: Video worker (GĐ2)</li><li>• LTI 1.3 standard: edX ✓, Moodle ○</li><li>• lms_user_mappings agnostic</li></ul></div>
+</div>
+<p class="footer">DA Project — Full Architecture GĐ1 + GĐ2 — 30 weeks — 4 members</p>
+</div>
+</body>
+</html>

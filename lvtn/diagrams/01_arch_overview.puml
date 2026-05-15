@@ -1,0 +1,182 @@
+@startuml arch_overview
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam ArrowColor #333333
+skinparam ComponentBorderColor #555555
+skinparam PackageBorderColor #888888
+skinparam PackageBackgroundColor #F8F8F8
+skinparam NoteBorderColor #AAAAAA
+skinparam NoteBackgroundColor #FFFDE7
+skinparam DatabaseBorderColor #888855
+skinparam DatabaseBackgroundColor #FFF8DC
+
+title Kiến trúc tổng quan hệ thống Micro-learning
+
+'─────────────────────────────────────────
+' LAYER 1: CLIENT
+'─────────────────────────────────────────
+package "Client Layer" #D6EAF8 {
+    component [React SPA\n(TypeScript + Vite)] as React
+    note right of React
+      Roles: Instructor / Learner / Admin
+      Giao tiếp qua gRPC-Web
+    end note
+}
+
+'─────────────────────────────────────────
+' LAYER 2: API GATEWAY
+'─────────────────────────────────────────
+package "API Gateway" #D5F5E3 {
+    component [Envoy Proxy] as Envoy
+    note right of Envoy
+      gRPC-Web → gRPC translation
+      TLS termination (port 8443)
+      Rate limiting: 100 req/min/IP
+      Routes: :50051 | :50053 | :50054
+    end note
+}
+
+'─────────────────────────────────────────
+' LAYER 3: SERVICE LAYER
+'─────────────────────────────────────────
+package "Service Layer" #FEF9E7 {
+
+    package "API Service  [port 50051]" #FDEBD0 {
+        component [AuthService] as Auth
+        component [DocumentService\n<<server-streaming>>] as DocSvc
+        component [CourseService] as CourseSvc
+        component [LearningService] as LearnSvc
+    }
+
+    package "AI Pipeline Service" #FEF9E7 {
+        component [Celery Worker × N\n(Pipeline Orchestrator)] as Worker
+        note right of Worker
+          PARSING → CHUNKING
+          → EMBEDDING → EXTRACTING
+          → GRAPHING → GENERATING
+          → CLIPPING (video only)
+          Retry: 3 lần, exp. backoff
+        end note
+    }
+
+    component [Video Service\nport 50053] as VideoSvc
+    note right of VideoSvc
+      FFmpeg + Whisper API
+      Transcribe & clip video
+    end note
+
+    component [Chat Service\nport 50054\n<<server-streaming>>] as ChatSvc
+    note right of ChatSvc
+      RAG Chatbot Tutor
+      Intent-based retrieval
+      Semantic cache + citations
+    end note
+}
+
+'─────────────────────────────────────────
+' LAYER 4: LOCAL MODELS (in-process)
+'─────────────────────────────────────────
+package "Local ML Models  <<in-process>>" #E8F5E9 {
+    component [BGE-M3\nEmbedding Model\n(1024-dim vectors)] as BGE
+    note right of BGE
+      Loaded in-memory (no external call)
+      Used by: AI Pipeline + Chat Service
+      Batch size: 32
+    end note
+}
+
+'─────────────────────────────────────────
+' LAYER 5: INFRASTRUCTURE
+'─────────────────────────────────────────
+package "Infrastructure Layer" #FDEDEC {
+    database [PostgreSQL\n(Relational Data)\nport 5432] as PG
+    database [Qdrant\n(Vector DB)\nport 6333] as Qdrant
+    database [Neo4j\n(Graph DB)\nport 7687] as Neo4j
+    database [MinIO\n(Object Storage)\nport 9000] as MinIO
+
+    package "Redis Stack  [port 6379]" #FADBD8 {
+        database [Redis 7] as Redis
+        component [Celery Broker\n+ Result Backend] as CeleryBroker
+        note right of CeleryBroker
+          Broker: task queuing
+          Backend: result / status store
+        end note
+    }
+
+    component [Flower\n(Celery Monitor)\nport 5555] as Flower
+    note right of Flower
+      Web UI: monitor workers,
+      task states, retry history
+    end note
+}
+
+'─────────────────────────────────────────
+' LAYER 6: EXTERNAL APIs
+'─────────────────────────────────────────
+package "External APIs" #F5EEF8 {
+
+    package "LLM Providers" #EDE7F6 {
+        component [OpenAI\n(GPT-4o / GPT-4o-mini)] as OpenAI
+        component [Google Gemini] as Gemini
+    }
+
+    package "Speech-to-Text" #F3E5F5 {
+        component [Whisper API\n(OpenAI STT)] as Whisper
+        note right of Whisper
+          Used by: Video Service ONLY
+          Output: transcript + timestamps
+        end note
+    }
+}
+
+'─────────────────────────────────────────
+' CONNECTIONS
+'─────────────────────────────────────────
+
+' A. Client → Gateway → Services
+React        -down->  Envoy       : gRPC-Web / HTTPS (port 8443)
+Envoy        -down->  Auth        : gRPC :50051
+Envoy        -down->  DocSvc      : gRPC :50051
+Envoy        -down->  CourseSvc   : gRPC :50051
+Envoy        -down->  LearnSvc    : gRPC :50051
+Envoy        -down->  VideoSvc    : gRPC :50053
+Envoy        -down->  ChatSvc     : gRPC :50054
+
+' B. WatchStatus — real-time streaming
+DocSvc       ..>      React       : StatusUpdate stream\n(server-streaming gRPC)
+
+' C. API Service → Infrastructure (upload flow)
+DocSvc       -down->  PG          : INSERT document (QUEUED)
+DocSvc       -down->  MinIO       : PUT file (upload)
+DocSvc       -right-> CeleryBroker : enqueue job\n(Celery.apply_async)
+
+' D. AI Pipeline Worker
+Worker       -left->  CeleryBroker : consume job
+Worker       -down->  PG          : UPDATE status / INSERT chunks + concepts
+Worker       -down->  MinIO       : GET file (read document)
+Worker       -down->  Qdrant      : upsert vectors (post-EMBEDDING)
+Worker       -down->  Neo4j       : upsert heading + concept graph\n(post-GRAPHING, via outbox)
+Worker       -down->  BGE         : embed(chunks[]) → vectors[]
+Worker       -right-> VideoSvc    : gRPC Transcribe + ClipVideo
+Worker       -right-> OpenAI      : concept extraction + Summary + Quiz
+Worker       -right-> Gemini      : concept extraction + Summary + Quiz\n(fallback / configurable)
+
+' E. Video Service
+VideoSvc     -down->  MinIO       : GET/PUT media + clips
+VideoSvc     -down->  PG          : INSERT media_clips
+VideoSvc     -right-> Whisper     : transcribe(audio) → transcript+timestamps
+
+' F. Chat Service
+ChatSvc      -down->  BGE         : embed(question) → vector
+ChatSvc      -down->  Redis       : semantic cache (GET/SET, TTL=1h)
+ChatSvc      -down->  Qdrant      : similarity search (top-k=5, filter course_id)
+ChatSvc      -down->  Neo4j       : graph expansion\n(concept neighbors / prerequisite path)
+ChatSvc      -down->  PG          : INSERT/GET chat history
+ChatSvc      -right-> OpenAI      : RAG generation (streaming)
+
+' G. Flower monitoring
+Flower       -left->  Redis       : read Celery events
+
+@enduml

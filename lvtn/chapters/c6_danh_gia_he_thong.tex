@@ -1,0 +1,210 @@
+\chapter{Đánh giá hệ thống}
+
+\section{Phương pháp và tiêu chí đánh giá}
+
+Đánh giá hệ thống nhằm trả lời năm câu hỏi:
+\begin{enumerate}
+    \item Hệ thống có đáp ứng các yêu cầu chức năng chính không?
+    \item Luồng tích hợp với LMS có hoạt động đúng role/context không?
+    \item Retrieval có trả về đúng chunk/card liên quan cho query học tập
+          không?
+    \item Nội dung do AI sinh ra có đúng kiến thức, rõ ràng và phù hợp
+          Bloom/LO không?
+    \item Hiệu năng pipeline và API có đủ cho demo/staging không?
+\end{enumerate}
+
+Luận văn không tạo số liệu giả. Các số liệu chưa đo đầy đủ được đánh dấu
+\texttt{TODO: đo thực nghiệm} hoặc để \ldots{} trong bảng kết quả. Khi báo
+cáo kết quả cuối cùng, cần ghi rõ tập dữ liệu, prompt version, model version,
+cấu hình retrieval và tiêu chí chấm để đảm bảo khả năng tái lập.
+
+\section{Đánh giá tính năng và tích hợp}
+
+\subsection{Functional Tests}
+
+Kiểm thử chức năng bao phủ các flow chính: upload tài liệu, xử lý pipeline,
+review, publish, học bằng card, làm quiz, semantic search, ingest curriculum
+và LTI launch.
+
+\begin{longtable}{|p{1.8cm}|p{5cm}|p{4cm}|p{3cm}|}
+    \caption{Kịch bản kiểm thử chức năng.} \label{tab:functional-tests-lvtn} \\
+    \hline
+    \textbf{ID} & \textbf{Kịch bản} & \textbf{Kỳ vọng} & \textbf{Kết quả} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{ID} & \textbf{Kịch bản} & \textbf{Kỳ vọng} & \textbf{Kết quả} \\
+    \hline
+    \endhead
+
+    FT-01 & Upload PDF hợp lệ & Document tạo, job queued & TODO: đo thực nghiệm \\ \hline
+    FT-02 & Upload file sai định dạng & Hệ thống từ chối, báo lỗi rõ & TODO: đo thực nghiệm \\ \hline
+    FT-03 & Pipeline parse/chunk/embed & Chunk và vector được lưu & TODO: đo thực nghiệm \\ \hline
+    FT-04 & Sinh card/quiz & Card/quiz đúng schema & TODO: đo thực nghiệm \\ \hline
+    FT-05 & Review và publish & Học viên chỉ thấy nội dung đã publish & TODO: đo thực nghiệm \\ \hline
+    FT-06 & Học viên làm quiz & Lưu submission và trả feedback & TODO: đo thực nghiệm \\ \hline
+    FT-07 & Semantic search & Trả về top-K nội dung liên quan & TODO: đo thực nghiệm \\ \hline
+    FT-08 & LTI launch & Session tạo đúng user/context & TODO: đo thực nghiệm \\ \hline
+\end{longtable}
+
+\subsection{Integration Tests}
+
+Các integration test cần chạy với Docker Compose hoặc test container cho
+PostgreSQL, Qdrant, Neo4j, Redis và MinIO. Mục tiêu là kiểm tra contract giữa
+backend gRPC, worker, queue và các adapter hạ tầng.
+
+\begin{table}[H]
+    \centering
+    \caption{Nhóm kiểm thử kỹ thuật cần duy trì.}
+    \label{tab:test-groups-lvtn}
+    \begin{tabular}{p{4cm}p{9.5cm}}
+        \toprule
+        \textbf{Nhóm test} & \textbf{Mục tiêu} \\
+        \midrule
+        Domain tests & Kiểm tra entity, validation và rule nghiệp vụ. \\
+        Application tests & Kiểm tra use case với mock port. \\
+        Adapter tests & Kiểm tra PostgreSQL, Qdrant, Neo4j, parser và LLM adapter. \\
+        Delivery tests & Kiểm tra gRPC/HTTP contract và error mapping. \\
+        E2E demo tests & Kiểm tra upload đến học/làm quiz trên stack thật. \\
+        LTI tests & Kiểm tra OIDC login, launch JWT, role/context mapping và session. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Đánh giá chất lượng truy xuất}
+
+\subsection{Vector Retrieval}
+
+Vector retrieval được đánh giá bằng một bộ query và ground truth. Mỗi query
+được gắn với danh sách chunk hoặc card đúng. Bộ query nên bao gồm query trực
+tiếp theo thuật ngữ trong tài liệu, query diễn giải lại bằng ngôn ngữ tự
+nhiên, query theo Learning Outcome và query gây nhiễu nằm ngoài phạm vi khóa
+học.
+
+\subsection{Graph-aware Retrieval}
+
+Graph-aware retrieval được so sánh với vector-only và vector + metadata
+filter. Mục tiêu là kiểm tra liệu quan hệ Course, Chapter, Learning Outcome và
+Chunk có giúp tăng khả năng chọn đúng context khi sinh quiz hoặc trả lời câu
+hỏi theo LO hay không.
+
+\subsection{Retrieval Accuracy}
+
+\begin{table}[H]
+    \centering
+    \caption{Chỉ số đánh giá truy xuất.}
+    \label{tab:retrieval-metrics-lvtn}
+    \begin{tabular}{p{3cm}p{10.5cm}}
+        \toprule
+        \textbf{Chỉ số} & \textbf{Ý nghĩa} \\
+        \midrule
+        Recall@K & Tỷ lệ query có ít nhất một chunk đúng trong top-K. \\
+        MRR & Đo vị trí trung bình của kết quả đúng đầu tiên. \\
+        nDCG@K & Đánh giá thứ hạng khi ground truth có mức liên quan khác nhau. \\
+        Latency P95 & Thời gian truy xuất ở phân vị 95. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{longtable}{|p{3cm}|p{3cm}|p{3cm}|p{4cm}|}
+    \caption{Bảng kết quả retrieval dự kiến.} \label{tab:retrieval-results-lvtn} \\
+    \hline
+    \textbf{Chiến lược} & \textbf{Recall@5} & \textbf{MRR} & \textbf{Ghi chú} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{Chiến lược} & \textbf{Recall@5} & \textbf{MRR} & \textbf{Ghi chú} \\
+    \hline
+    \endhead
+
+    Vector-only & \ldots & \ldots & TODO: đo thực nghiệm \\ \hline
+    Vector + metadata filter & \ldots & \ldots & TODO: đo thực nghiệm \\ \hline
+    Vector + graph-aware rerank & \ldots & \ldots & TODO: đo thực nghiệm \\ \hline
+\end{longtable}
+
+\section{Đánh giá chất lượng nội dung sinh ra}
+
+\subsection{Quiz Quality}
+
+Quiz quality được đánh giá theo các tiêu chí:
+\begin{itemize}
+    \item \textbf{Đúng kiến thức:} câu hỏi và đáp án đúng với tài liệu gốc.
+    \item \textbf{Rõ ràng:} câu hỏi không mơ hồ, không đánh đố vô lý.
+    \item \textbf{Phù hợp độ khó:} phù hợp trình độ môn học và Bloom level.
+    \item \textbf{Chất lượng distractor:} đáp án sai hợp lý, không quá lộ.
+    \item \textbf{Gắn nguồn:} có thể truy ngược về chunk hoặc LO liên quan.
+\end{itemize}
+
+Giảng viên hoặc trợ giảng chấm mỗi câu quiz theo thang Likert 1--5. Một câu
+được xem là đạt nếu điểm trung bình $\geq$ 3.5 và không có lỗi kiến thức
+nghiêm trọng.
+
+\subsection{Flashcard Quality}
+
+Flashcard hoặc lesson card cần được đánh giá ở ba khía cạnh: mức độ đúng với
+nguồn, khả năng tóm tắt đủ ý chính và độ phù hợp với học tập ngắn. Card quá
+dài làm mất ý nghĩa Micro-learning, trong khi card quá ngắn có thể thiếu ngữ
+cảnh. Do đó cần đo cả độ dài, khả năng truy ngược nguồn và phản hồi của người
+dùng.
+
+\subsection{Learning Content Quality}
+
+\begin{longtable}{|p{4.5cm}|p{3cm}|p{3cm}|p{3cm}|}
+    \caption{Bảng đánh giá chất lượng nội dung sinh ra.} \label{tab:quiz-quality-lvtn} \\
+    \hline
+    \textbf{Tiêu chí} & \textbf{Điểm TB} & \textbf{Tỷ lệ đạt} & \textbf{Ghi chú} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{Tiêu chí} & \textbf{Điểm TB} & \textbf{Tỷ lệ đạt} & \textbf{Ghi chú} \\
+    \hline
+    \endhead
+
+    Đúng kiến thức & \ldots/5 & \ldots\% & TODO: đo thực nghiệm \\ \hline
+    Rõ ràng & \ldots/5 & \ldots\% & TODO: đo thực nghiệm \\ \hline
+    Phù hợp Bloom/LO & \ldots/5 & \ldots\% & TODO: đo thực nghiệm \\ \hline
+    Chất lượng distractor & \ldots/5 & \ldots\% & TODO: đo thực nghiệm \\ \hline
+    Giải thích đáp án & \ldots/5 & \ldots\% & TODO: đo thực nghiệm \\ \hline
+    Chất lượng flashcard & \ldots/5 & \ldots\% & TODO: đo thực nghiệm \\ \hline
+\end{longtable}
+
+\section{Đánh giá hiệu năng}
+
+\subsection{Response Time}
+
+Response time tập trung vào các API người dùng tương tác trực tiếp như đọc
+card, lấy quiz, nộp đáp án và semantic search. Các API đọc card/quiz nên có
+mục tiêu P95 $\leq$ 500ms trong môi trường staging; semantic search có thể
+chấp nhận cao hơn do cần embedding query và truy xuất vector.
+
+\subsection{Throughput}
+
+Throughput đo khả năng phục vụ đồng thời của backend và worker. Với API, chỉ
+số quan trọng là số request/giây ở mức latency chấp nhận được. Với worker, chỉ
+số quan trọng là số chunk hoặc document xử lý được trong một khoảng thời gian
+với cấu hình tài nguyên cố định.
+
+\subsection{Async Processing Performance}
+
+Hiệu năng xử lý bất đồng bộ cần đo thời gian parse, chunking, embedding,
+generation và persist. Các bước gọi LLM thường chiếm phần lớn thời gian nên
+cần ghi riêng latency, số lần retry và tỷ lệ lỗi provider.
+
+\begin{longtable}{|p{4cm}|p{3cm}|p{3cm}|p{4cm}|}
+    \caption{Bảng kết quả hiệu năng dự kiến.} \label{tab:performance-lvtn} \\
+    \hline
+    \textbf{Chỉ số} & \textbf{Mục tiêu} & \textbf{Kết quả} & \textbf{Ghi chú} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{Chỉ số} & \textbf{Mục tiêu} & \textbf{Kết quả} & \textbf{Ghi chú} \\
+    \hline
+    \endhead
+
+    Xử lý tài liệu 20 trang & $\leq$ 3 phút & \ldots & TODO: đo thực nghiệm \\ \hline
+    API get cards P95 & $\leq$ 500ms & \ldots & TODO: đo thực nghiệm \\ \hline
+    API get quiz P95 & $\leq$ 500ms & \ldots & TODO: đo thực nghiệm \\ \hline
+    Search P95 & $\leq$ 2s & \ldots & TODO: đo thực nghiệm \\ \hline
+    Concurrent users & 50 & \ldots & TODO: đo thực nghiệm \\ \hline
+    Worker throughput & \ldots & \ldots & TODO: đo thực nghiệm \\ \hline
+\end{longtable}

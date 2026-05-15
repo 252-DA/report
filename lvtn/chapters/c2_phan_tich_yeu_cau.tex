@@ -1,0 +1,160 @@
+\chapter{Nền tảng lý thuyết và công nghệ}
+
+\section{Micro-learning và Bloom Taxonomy}
+
+Micro-learning là cách tổ chức nội dung học tập thành các đơn vị nhỏ, tập
+trung vào một khái niệm hoặc kỹ năng cụ thể. Trong bối cảnh LMS, mỗi đơn vị có
+thể được biểu diễn dưới dạng lesson card, flashcard, câu hỏi tự kiểm tra hoặc
+một đoạn giải thích ngắn. Cách tiếp cận này phù hợp với nhu cầu ôn tập nhanh,
+học lặp lại và theo dõi tiến độ theo từng phần nhỏ của học phần.
+
+Đối với đề tài, Micro-learning không chỉ là định dạng hiển thị mà còn ảnh
+hưởng đến pipeline xử lý tài liệu. Tài liệu dài cần được chia thành các chunk
+có ngữ cảnh đủ rõ, sau đó chuyển thành nội dung học tập ngắn có liên kết nguồn
+và có thể kiểm duyệt bởi giảng viên.
+
+Bloom Taxonomy được sử dụng để phân loại mức độ nhận thức của Learning
+Outcome và câu hỏi. Sáu mức gồm Remember, Understand, Apply, Analyze,
+Evaluate và Create. Với quiz trắc nghiệm trong phạm vi hệ thống, các mức
+Remember, Understand, Apply và Analyze là phù hợp nhất; Evaluate và Create
+thường cần dạng tự luận hoặc bài tập dự án.
+
+Hệ thống sử dụng Bloom level như metadata và ràng buộc sinh câu hỏi. Ví dụ,
+Learning Outcome có động từ ``trình bày'', ``liệt kê'' thường gắn với
+Remember; ``giải thích'', ``phân biệt'' thường gắn với Understand; ``áp
+dụng'', ``tính toán'' thường gắn với Apply; ``phân tích'', ``so sánh'' thường
+gắn với Analyze hoặc Evaluate tùy ngữ cảnh. Bloom level ảnh hưởng đến prompt,
+độ khó câu hỏi và rubric đánh giá chất lượng quiz.
+
+\section{Mô hình ngôn ngữ lớn (LLM) và Generative AI}
+
+Mô hình ngôn ngữ lớn (Large Language Model --- LLM) là mô hình học sâu có khả
+năng hiểu, sinh và biến đổi ngôn ngữ tự nhiên. Trong hệ thống, LLM được dùng
+cho các tác vụ cần diễn giải tri thức:
+\begin{itemize}
+    \item Tóm tắt chunk thành Micro-Content hoặc Flashcard.
+    \item Sinh câu hỏi trắc nghiệm, đáp án đúng, distractor và giải thích.
+    \item Chuẩn hóa hoặc trích xuất thông tin từ đề cương môn học khi parser
+          heuristic không đủ.
+    \item Hỗ trợ RAG chatbot hoặc trợ lý học tập trong hướng mở rộng.
+\end{itemize}
+
+Để giảm phụ thuộc vào một provider cụ thể, hệ thống đặt LLM sau interface
+\texttt{LLMClient}. Use case chỉ yêu cầu một contract: nhận prompt có cấu trúc
+và trả về dữ liệu đúng schema. Provider như Gemini, GPT hoặc mô hình mã nguồn
+mở có thể được thay đổi ở tầng adapter mà không làm thay đổi nghiệp vụ cốt
+lõi.
+
+Prompt được thiết kế theo nguyên tắc: nêu vai trò, nêu nhiệm vụ, đưa dữ liệu
+nguồn, yêu cầu định dạng đầu ra và ràng buộc chất lượng. Với quiz generation,
+prompt cần chứa context chunk, Learning Outcome nếu có, Bloom level mục tiêu,
+số lượng câu hỏi, ngôn ngữ và schema JSON đầu ra gồm question, options,
+correct answer, explanation, source chunk và rationale.
+
+Sau khi LLM trả về, hệ thống cần validate JSON, kiểm tra số lượng option, đáp
+án đúng, độ dài câu hỏi và giải thích. Nếu JSON lỗi, adapter có thể retry với
+prompt sửa lỗi. Nếu nội dung vẫn không đạt, kết quả được đánh dấu cần review
+thay vì publish tự động.
+
+\section{Kiến trúc RAG và GraphRAG trong giáo dục}
+
+Retrieval-Augmented Generation (RAG) kết hợp truy xuất thông tin với LLM.
+Thay vì để LLM trả lời dựa hoàn toàn trên tri thức nội tại, hệ thống cung cấp
+context từ tài liệu đã xử lý. Cách tiếp cận này giúp tăng khả năng bám sát
+tài liệu gốc, cho phép liên kết nguồn chunk và giảm nguy cơ sinh nội dung
+không thuộc học phần.
+
+Pipeline RAG trong hệ thống gồm các bước cơ bản:
+\begin{enumerate}
+    \item Chuẩn hóa query hoặc yêu cầu sinh nội dung.
+    \item Tạo embedding cho query.
+    \item Tìm top-K chunk liên quan trong Qdrant.
+    \item Lọc theo course, document, chapter hoặc quyền truy cập LMS.
+    \item Lắp prompt từ instruction, Learning Outcome, Bloom level và context
+          chunk.
+    \item Gọi LLM để sinh câu trả lời, card hoặc quiz.
+\end{enumerate}
+
+GraphRAG mở rộng RAG bằng cách dùng Knowledge Graph để bổ sung quan hệ cấu
+trúc. Trong giáo dục, tri thức không chỉ là đoạn văn bản mà còn có quan hệ
+giữa Course, Chapter, Learning Outcome, Assessment và nội dung học tập. Khi
+giảng viên yêu cầu sinh quiz cho một LO cụ thể, hệ thống không chỉ tìm chunk
+gần query bằng vector similarity mà còn ưu tiên chunk có quan hệ hỗ trợ LO đó.
+
+Đề tài tiếp cận GraphRAG theo hướng curriculum-aware. Knowledge Graph được
+dùng để lọc, tăng trọng số hoặc giải thích mối liên hệ giữa nội dung và chuẩn
+đầu ra. Graph reasoning nhiều bước là hướng mở rộng, còn trọng tâm luận văn là
+xây dựng nền tảng truy xuất có ý thức về chương trình học.
+
+\section{Chuẩn tích hợp hệ thống học tập (LMS và LTI 1.3)}
+
+Learning Management System (LMS) như Open edX hoặc Moodle đóng vai trò nền
+tảng quản lý khóa học, người dùng, tài liệu và hoạt động học tập. Thay vì xây
+dựng một LMS mới, đề tài thiết kế hệ thống như một công cụ học tập bên ngoài
+có thể nhúng vào LMS hiện hữu.
+
+Learning Tools Interoperability (LTI) 1.3 là chuẩn cho phép LMS (platform)
+khởi chạy một công cụ bên ngoài (tool) với thông tin người dùng, course
+context và quyền truy cập đã được xác thực. Luồng LTI 1.3 dựa trên OIDC login
+và JWT đã ký. Khi người dùng mở activity từ LMS, LMS gửi launch request đến
+tool; tool kiểm tra issuer, client ID, deployment ID, nonce, chữ ký và claim
+người dùng trước khi tạo session nội bộ.
+
+Trong thiết kế của luận văn, Open edX là nền tảng tích hợp chính. Moodle được
+phân tích như nền tảng tương thích vì cùng hỗ trợ LTI external tool. Cách tích
+hợp này giúp hệ thống AI có thể được triển khai bên cạnh LMS mà không can
+thiệp sâu vào lõi của từng nền tảng.
+
+\section{Nền tảng kiến trúc và công nghệ lõi}
+
+\subsection{Hexagonal Architecture}
+
+Hexagonal Architecture tách nghiệp vụ cốt lõi khỏi chi tiết hạ tầng. Phần
+domain/application chỉ phụ thuộc vào các port trừu tượng, còn các adapter cụ
+thể chịu trách nhiệm giao tiếp với PostgreSQL, Qdrant, Neo4j, MinIO, Redis,
+LLM provider hoặc LMS.
+
+Trong đề tài, cách tách lớp này giúp các use case như ProcessDocument,
+SearchChunks, IngestCurriculum hoặc GenerateCurriculumQuiz không bị phụ thuộc
+trực tiếp vào công nghệ lưu trữ hay provider AI. Khi cần thay Qdrant bằng
+vector database khác hoặc thay LLM provider, hệ thống chỉ cần thay adapter phù
+hợp.
+
+\subsection{Vector Database}
+
+Vector database lưu embedding của chunk để phục vụ semantic search và RAG.
+Mỗi chunk sau khi được trích xuất từ tài liệu sẽ được chuyển thành vector số,
+kèm metadata như \texttt{chunk\_id}, \texttt{document\_id},
+\texttt{course\_id}, heading path, ngôn ngữ và vị trí trong tài liệu.
+
+Qdrant được chọn cho giai đoạn luận văn vì có Docker image chính thức, API
+đơn giản, hỗ trợ payload filtering và phù hợp với môi trường tự host. Vector
+database là thành phần quyết định chất lượng truy xuất nên cần được đánh giá
+bằng các chỉ số như Recall@K, MRR và latency.
+
+\subsection{Knowledge Graph}
+
+Knowledge Graph biểu diễn tri thức dưới dạng node và relationship. Với bài
+toán giáo dục, các node chính gồm Course, Chapter, LearningOutcome,
+Assessment và Chunk. Các quan hệ như \texttt{COURSE\_HAS\_CHAPTER},
+\texttt{CHAPTER\_HAS\_LO}, \texttt{ASSESSMENT\_MEASURES\_LO} và
+\texttt{CHUNK\_SUPPORTS\_LO} giúp hệ thống hiểu nội dung nào hỗ trợ chuẩn đầu
+ra nào.
+
+Neo4j được sử dụng như graph database để lưu projection tri thức. PostgreSQL
+vẫn là source of truth cho dữ liệu nghiệp vụ, còn Neo4j tối ưu cho truy vấn
+quan hệ phục vụ curriculum-aware retrieval, GraphRAG và adaptive learning về
+sau.
+
+\subsection{Event-driven / Async Processing}
+
+Xử lý tài liệu, sinh embedding và gọi LLM là các tác vụ tốn thời gian, không
+phù hợp với request/response đồng bộ. Vì vậy hệ thống sử dụng mô hình xử lý
+bất đồng bộ thông qua queue và worker. Sau khi giảng viên upload tài liệu,
+backend lưu file, tạo metadata và enqueue job; worker thực hiện parse,
+chunking, embedding, generation và cập nhật trạng thái pipeline.
+
+Mô hình event-driven/async giúp frontend phản hồi nhanh, pipeline có thể retry
+khi lỗi tạm thời và worker có thể scale độc lập theo số lượng tài liệu. Đồng
+thời, outbox/event flow cho phép đồng bộ dữ liệu từ PostgreSQL sang Neo4j mà
+không làm chậm luồng nghiệp vụ chính.

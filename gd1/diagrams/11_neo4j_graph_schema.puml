@@ -1,0 +1,96 @@
+@startuml neo4j_graph_schema
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ArrowColor #333333
+skinparam ClassBorderColor #555555
+skinparam ClassBackgroundColor #FFF8DC
+skinparam NoteBorderColor #AAAAAA
+skinparam NoteBackgroundColor #FFFDE7
+
+title Neo4j Graph Schema\n(Heading Graph + Concept Graph)
+
+'─────────────────────────────────────────
+' NODE DEFINITIONS
+'─────────────────────────────────────────
+
+class "Course" <<Node>> #D6EAF8 {
+    id : String
+}
+
+class "Owner" <<Node>> #D6EAF8 {
+    id : String
+}
+
+class "Document" <<Node>> #D5F5E3 {
+    id : String
+    name : String
+    doc_type : String
+}
+
+class "Heading" <<Node>> #FEF9E7 {
+    id : String
+    title : String
+    level : Integer
+    document_id : String
+}
+
+class "Chunk" <<Node>> #FDEBD0 {
+    id : String
+    document_id : String
+    chunk_index : Integer
+    page_number : Integer
+    language : String
+    token_count : Integer
+}
+
+class "Concept" <<Node>> #E8F5E9 {
+    id : String
+    name : String
+    canonical_name : String
+    domain : String
+    category : String
+    ' category: definition | theorem
+    '           algorithm | formula | other
+    language : String
+}
+
+'─────────────────────────────────────────
+' RELATIONSHIPS
+'─────────────────────────────────────────
+
+Course "1" --> "many" Document : HAS_DOCUMENT
+Owner "1" --> "many" Document : OWNS_DOCUMENT
+
+Document "1" --> "many" Heading : HAS_HEADING\n(top-level only)
+Heading "1" --> "many" Heading : HAS_SUBHEADING\n(recursive hierarchy)
+Heading "1" --> "many" Chunk : HAS_CHUNK\n(leaf heading → chunk)
+Document "1" --> "many" Chunk : HAS_CHUNK
+
+Chunk "1" --> "1" Chunk : NEXT\n(sequential order)
+
+Chunk "many" --> "many" Concept : MENTIONS\n{confidence: Float,\n source: llm|order|manual}
+
+Concept "many" --> "many" Concept : PREREQUISITE_OF\n{weight: Float,\n source: llm|order|manual}
+Concept "many" --> "many" Concept : RELATED_TO\n{weight: Float}
+Concept "many" --> "many" Concept : SAME_AS\n(alias / synonym)
+
+note bottom of Concept
+  Heading Graph (trái): cấu trúc tài liệu
+  Concept Graph (phải): quan hệ học thuật
+
+  Query patterns:
+  ─ Quiz: Concept Neighbors (1-hop [:MENTIONS])
+  ─ Chat: Prerequisite Path (n-hop [:PREREQUISITE_OF])
+  ─ RAG: cả hai → merge → rerank
+end note
+
+note right of Chunk
+  Idempotent MERGE key:
+  Heading.id = "{doc_id}:{level}:{h1}>{h2}>..."
+  Concept.id = canonical_name (normalized)
+  Chunk.id   = UUID từ PostgreSQL
+end note
+
+@enduml

@@ -1,0 +1,601 @@
+     1|     1|\section{Thiết kế hệ thống}
+     2|     2|
+     3|     3|\subsection{Thiết kế kiến trúc hệ thống}
+     4|     4|
+     5|     5|\subsubsection{Tổng quan kiến trúc}
+     6|     6|
+     7|     7|Hệ thống Micro-learning được thiết kế theo kiến trúc \textbf{Hexagonal
+     8|     8|(Port/Adapter)} do Alistair Cockburn đề xuất, tổ chức mã nguồn thành ba tầng
+     9|     9|chính: \textbf{Domain} (nghiệp vụ cốt lõi + Port interface),
+    10|    10|\textbf{Application} (use case điều phối), và \textbf{Adapter} (hiện thực
+    11|    11|hạ tầng kỹ thuật). Hai tầng giao tiếp bên ngoài là \textbf{Delivery}
+    12|    12|(gRPC + HTTP API + BullMQ Workers) và \textbf{Infrastructure} (PostgreSQL,
+    13|    13|Qdrant, Neo4j, MinIO, Redis, Gemini LLM).
+    14|    14|
+    15|    15|Toàn bộ backend được đóng gói trong một Python monolith có cấu trúc chặt
+    16|    16|chẽ thay vì nhiều microservice riêng biệt — đây là lựa chọn có chủ đích
+    17|    17|cho giai đoạn đồ án: giảm độ phức tạp triển khai, tận dụng ưu điểm của
+    18|    18|Python import system để thực thi dependency injection qua Container, và
+    19|    19|dễ dàng kiểm thử toàn bộ pipeline mà không cần mock network.
+    20|    20|
+    21|    21|\begin{figure}[H]
+    22|    22|    \centering
+    23|    23|    \includegraphics[width=\textwidth]{figures/overview.png}
+    24|    24|    \caption{Kiến trúc tổng quan: AI Backend (chunking\_v2) +
+    25|    25|             Open edX (Redwood) + Next.js Frontend qua mạng Docker
+    26|    26|             \texttt{lms\_shared}.}
+    27|    27|    \label{fig:arch-overview}
+    28|    28|\end{figure}
+    29|    29|
+    30|    30|Hệ thống gồm bốn nhóm thành phần chính:
+    31|    31|
+    32|    32|\begin{itemize}
+    33|    33|    \item \textbf{AI Backend (chunking\_v2):} Python monolith tổ chức
+    34|    34|          theo Hexagonal Architecture, expose 12 gRPC RPCs qua proto3
+    35|    35|          và HTTP API qua FastAPI. Ba BullMQ worker xử lý pipeline bất
+    36|    36|          đồng bộ (document, enrichment, outbox).
+    37|    37|    \item \textbf{Open edX LMS (Redwood):} Tutor 18.2.2, tích hợp
+    38|    38|          LTI 1.3 qua \texttt{lti\_consumer-xblock} có sẵn. Custom
+    39|    39|          \texttt{AILessonBlock} đóng vai trò ``thin glue'' — chỉ
+    40|    40|          render iframe trỏ đến Next.js frontend.
+    41|    41|    \item \textbf{Next.js Frontend:} Next.js 15 App Router +
+    42|    42|          TypeScript + Tailwind, xác thực LTI 1.3 qua \texttt{ltijs}
+    43|    43|          Provider, gọi gRPC server-side qua proxy route, quản lý
+    44|    44|          session bằng Redis (TTL 30 phút).
+    45|    45|    \item \textbf{Infrastructure:} PostgreSQL (14 bảng metadata +
+    46|    46|          curriculum), Qdrant (vector similarity), Neo4j (Knowledge
+    47|    47|          Graph Chuẩn đầu ra), MinIO (object storage), Redis (cache +
+    48|    48|          session + job queue).
+    49|    49|\end{itemize}
+    50|    50|
+    51|    51|\subsubsection{Kiến trúc phân tầng Hexagonal}
+    52|    52|
+    53|    53|Hình~\ref{fig:arch-layers} minh họa kiến trúc ba tầng kèm tầng
+    54|    54|Delivery và Adapter ở hai phía. Mũi tên phụ thuộc luôn hướng vào
+    55|    55|tầng Domain --- các tầng ngoài phụ thuộc vào Port (interface), Domain
+    56|    56|không biết gì về Adapter cụ thể.
+    57|    57|
+    58|    58|\begin{figure}[H]
+    59|    59|    \centering
+    60|    60|    \includegraphics[width=\textwidth]{figures/arch_hexagonal.png}
+    61|    61|    \caption{Kiến trúc Hexagonal của chunking\_v2: Domain core ở
+    62|    62|             trung tâm, Application điều phối, Adapter hiện thực hạ tầng.}
+    63|    63|    \label{fig:arch-layers}
+    64|    64|\end{figure}
+    65|    65|
+    66|    66|\begin{table}[H]
+    67|    67|    \centering
+    68|    68|    \caption{Mô tả ba tầng kiến trúc Hexagonal của chunking\_v2.}
+    69|    69|    \label{tab:arch-layers}
+    70|    70|    \begin{tabular}{p{3cm}p{4.5cm}p{7cm}}
+    71|    71|        \toprule
+    72|    72|        \textbf{Tầng} & \textbf{Thành phần} & \textbf{Trách nhiệm} \\
+    73|    73|        \midrule
+    74|    74|        \textbf{Domain}
+    75|    75|            & Entities, Ports (ABC), Exceptions, Result[T,E]
+    76|    76|            & Logic nghiệp vụ thuần túy. Không import bất kỳ
+    77|    77|              framework hay adapter nào. Mọi dependency được
+    78|    78|              định nghĩa qua Port interface. \\
+    79|    79|        \midrule
+    80|    80|        \textbf{Application}
+    81|    81|            & 12 Use Cases (ProcessDocument, IngestCurriculum,
+    82|    82|              GenerateCurriculumQuiz, \dots)
+    83|    83|            & Điều phối domain entities qua Port interface.
+    84|    84|              Mỗi use case nhận input DTO, gọi domain + port,
+    85|    85|              trả Result[T,E]. \\
+    86|    86|        \midrule
+    87|    87|        \textbf{Adapter}
+    88|    88|            & PostgresMetadataStore, QdrantVectorStore,
+    89|    89|              Neo4jGraphStore, MinIOAdapter, GeminiAdapter,
+    90|    90|              BGEEmbedder, DcmhExtractor, \dots
+    91|    91|            & Hiện thực các Port interface với công nghệ cụ thể.
+    92|    92|              Có thể swap Adapter (vd: Gemini $\to$ OpenAI) mà
+    93|    93|              không sửa tầng Application hay Domain. \\
+    94|    94|        \bottomrule
+    95|    95|    \end{tabular}
+    96|    96|\end{table}
+    97|    97|
+    98|    98|\textbf{Delivery Layer} (primary adapter): gRPC Server
+    99|    99|(\texttt{chunking\_pb2\_grpc}), HTTP API (FastAPI), BullMQ Workers
+   100|   100|(document, enrichment, outbox), và Next.js Server (LTI handler).
+   101|   101|Tất cả đều gọi Use Case thông qua dependency injection container.
+   102|   102|
+   103|   103|\subsubsection{Bài toán thiết kế và giải pháp}
+   104|   104|
+   105|   105|Nhóm xác định năm bài toán kỹ thuật chính:
+   106|   106|
+   107|   107|\begin{table}[H]
+   108|   108|    \centering
+   109|   109|    \caption{Năm bài toán thiết kế và giải pháp.}
+   110|   110|    \label{tab:design-problems}
+   111|   111|    \begin{tabular}{p{0.5cm}p{4cm}p{4cm}p{5.5cm}}
+   112|   112|        \toprule
+   113|   113|        \textbf{\#} & \textbf{Bài toán} & \textbf{Nguyên nhân} & \textbf{Giải pháp} \\
+   114|   114|        \midrule
+   115|   115|        1 & Xử lý bất đồng bộ
+   116|   116|          & AI pipeline kéo dài vài phút; HTTP/gRPC sẽ timeout.
+   117|   117|          & BullMQ job queue + 3 workers + state machine. \\
+   118|   118|        \midrule
+   119|   119|        2 & Thay thế LLM provider
+   120|   120|          & Gemini có thể thay đổi API; cần linh hoạt.
+   121|   121|          & Port/Adapter (ILLMClient $\to$ GeminiAdapter). \\
+   122|   122|        \midrule
+   123|   123|        3 & Kiểm thử không gọi API thật
+   124|   124|          & Gọi LLM API thật tốn tiền và phụ thuộc mạng.
+   125|   125|          & Mock Adapter implement cùng Port interface. \\
+   126|   126|        \midrule
+   127|   127|        4 & Chatbot trả lời sai kiến thức
+   128|   128|          & LLM có thể sinh thông tin không có trong bài học.
+   129|   129|          & RAG --- chỉ trả lời dựa trên context từ Qdrant. \\
+   130|   130|        \midrule
+   131|   131|        5 & Tích hợp LMS qua LTI 1.3
+   132|   132|          & Open edX có sẵn LTI consumer; cần thin client ở Next.js.
+   133|   133|          & Thin XBlock glue + ltijs Provider + OIDC flow. \\
+   134|   134|        \bottomrule
+   135|   135|    \end{tabular}
+   136|   136|\end{table}
+   137|   137|
+   138|   138|\paragraph{Bài toán 1 --- Job Queue + State Machine.}
+   139|   139|
+   140|   140|Khi giảng viên upload tài liệu, gRPC handler \texttt{EnqueueDocument}
+   141|   141|đẩy job vào Redis-backed BullMQ queue và trả \texttt{document\_id}
+   142|   142|ngay lập tức. Ba worker riêng biệt tiêu thụ queue:
+   143|   143|
+   144|   144|\begin{itemize}
+   145|   145|    \item \texttt{document-worker}: parse $\to$ chunk $\to$ embed
+   146|   146|          $\to$ upsert Qdrant + Postgres.
+   147|   147|    \item \texttt{enrichment-worker}: gọi Gemini sinh card + quiz
+   148|   148|          từ chunk đã embed.
+   149|   149|    \item \texttt{outbox-worker}: đồng bộ Postgres $\to$ Neo4j
+   150|   150|          Knowledge Graph qua event sourcing pattern.
+   151|   151|\end{itemize}
+   152|   152|
+   153|   153|Pipeline theo dõi trạng thái qua state machine với các trạng thái:
+   154|   154|\texttt{QUEUED} $\to$ \texttt{PARSING} $\to$ \texttt{CHUNKING}
+   155|   155|$\to$ \texttt{EMBEDDING} $\to$ \texttt{ENRICHING} $\to$
+   156|   156|\texttt{DONE} (hoặc \texttt{ERROR}). Cơ chế retry 3 lần với
+   157|   157|exponential backoff ($1s \to 2s \to 4s$).
+   158|   158|
+   159|   159|\paragraph{Bài toán 2 \& 3 --- Hexagonal Architecture.}
+   160|   160|
+   161|   161|Mỗi dependency bên ngoài được trừu tượng hóa thành một \textbf{Port}
+   162|   162|(abstract base class trong \texttt{src/domain/ports/}). Khi cần
+   163|   163|thay thế provider, chỉ cần tạo Adapter mới implement cùng Port mà
+   164|   164|không sửa use case hay domain entity nào.
+   165|   165|
+   166|   166|\begin{table}[H]
+   167|   167|    \centering
+   168|   168|    \caption{Danh sách Port và Adapter trong hệ thống.}
+   169|   169|    \label{tab:ports-adapters}
+   170|   170|    \begin{tabular}{p{3.5cm}p{5cm}p{6cm}}
+   171|   171|        \toprule
+   172|   172|        \textbf{Port (Interface)} & \textbf{Production Adapter} & \textbf{Test Adapter} \\
+   173|   173|        \midrule
+   174|   174|        \texttt{IParser}
+   175|   175|            & PdfParser, DocxParser, PptxParser
+   176|   176|            & MockParser \\
+   177|   177|        \texttt{IEmbeddingModel}
+   178|   178|            & BGEEmbedder (BGE-M3, 1024-dim, local)
+   179|   179|            & MockEmbeddingAdapter \\
+   180|   180|        \texttt{IVectorStore}
+   181|   181|            & QdrantVectorStore
+   182|   182|            & InMemoryVectorStore \\
+   183|   183|        \texttt{IMetadataStore}
+   184|   184|            & PostgresMetadataStore (14 tables)
+   185|   185|            & MockMetadataStore \\
+   186|   186|        \texttt{IGraphStore}
+   187|   187|            & Neo4jGraphStore (LO Knowledge Graph)
+   188|   188|            & MockGraphStore \\
+   189|   189|        \texttt{IObjectStorage}
+   190|   190|            & MinIOAdapter
+   191|   191|            & LocalFSAdapter \\
+   192|   192|        \texttt{ILLMClient}
+   193|   193|            & GeminiAdapter (gemini-3-flash)
+   194|   194|            & MockLLMClient \\
+   195|   195|        \texttt{ICurriculumExtractor}
+   196|   196|            & DcmhExtractor (regex CDIO + Bloom)
+   197|   197|            & --- (structural, không cần mock) \\
+   198|   198|        \texttt{IChunkLOMapper}
+   199|   199|            & HeuristicLoMapper (heading match)
+   200|   200|            & --- \\
+   201|   201|        \bottomrule
+   202|   202|    \end{tabular}
+   203|   203|\end{table}
+   204|   204|
+   205|   205|\paragraph{Bài toán 4 --- Curriculum-Aware Design.}
+   206|   206|
+   207|   207|Hệ thống thiết kế lớp curriculum-aware xuyên suốt pipeline:
+   208|   208|
+   209|   209|\begin{enumerate}
+   210|   210|    \item \textbf{Extract:} \texttt{DcmhExtractor} parse DCMH PDF
+   211|   211|          bằng regex CDIO pattern (\texttt{L.O.X.Y}) và ánh xạ
+   212|   212|          động từ Bloom sang 6 mức (Remember $\to$ Create).
+   213|   213|    \item \textbf{Persist:} Curriculum được lưu vào PostgreSQL
+   214|   214|          (6 bảng: courses, chapters, learning\_outcomes,
+   215|   215|          assessments, lo\_assessments, chunk\_lo\_mappings)
+   216|   216|          và Neo4j Knowledge Graph (node LO, Chapter, Assessment;
+   217|   217|          edge HAS\_CHAPTER, HAS\_LO, ASSESSES, SUPPORTS).
+   218|   218|    \item \textbf{Map:} \texttt{HeuristicLoMapper} tự động liên kết
+   219|   219|          chunk tài liệu với LO dựa trên heading alignment.
+   220|   220|    \item \textbf{Generate:} \texttt{GenerateCurriculumQuiz} gọi
+   221|   221|          Gemini sinh câu hỏi MCQ + short answer \textbf{aligned}
+   222|   222|          với từng LO, kèm Bloom level và rationale.
+   223|   223|\end{enumerate}
+   224|   224|
+   225|   225|\paragraph{Bài toán 5 --- Tích hợp LMS qua LTI 1.3.}
+   226|   226|
+   227|   227|Quyết định sử dụng LTI 1.3 (OAuth2 + JWT) thay vì LTI 1.1
+   228|   228|(OAuth1 + XML) vì tính bảo mật cao hơn và hỗ trợ AGS
+   229|   229|(Assignment and Grade Services) cho grade passback tự động.
+   230|   230|
+   231|   231|XBlock \texttt{AILessonBlock} đóng vai trò ``thin glue'' ---
+   232|   232|không chứa logic nghiệp vụ, chỉ render iframe với OIDC login URL
+   233|   233|trỏ đến Next.js. Toàn bộ logic xác thực và hiển thị nằm ở Next.js.
+   234|   234|
+   235|   235|\begin{figure}[H]
+   236|   236|    \centering
+   237|   237|    \includegraphics[width=\textwidth]{figures/lti_auth_flow.png}
+   238|   238|    \caption{Luồng xác thực LTI 1.3 OIDC: từ click XBlock đến
+   239|   239|             /learn/cards với session Redis 30 phút.}
+   240|   240|    \label{fig:lti-auth-flow}
+   241|   241|\end{figure}
+   242|   242|
+   243|   243|Luồng xác thực (hình~\ref{fig:lti-auth-flow}):
+   244|   244|\begin{enumerate}
+   245|   245|    \item Sinh viên đăng nhập LMS, vào unit chứa AILessonBlock.
+   246|   246|    \item XBlock render iframe với OIDC login URL trỏ Next.js.
+   247|   247|    \item Next.js \texttt{/lti/login} khởi tạo OIDC flow:
+   248|   248|          redirect browser đến edX \texttt{/oauth2/authorize}.
+   249|   249|    \item edX xác thực sinh viên, sinh \texttt{id\_token} JWT,
+   250|   250|          auto-submit form POST đến Next.js \texttt{/lti/launch}.
+   251|   251|    \item \texttt{ltijs} Provider validate JWT qua edX JWKS,
+   252|   252|          extract claims: \texttt{sub}, \texttt{context.id},
+   253|   253|          \texttt{roles}, \texttt{custom}.
+   254|   254|    \item Postgres: UPSERT \texttt{lms\_user\_mappings} tạo
+   255|   255|          \texttt{internal\_user\_id}.
+   256|   256|    \item Redis: SET session với TTL 30 phút.
+   257|   257|    \item Set HttpOnly cookie \texttt{sid} và 302 redirect:
+   258|   258|          giảng viên $\to$ \texttt{/manage/review},
+   259|   259|          sinh viên $\to$ \texttt{/learn/cards}.
+   260|   260|\end{enumerate}
+   261|   261|
+   262|   262|\subsubsection{Biện luận kiến trúc: Polyglot Monolith cho nhóm 4 thành viên}
+   263|   263|
+   264|   264|\textbf{Tổ chức nhóm theo kiến trúc.} Dự án được thực hiện bởi nhóm 4
+   265|   265|thành viên trong 30 tuần. Kiến trúc Hexagonal Monolith được chọn thay vì
+   266|   266|Microservices vì ba lý do chính:
+   267|   267|
+   268|   268|\begin{enumerate}
+   269|   269|    \item \textbf{Không cần network isolation:} Tất cả worker (document,
+   270|   270|          enrichment, outbox --- và GĐ2 thêm video, chat) chia sẻ chung
+   271|   271|          Domain entities và Adapter (PostgreSQL, Qdrant, Neo4j).
+   272|   272|          Microservices sẽ buộc mỗi service maintain schema riêng + API
+   273|   273|          contract riêng, tăng chi phí đồng bộ giữa 4 người.
+   274|   274|    \item \textbf{Phân công không đụng hàng:} Mỗi thành viên làm việc
+   275|   275|          trong một thư mục độc lập trong cùng monolith:
+   276|   276|          \texttt{src/adapters/curriculum/} (Thành viên A),
+   277|   277|          \texttt{src/adapters/video/} (Thành viên B),
+   278|   278|          \texttt{src/adapters/tracer/} (Thành viên C),
+   279|   279|          \texttt{web/} Next.js (Thành viên D).
+   280|   280|          Domain Ports (interface) được thiết kế trước --- mỗi người
+   281|   281|          implement Adapter theo Port, merge không conflict.
+   282|   282|    \item \textbf{Dễ kiểm thử tích hợp:} Toàn bộ pipeline test được
+   283|   283|          trong 1 process với Mock Adapter, không cần setup multi-service
+   284|   284|          test environment.
+   285|   285|\end{enumerate}
+   286|   286|
+   287|   287|\textbf{Chiến lược Polyglot.} Hệ thống sử dụng ba ngôn ngữ, mỗi ngôn
+   288|   288|ngữ đảm nhận domain mà nó mạnh nhất:
+   289|   289|
+   290|   290|\begin{table}[H]
+   291|   291|    \centering
+   292|   292|    \caption{Phân bổ ngôn ngữ theo domain.}
+   293|   293|    \label{tab:polyglot}
+   294|   294|    \begin{tabular}{p{2.5cm}p{5cm}p{7cm}}
+   295|   295|        \toprule
+   296|   296|        \textbf{Ngôn ngữ} & \textbf{Thành phần} & \textbf{Lý do chọn} \\\\
+   297|   297|        \midrule
+   298|   298|        \textbf{Python 3.10+}
+   299|   299|            & chunking\\_v2 backend (gRPC server, workers, adapters)
+   300|   300|            & Hệ sinh thái ML/AI mạnh nhất: \texttt{sentence-transformers}
+   301|   301|              (BGE-M3), \texttt{faster-whisper}, \texttt{pdfplumber},
+   302|   302|              \texttt{neo4j}, \texttt{psycopg}, \texttt{grpcio}.
+   303|   303|              Hexagonal Architecture với ABC + dataclass rất tự nhiên
+   304|   304|              trong Python. \\\\
+   305|   305|        \textbf{TypeScript (Node.js)}
+   306|   306|            & Next.js 15 frontend (LTI auth, UI, gRPC proxy)
+   307|   307|            & \texttt{ltijs} là thư viện LTI 1.3 mạnh nhất hiện có,
+   308|   308|              chỉ có bản Node.js. Next.js App Router cho SSR + API route
+   309|   309|              trong cùng process. \\\\
+   310|   310|        \textbf{Go (Golang)}
+   311|   311|            & Video Processing Worker (GĐ2)
+   312|   312|            & Goroutines xử lý concurrent video chunk encoding/decoding
+   313|   313|              hiệu quả hơn Python asyncio. Hệ sinh thái FFmpeg binding
+   314|   314|              (\texttt{go-ffmpeg}) mạnh. Giao tiếp với backend qua
+   315|   315|              gRPC (\texttt{protobuf} native trong Go). \\
+   316|   316|        \bottomrule
+   317|   317|    \end{tabular}
+   318|   318|\end{table}
+   319|   319|
+   320|   320|Video Worker bằng Go giao tiếp với chunking\\_v2 Python backend
+   321|   321|qua gRPC --- đây cũng là ví dụ thực tế cho thấy Port/Adapter pattern
+   322|   322|hoạt động xuyên ngôn ngữ: Go service gọi \texttt{EnqueueVideo} RPC
+   323|   323|để nhận job, và gọi \texttt{UpdateDocumentStatus} để báo tiến độ
+   324|   324|về Python backend.
+   325|   325|
+   326|   326|\textbf{Tóm lại:} Kiến trúc Hexagonal Monolith + Polyglot Workers
+   327|   327|là lựa chọn tối ưu cho đồ án 4 người --- tận dụng ưu điểm từng ngôn
+   328|   328|ngữ, giữ chi phí tích hợp thấp, và vẫn đảm bảo khả năng mở rộng
+   329|   329|thành microservices sau này nếu cần.
+   330|   330|
+   331|   331|\subsection{Thiết kế Domain Model}
+   332|   332|
+   333|   333|\subsubsection{Entities cốt lõi}
+   334|   334|
+   335|   335|Domain model của hệ thống được thiết kế quanh các entity chính sau:
+   336|   336|
+   337|   337|\begin{table}[H]
+   338|   338|    \centering
+   339|   339|    \caption{Các entity chính trong Domain Model.}
+   340|   340|    \label{tab:domain-entities}
+   341|   341|    \begin{tabular}{p{3.5cm}p{8cm}p{3cm}}
+   342|   342|        \toprule
+   343|   343|        \textbf{Entity} & \textbf{Mô tả} & \textbf{File} \\
+   344|   344|        \midrule
+   345|   345|        \texttt{Document}
+   346|   346|            & Tài liệu gốc (PDF, DOCX, PPTX). Chứa metadata:
+   347|   347|              document\_id, name, doc\_type, mime\_type,
+   348|   348|              course\_id, owner\_id, language.
+   349|   349|            & \texttt{document.py} \\
+   350|   350|        \texttt{ParsedDocument}
+   351|   351|            & Kết quả parse: danh sách Section (heading,
+   352|   352|              content text, images, page\_number).
+   353|   353|            & \texttt{document.py} \\
+   354|   354|        \texttt{Chunk}
+   355|   355|            & Đoạn văn bản đã chia theo heading, kèm
+   356|   356|              heading\_path, page\_number, vector embedding.
+   357|   357|            & \texttt{chunk.py} \\
+   358|   358|        \texttt{LessonCard}
+   359|   359|            & Thẻ bài học: title, bullets (3--5 ý), key\_insight,
+   360|   360|              source\_chunk\_ids, card\_index.
+   361|   361|            & \texttt{card.py} \\
+   362|   362|        \texttt{QuizItem}
+   363|   363|            & Câu hỏi: question, choices[], correct\_index,
+   364|   364|              explanation, difficulty, lo\_id, bloom\_level.
+   365|   365|            & \texttt{quiz.py} \\
+   366|   366|        \texttt{Course}
+   367|   367|            & Khóa học: code, title\_vi, credits,
+   368|   368|              extraction\_confidence từ DCMH.
+   369|   369|            & \texttt{curriculum.py} \\
+   370|   370|        \texttt{Chapter}
+   371|   371|            & Chương trong DCMH: code, title, order\_index.
+   372|   372|            & \texttt{curriculum.py} \\
+   373|   373|        \texttt{LearningOutcome}
+   374|   374|            & Chuẩn đầu ra: code (L.O.X.Y), statement\_vi,
+   375|   375|              bloom\_level, cdio\_level.
+   376|   376|            & \texttt{curriculum.py} \\
+   377|   377|        \texttt{Assessment}
+   378|   378|            & Bài đánh giá: code, name\_vi, category,
+   379|   379|              weight (0--1).
+   380|   380|            & \texttt{curriculum.py} \\
+   381|   381|        \bottomrule
+   382|   382|    \end{tabular}
+   383|   383|\end{table}
+   384|   384|
+   385|   385|\subsubsection{Port Interface (Abstract Base Classes)}
+   386|   386|
+   387|   387|Tất cả dependency bên ngoài được định nghĩa qua ABC trong
+   388|   388|\texttt{src/domain/ports/}:
+   389|   389|
+   390|   390|\begin{itemize}
+   391|   391|    \item \texttt{IParser} --- parse file $\to$ ParsedDocument.
+   392|   392|    \item \texttt{IChunker} --- chia ParsedDocument $\to$ List[Chunk].
+   393|   393|    \item \texttt{IEmbeddingModel} --- embed text $\to$ vector[1024].
+   394|   394|    \item \texttt{IVectorStore} --- upsert/search/delete vectors.
+   395|   395|    \item \texttt{IMetadataStore} --- CRUD document/chunk/card/quiz.
+   396|   396|    \item \texttt{IGraphStore} --- Neo4j curriculum graph operations.
+   397|   397|    \item \texttt{IObjectStorage} --- upload/download file (MinIO).
+   398|   398|    \item \texttt{ILLMClient} --- gọi LLM sinh text (Gemini).
+   399|   399|    \item \texttt{ICurriculumExtractor} --- extract LO từ DCMH PDF.
+   400|   400|    \item \texttt{IChunkLOMapper} --- map chunk $\to$ LO.
+   401|   401|\end{itemize}
+   402|   402|
+   403|   403|\subsubsection{Result Monad}
+   404|   404|
+   405|   405|Hệ thống dùng \texttt{Result[T, E]} monad để xử lý lỗi không
+   406|   406|dùng exception trong tầng domain. Mọi Port method trả về
+   407|   407|\texttt{Result[Ok[T], Err[Exception]]}:
+   408|   408|
+   409|   409|\begin{lstlisting}[language=Python, caption={Result monad trong domain}]
+   410|   410|from src.shared.result import Ok, Err, Result
+   411|   411|
+   412|   412|def process_document(...) -> Result[Document, Exception]:
+   413|   413|    if not file_data:
+   414|   414|        return Err(ValueError("empty file"))
+   415|   415|    ...
+   416|   416|    return Ok(document)
+   417|   417|\end{lstlisting}
+   418|   418|
+   419|   419|\subsection{Thiết kế Use Case Layer}
+   420|   420|
+   421|   421|Mỗi gRPC RPC trong \texttt{chunking.proto} được ánh xạ 1--1
+   422|   422|với một Use Case class trong \texttt{src/application/}:
+   423|   423|
+   424|   424|\begin{table}[H]
+   425|   425|    \centering
+   426|   426|    \caption{12 RPCs và Use Case tương ứng.}
+   427|   427|    \label{tab:rpc-usecases}
+   428|   428|    \begin{tabular}{p{5cm}p{5.5cm}p{4cm}}
+   429|   429|        \toprule
+   430|   430|        \textbf{gRPC RPC} & \textbf{Use Case} & \textbf{Loại} \\
+   431|   431|        \midrule
+   432|   432|        \texttt{HealthCheck}
+   433|   433|            & HealthCheckUseCase
+   434|   434|            & Đồng bộ \\
+   435|   435|        \texttt{ProcessDocument}
+   436|   436|            & ProcessDocumentUseCase
+   437|   437|            & Đồng bộ (nặng) \\
+   438|   438|        \texttt{EnqueueDocument}
+   439|   439|            & EnqueueDocumentUseCase
+   440|   440|            & Bất đồng bộ \\
+   441|   441|        \texttt{GetDocumentStatus}
+   442|   442|            & GetDocumentStatusUseCase
+   443|   443|            & Polling \\
+   444|   444|        \texttt{GetCards}
+   445|   445|            & GetCardsUseCase
+   446|   446|            & Đọc \\
+   447|   447|        \texttt{GetQuiz}
+   448|   448|            & GetQuizUseCase
+   449|   449|            & Đọc \\
+   450|   450|        \texttt{Search}
+   451|   451|            & SearchChunksUseCase
+   452|   452|            & Vector search \\
+   453|   453|        \texttt{DeleteDocument}
+   454|   454|            & DeleteDocumentUseCase
+   455|   455|            & Xóa \\
+   456|   456|        \texttt{IngestCurriculum}
+   457|   457|            & IngestCurriculumUseCase
+   458|   458|            & Extract + Persist \\
+   459|   459|        \texttt{GetCurriculum}
+   460|   460|            & GetCurriculumUseCase
+   461|   461|            & Đọc \\
+   462|   462|        \texttt{SearchByLearningOutcome}
+   463|   463|            & SearchByLearningOutcomeUseCase
+   464|   464|            & LO-scoped search \\
+   465|   465|        \texttt{GenerateCurriculumQuiz}
+   466|   466|            & GenerateCurriculumQuizUseCase
+   467|   467|            & LO-aligned quiz \\
+   468|   468|        \bottomrule
+   469|   469|    \end{tabular}
+   470|   470|\end{table}
+   471|   471|
+   472|   472|Sơ đồ tuần tự (sequence diagram) cho luồng \texttt{IngestCurriculum}
+   473|   473|được minh họa trong hình~\ref{fig:seq-ingest-curriculum}.
+   474|   474|
+   475|   475|\begin{figure}[H]
+   476|   476|    \centering
+   477|   477|    \includegraphics[width=\textwidth]{figures/seq_ingest_curriculum.png}
+   478|   478|    \caption{Sơ đồ tuần tự: IngestCurriculum --- parse DCMH PDF
+   479|   479|             $\to$ extract LO $\to$ persist Postgres + Neo4j.}
+   480|   480|    \label{fig:seq-ingest-curriculum}
+   481|   481|\end{figure}
+   482|   482|
+   483|   483|\subsection{Thiết kế Adapter Layer}
+   484|   484|
+   485|   485|\subsubsection{PostgreSQL Metadata Store}
+   486|   486|
+   487|   487|Adapter \texttt{PostgresMetadataStore} implement
+   488|   488|\texttt{IMetadataStore} với 14 bảng:
+   489|   489|
+   490|   490|\begin{itemize}
+   491|   491|    \item \textbf{Core (6):} documents\_metadata, chunks\_metadata,
+   492|   492|          chunk\_contents, lesson\_cards, quiz\_items, outbox\_events.
+   493|   493|    \item \textbf{Curriculum (6):} courses, chapters, learning\_outcomes,
+   494|   494|          assessments, lo\_assessments, chunk\_lo\_mappings.
+   495|   495|    \item \textbf{LMS Integration (2):} lms\_user\_mappings,
+   496|   496|          lms\_course\_ref.
+   497|   497|    \item \textbf{Concepts (2):} concepts, chunk\_concepts.
+   498|   498|\end{itemize}
+   499|   499|
+   500|   500|Schema được tự động tạo qua \texttt{\_ensure\_schema()} với cơ chế
+   501|   501|double-checked locking đảm bảo thread-safe initialization.
+   502|   502|
+   503|   503|\subsubsection{Qdrant Vector Store}
+   504|   504|
+   505|   505|Collection \texttt{documents}: vector 1024 chiều (BGE-M3), metric
+   506|   506|cosine. Payload gồm document\_id, chunk\_id, heading\_path,
+   507|   507|language, course\_id. Hỗ trợ filter theo course\_id, doc\_type,
+   508|   508|language để giới hạn phạm vi tìm kiếm.
+   509|   509|
+   510|   510|\subsubsection{Neo4j Knowledge Graph}
+   511|   511|
+   512|   512|Schema graph gồm các node label \texttt{Course}, \texttt{Chapter},
+   513|   513|\texttt{LearningOutcome}, \texttt{Assessment}, \texttt{Chunk},
+   514|   514|\texttt{Concept} và các relationship \texttt{HAS\_CHAPTER},
+   515|   515|\texttt{HAS\_LO}, \texttt{ASSESSES}, \texttt{SUPPORTS},
+   516|   516|\texttt{RELATED\_TO}. Dữ liệu được đồng bộ từ PostgreSQL qua
+   517|   517|Outbox Worker theo pattern event-driven.
+   518|   518|
+   519|   519|Bốn method chính đã được hiện thực:
+   520|   520|\texttt{upsert\_curriculum\_graph},
+   521|   521|\texttt{upsert\_chunk\_lo\_mappings},
+   522|   522|\texttt{find\_chunks\_for\_lo},
+   523|   523|\texttt{find\_chunks\_for\_chapter}.
+   524|   524|
+   525|   525|\subsubsection{Gemini LLM Adapter}
+   526|   526|
+   527|   527|Adapter \texttt{GeminiAdapter} implement \texttt{ILLMClient} với
+   528|   528|model \texttt{gemini-3-flash-preview}. Prompt template cho từng
+   529|   529|loại tác vụ:
+   530|   530|
+   531|   531|\begin{itemize}
+   532|   532|    \item \textbf{Card generation:} ``Sinh 3--5 ý chính dạng bullet
+   533|   533|          points từ đoạn văn sau. Mỗi ý không quá 30 từ.''
+   534|   534|    \item \textbf{Quiz generation:} ``Sinh 5 câu MCQ + 2 câu trả
+   535|   535|          lời ngắn. Mỗi câu có 4 lựa chọn, 1 đáp án đúng, kèm
+   536|   536|          giải thích.''
+   537|   537|    \item \textbf{Curriculum quiz:} ``Sinh câu hỏi aligned với LO
+   538|   538|          \{lo\_code\} ở mức Bloom \{bloom\_level\}. Độ khó \{difficulty\}.'' 
+   539|   539|\end{itemize}
+   540|   540|
+   541|   541|\subsubsection{BGE-M3 Embedder}
+   542|   542|
+   543|   543|Adapter \texttt{BGEEmbedder} chạy local model
+   544|   544|\texttt{BAAI/bge-m3} qua thư viện \texttt{sentence-transformers},
+   545|   545|sinh vector 1024 chiều. Hỗ trợ FP16 để giảm VRAM. Không phụ
+   546|   546|thuộc API bên ngoài.
+   547|   547|
+   548|   548|\subsection{Thiết kế Curriculum-Aware Layer (Điểm mới)}
+   549|   549|
+   550|   550|Đây là điểm khác biệt chính của đồ án so với các hệ thống LMS
+   551|   551|truyền thống --- tích hợp \textbf{Chuẩn đầu ra học phần (LO)}
+   552|   552|vào toàn bộ pipeline sinh nội dung.
+   553|   553|
+   554|   554|\subsubsection{DCMH Extractor (388 dòng)}
+   555|   555|
+   556|   556|\texttt{DcmhExtractor} parse Đề cương môn học theo định dạng
+   557|   557|CDIO của BKHCM bằng regex, không dùng LLM (structural-only,
+   558|   558|đảm bảo deterministic):
+   559|   559|
+   560|   560|\begin{itemize}
+   561|   561|    \item Regex pattern cho LO: \texttt{r"L\textbackslash.O\textbackslash.
+   562|   562|          \textbackslash d+\textbackslash.\textbackslash d+"}
+   563|   563|    \item Regex cho chapter: \texttt{r"[Cc]h\textbackslash u\textbackslash
+   564|   564|          o\textbackslash ng\textbackslash s+\textbackslash d+"}
+   565|   565|    \item Bloom level detection: ánh xạ 40+ động từ
+   566|   566|          tiếng Việt + tiếng Anh sang 6 mức Bloom.
+   567|   567|    \item CDIO level: ánh xạ L.O.X.Y $\to$ level I (X=1,2),
+   568|   568|          II (X=3,4), III (X=5,6).
+   569|   569|\end{itemize}
+   570|   570|
+   571|   571|\subsubsection{LO-Chunk Mapping}
+   572|   572|
+   573|   573|\texttt{HeuristicLoMapper} tự động liên kết chunk với LO qua
+   574|   574|heading alignment --- không cần LLM, nhanh và reproducible:
+   575|   575|
+   576|   576|\begin{enumerate}
+   577|   577|    \item Trích xuất chapter number từ heading (vd: ``Chương 4''
+   578|   578|          $\to$ chapter 4).
+   579|   579|    \item Map LO đến chapter: L.O.4.2 $\to$ chapter 4.
+   580|   580|    \item Text matching: heading có chứa $\geq$ 2 từ khóa
+   581|   581|          quan trọng từ statement\_vi của LO.
+   582|   582|\end{enumerate}
+   583|   583|
+   584|   584|Kết quả được persist vào bảng \texttt{chunk\_lo\_mappings} và
+   585|   585|Neo4j relationship \texttt{SUPPORTS}.
+   586|   586|
+   587|   587|\subsubsection{LO-Driven Quiz Generation}
+   588|   588|
+   589|   589|\texttt{GenerateCurriculumQuizUseCase} gọi Gemini với prompt
+   590|   590|specialized theo LO:
+   591|   591|
+   592|   592|\begin{lstlisting}[language=Python, caption={Prompt template cho LO-aligned quiz}]
+   593|   593|prompt = f"""You are an assessment designer.
+   594|   594|Create {count} quiz items aligned with:
+   595|   595|  LO Code: {lo.code}
+   596|   596|  Statement: {lo.statement_vi}
+   597|   597|  Bloom Level: {lo.bloom_level}
+   598|   598|  Style: {style}  # quiz | midterm | final
+   599|   599|Context from course materials:
+   600|   600|{context_chunks}
+   601|
