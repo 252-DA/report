@@ -1,0 +1,53 @@
+@startuml seq_lti_launch
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+skinparam SequenceParticipantBorderColor #555555
+skinparam SequenceLifeLineBorderColor #999999
+skinparam SequenceBoxBorderColor #888888
+skinparam SequenceBoxBackgroundColor #F8F8F8
+
+title Sequence: LTI Launch Flow\n(Canvas -> web-bff -> Session)
+
+actor "Người dùng\nCanvas" as User
+participant "Canvas LMS" as Canvas
+participant "Next.js UI\n(web-bff)" as Web
+participant "Canvas JWKS" as JWKS
+participant "core-api" as Core
+database "PostgreSQL" as PG
+database "Redis\nSession Store" as Redis
+
+== Initiate login ==
+User -> Canvas : Mở LTI activity
+Canvas -> Web : GET /lti/login\niss, client_id, login_hint
+Web -> PG : Lookup tool deployment\nby issuer + client_id
+PG --> Web : tool config\nredirect_uri + deployment_id
+Web -> Redis : SET state + nonce\nTTL ngắn
+Web --> Canvas : 302 authorize_redirect\nstate, nonce, response_type=id_token
+
+== Canvas authentication ==
+Canvas -> Canvas : Authenticate user\nand build id_token
+Canvas -> Web : POST /lti/launch\nid_token, state
+Web -> Redis : Validate state + nonce
+Web -> JWKS : Fetch/refresh JWKS\nby issuer
+JWKS --> Web : public keys
+Web -> Web : Validate JWT\nissuer, audience, signature,\nexpiry, nonce, deployment_id
+
+== Provision local context ==
+Web -> Core : Upsert launch context\nuser, course, roles,\ncustom.lesson_id
+Core -> PG : UPSERT lms_user_mappings\nUPSERT lms_course_ref
+PG --> Core : mapped local ids
+Core --> Web : local user/course context
+Web -> Redis : SET sid session\nTTL 30 minutes
+
+alt Instructor
+    Web --> User : Set HttpOnly cookie sid\n302 /manage/review
+else Student with lesson_id
+    Web --> User : Set HttpOnly cookie sid\n302 /learn/lessons/{lesson_id}
+else Student course landing
+    Web --> User : Set HttpOnly cookie sid\n302 /learn/courses/{course_id}
+end
+
+@enduml

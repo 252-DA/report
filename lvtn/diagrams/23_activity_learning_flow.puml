@@ -1,0 +1,87 @@
+@startuml activity_learning_flow
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ActivityBorderColor #555555
+skinparam ActivityBackgroundColor #F8FBFF
+skinparam ActivityDiamondBorderColor #555555
+skinparam ActivityDiamondBackgroundColor #FFF7E6
+skinparam ArrowColor #555555
+
+title Activity: Learning Flow\n(Canvas Launch -> Lesson -> Quiz -> AI Tutor)
+
+|Học viên|
+start
+:Student opens LTI activity\nfrom Canvas;
+
+|Canvas LMS|
+:Initiate LTI launch;
+
+|web-bff|
+:Validate LTI launch;
+
+|core-api|
+:Create local session;
+
+|web-bff|
+if (Launch có lesson_id?) then (Yes)
+  :Open target lesson;
+else (No)
+  :Open course landing;
+  |Học viên|
+  :Student selects lesson;
+  |web-bff|
+endif
+
+|core-api|
+:Load published lesson;
+
+|Học viên|
+:Student reads lesson cards;
+
+|web-bff|
+:Track card progress;
+
+|Học viên|
+if (Lesson có quiz?) then (Yes)
+  :Student answers quiz items;
+  :Submit quiz;
+  |core-api|
+  :Calculate score;
+  |web-bff|
+  :Show feedback\ncorrect/wrong + explanation;
+  if (Grade passback enabled?) then (Yes)
+    |Canvas LMS|
+    :Send LTI AGS score;
+  else (No)
+    |web-bff|
+    :Skip grade passback;
+  endif
+else (No)
+  |web-bff|
+  :Skip quiz step;
+endif
+
+|core-api|
+:Update lesson progress;
+
+|Học viên|
+if (Student muốn hỏi AI Tutor?) then (Yes)
+  :Open chat interface;
+  :Ask question;
+  |chat-service|
+  :Run RAG retrieval\nand LLM streaming;
+  |web-bff|
+  :Receive streaming answer\nwith citations;
+  |chat-service|
+  :Store chat history;
+else (No)
+  |Học viên|
+  :Continue self-paced learning;
+endif
+
+|core-api|
+:Update last_active_at;
+stop
+@enduml

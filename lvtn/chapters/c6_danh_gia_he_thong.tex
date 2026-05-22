@@ -57,17 +57,22 @@ backend gRPC, worker, queue và các adapter hạ tầng.
     \centering
     \caption{Nhóm kiểm thử kỹ thuật cần duy trì.}
     \label{tab:test-groups-lvtn}
-    \begin{tabular}{p{4cm}p{9.5cm}}
-        \toprule
+    \begin{tabular}{|p{4cm}|p{9.5cm}|}
+        \hline
         \textbf{Nhóm test} & \textbf{Mục tiêu} \\
-        \midrule
+        \hline
         Domain tests & Kiểm tra entity, validation và rule nghiệp vụ. \\
+        \hline
         Application tests & Kiểm tra use case với mock port. \\
+        \hline
         Adapter tests & Kiểm tra PostgreSQL, Qdrant, Neo4j, parser và LLM adapter. \\
+        \hline
         Delivery tests & Kiểm tra gRPC/HTTP contract và error mapping. \\
+        \hline
         E2E demo tests & Kiểm tra upload đến học/làm quiz trên stack thật. \\
+        \hline
         LTI tests & Kiểm tra OIDC login, launch JWT, role/context mapping và session. \\
-        \bottomrule
+        \hline
     \end{tabular}
 \end{table}
 
@@ -94,15 +99,18 @@ hỏi theo LO hay không.
     \centering
     \caption{Chỉ số đánh giá truy xuất.}
     \label{tab:retrieval-metrics-lvtn}
-    \begin{tabular}{p{3cm}p{10.5cm}}
-        \toprule
+    \begin{tabular}{|p{3cm}|p{10.5cm}|}
+        \hline
         \textbf{Chỉ số} & \textbf{Ý nghĩa} \\
-        \midrule
+        \hline
         Recall@K & Tỷ lệ query có ít nhất một chunk đúng trong top-K. \\
+        \hline
         MRR & Đo vị trí trung bình của kết quả đúng đầu tiên. \\
+        \hline
         nDCG@K & Đánh giá thứ hạng khi ground truth có mức liên quan khác nhau. \\
+        \hline
         Latency P95 & Thời gian truy xuất ở phân vị 95. \\
-        \bottomrule
+        \hline
     \end{tabular}
 \end{table}
 

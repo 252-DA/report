@@ -1,0 +1,56 @@
+@startuml seq_quiz_generation
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+skinparam SequenceParticipantBorderColor #555555
+skinparam SequenceLifeLineBorderColor #999999
+skinparam SequenceBoxBorderColor #888888
+skinparam SequenceBoxBackgroundColor #F8F8F8
+
+title Sequence: Quiz Generation\n(LO Grounding -> Quiz Draft)
+
+actor "Giảng viên" as GV
+participant "Next.js UI\n(web-bff)" as Web
+participant "core-api" as Core
+database "PostgreSQL" as PG
+queue "Redis\nBullMQ + Pub/Sub" as Redis
+participant "enrichment-worker" as Enrich
+database "Neo4j\nKnowledge Graph" as Neo4j
+database "Qdrant\nlearning_chunks" as Qdrant
+participant "LLM API\nGemini/Adapter" as LLM
+
+== Request generation ==
+GV -> Web : Click Generate Quiz\ncho LO X
+Web -> Core : POST /quiz-generations\n{lo_id, count, Bloom, difficulty}
+Core -> PG : INSERT outbox_events\nContentGenerationRequested(type=quiz)
+Core -> Redis : enqueue ContentGenerationRequested
+Core --> Web : {request_id, status=QUEUED}
+
+== Grounding by LO ==
+Enrich -> Redis : consume ContentGenerationRequested
+Enrich -> Neo4j : MATCH target LO,\nchapter, prerequisites
+Neo4j --> Enrich : target context\nLO statement + graph paths
+Enrich -> Qdrant : vector search\nquery=LO statement\nfilter={course_id, lo_id}
+Qdrant --> Enrich : supporting chunks\n+ transcript segments
+Enrich -> Enrich : merge + dedupe\nbuild grounded context
+
+== Generate and validate ==
+Enrich -> LLM : generate_quiz_items\ncontext + Bloom + JSON schema
+LLM --> Enrich : quiz_items[]
+Enrich -> Enrich : validate schema\nMCQ options + answer key
+Enrich -> Enrich : check explanation\nis grounded in source chunks
+
+alt Passed
+    Enrich -> PG : INSERT quiz_items\nstatus=GENERATED_DRAFT\nsource_chunk_ids
+    Enrich -> Redis : publish ContentDraftGenerated\n{type=quiz, request_id}
+    Redis --> Web : progress + draft ready
+    Web --> GV : Hiển thị quiz trong Review Inbox
+else Failed
+    Enrich -> PG : UPDATE outbox/event state\nFAILED or RETRYING
+    Enrich -> Redis : retry/backoff\nor generation failed
+    Redis --> Web : failure reason
+end
+
+@enduml

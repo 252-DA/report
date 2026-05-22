@@ -1,0 +1,93 @@
+@startuml activity_document_pipeline
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ActivityBorderColor #555555
+skinparam ActivityBackgroundColor #F8FBFF
+skinparam ActivityDiamondBorderColor #555555
+skinparam ActivityDiamondBackgroundColor #FFF7E6
+skinparam ArrowColor #555555
+
+title Activity: Document Pipeline\n(Upload -> Parse -> Chunk -> Vector Index)
+
+|Giảng viên / Browser|
+start
+:Chọn PDF/DOCX/PPTX;
+
+|web-bff|
+:Yêu cầu upload session;
+
+|core-api|
+:Validate metadata\ncourse_id, mime type, size;
+if (File type hợp lệ?) then (No)
+  :Reject upload request;
+  |web-bff|
+  :Hiển thị lỗi upload;
+  stop
+else (Yes)
+endif
+
+|Stores & Events|
+:Create document record\nstatus = UPLOADING;
+:Create presigned MinIO URL;
+
+|web-bff|
+:Trả upload_url về browser;
+
+|Giảng viên / Browser|
+:PUT file trực tiếp lên MinIO;
+
+|web-bff|
+:Confirm upload;
+
+|core-api|
+:Mark document QUEUED;
+
+|Stores & Events|
+:Publish DocumentUploaded;
+
+|document-worker|
+:Consume DocumentUploaded;
+:Download raw file từ MinIO;
+:Set status = PARSING;
+:Parse file theo type;
+if (Text layer chất lượng đủ?) then (No)
+  :Run OCR fallback;
+else (Yes)
+  :Use extracted text layer;
+endif
+
+:Normalize text;
+:Extract heading structure\nand metadata;
+if (Có heading đáng tin cậy?) then (Yes)
+  :Chunk theo heading path;
+else (No)
+  :Fallback size-based chunking;
+endif
+
+:Map chunks to LO nếu có\nheading/context match;
+
+|Stores & Events|
+:Persist chunks vào PostgreSQL;
+
+|document-worker|
+:Embed chunks bằng BGE-M3;
+
+|Stores & Events|
+:Upsert vectors vào Qdrant\npayload = course/document/chunk/LO;
+:Set document status = INDEXED;
+:Publish TextIndexed;
+
+note right
+  TextIndexed là readiness event
+  cho Micro-Content và Quiz pipelines.
+end note
+
+|web-bff|
+:Stream progress SSE/WebSocket;
+
+|Giảng viên / Browser|
+:Hiển thị trạng thái INDEXED;
+stop
+@enduml

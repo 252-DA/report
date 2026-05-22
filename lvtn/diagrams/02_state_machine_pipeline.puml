@@ -7,78 +7,68 @@ skinparam StateBorderColor #555555
 skinparam StateBackgroundColor #EBF5FB
 skinparam ArrowColor #333333
 
-title State Machine — AI Pipeline (Document Processing)
+title State Machine — AI Pipeline\n(Document + Video Processing)
 
-[*] --> QUEUED : Upload tài liệu\n(API Service enqueue job)
+[*] --> UPLOADING : Tạo upload session
 
-state QUEUED : File đã lưu vào MinIO\nJob đã đưa vào Redis queue
+state UPLOADING : Browser đang upload file\nlên MinIO qua presigned URL
+UPLOADING --> UPLOADED : Confirm upload
+UPLOADING --> ERROR : Upload failed / timeout
 
-state fork_input <<choice>>
-QUEUED --> fork_input : Worker nhận job
+state UPLOADED : File đã có trong MinIO\nmetadata đã ghi PostgreSQL
+UPLOADED --> QUEUED : Publish DocumentUploaded\nhoặc VideoUploaded
 
-fork_input --> TRANSCRIBING : Video / Audio input
-fork_input --> PARSING : Text input\n(PDF / DOCX / PPTX)
+state QUEUED : Job đã vào Redis/BullMQ\nchờ worker phù hợp xử lý
 
-state TRANSCRIBING : Whisper API\nconvert audio → transcript
-TRANSCRIBING --> PARSING : Transcription done
-TRANSCRIBING --> ERROR : Whisper failed
+state input_type <<choice>>
+QUEUED --> input_type : Worker nhận job
 
-state PARSING : Trích xuất text + heading\ntừ raw document
+input_type --> PARSING : Document\nPDF/DOCX/PPTX
+input_type --> TRANSCRIBING : Video/Audio
+
+state PARSING : document-worker tải file\nparse text + OCR fallback
 PARSING --> CHUNKING : Parsed OK
 PARSING --> ERROR : Parse failed
 
-state CHUNKING : Phân đoạn văn bản\ntheo heading structure\n(sliding window nếu dài)
-CHUNKING --> EMBEDDING : Chunks created
+state CHUNKING : Bẻ chunk theo heading\nmapping chunk -> LO nếu có
+CHUNKING --> EMBEDDING : Chunks persisted\n+ outbox events
 CHUNKING --> ERROR : Chunk failed
 
-state EMBEDDING : Tạo vector 1024 chiều (BGE-M3)\nUpsert vào Qdrant\nInsert chunk metadata vào PostgreSQL
-EMBEDDING --> EXTRACTING : Embeddings done
+state TRANSCRIBING : video-worker trích audio\nWhisper STT + timestamp
+TRANSCRIBING --> SEGMENTING : Transcript ready
+TRANSCRIBING --> ERROR : STT failed
+
+state SEGMENTING : Phân đoạn transcript\ncắt clip bằng FFmpeg\nlưu video_segments
+SEGMENTING --> EMBEDDING : Publish TranscriptReady
+SEGMENTING --> ERROR : Segment / clip failed
+
+state EMBEDDING : BGE-M3 sinh vector 1024 chiều\nupsert Qdrant learning_chunks
+EMBEDDING --> INDEXED : Vector index OK
 EMBEDDING --> ERROR : Embed / upsert failed
 
-state EXTRACTING : Trích xuất Concept\nspaCy NER (candidates)\n+ LLM (refine + category + prerequisites)\nCanonicalize → INSERT concepts, chunk_concepts\nEmit outbox event
-EXTRACTING --> GRAPHING : Concepts extracted
-EXTRACTING --> ERROR : Extraction failed
+state INDEXED : Qdrant đã có chunk/segment\nPostgreSQL cập nhật trạng thái
+INDEXED --> [*] : Publish TextIndexed\nhoặc VideoIndexed
 
-state GRAPHING : Outbox worker projects sang Neo4j\nMERGE Heading graph\nMERGE Concept graph\n([:MENTIONS] [:PREREQUISITE_OF] [:RELATED_TO])
-GRAPHING --> GENERATING : Graph projected
-GRAPHING --> ERROR : Neo4j write failed\n(retry via outbox)
+state ERROR : Lưu last_error\nvà last_success_state\nhiển thị Retry cho giảng viên
+ERROR --> QUEUED : Manual retry / requeue
 
-state GENERATING : Gọi LLM (OpenAI/Gemini)\nSinh Summary (3–5 ý chính)\n+ Quiz (5–10 câu MCQ, Bloom taxonomy)
-GENERATING --> CLIPPING : Video input
-GENERATING --> DONE : Text input
-GENERATING --> ERROR : LLM failed\n(retry ≤ 3 lần, exp. backoff)
-
-state CLIPPING : FFmpeg cắt video\nthành clip ngắn (1–5 phút)\ntheo timestamp ý chính
-CLIPPING --> DONE : Clips saved to MinIO
-CLIPPING --> ERROR : FFmpeg failed
-
-state DONE : Pipeline hoàn tất\nCards + Quiz đã sẵn sàng\nFrontend nhận notification
-DONE --> [*]
-
-state ERROR : Ghi error_msg\n+ last_success_state\nHiển thị nút "Retry"
-ERROR --> QUEUED : Manual retry\n(resume từ last_success_state)
-
-note right of EXTRACTING
-  Stage 1 — spaCy NER:
-    nhanh, local, low confidence
-  Stage 2 — LLM (GPT-4o-mini):
-    chỉ trigger chunk > 200 tokens
-    output: {name, category, prerequisites[]}
-  Stage 3 — Canonicalize:
-    fuzzy match → canonical_name
-    source: "llm" | "order" | "manual"
+note right of EMBEDDING
+  PostgreSQL là source of truth.
+  Qdrant là derived vector store.
+  Event index được điều phối qua
+  Outbox Poller + BullMQ.
 end note
 
-note right of GENERATING
-  Model Tiering:
-  - GPT-4o-mini: Summary (đơn giản)
-  - GPT-4o: Quiz bậc cao (Bloom)
+note right of SEGMENTING
+  video-worker không gọi trực tiếp
+  document-worker. Kết quả được ghi
+  PostgreSQL rồi publish TranscriptReady.
 end note
 
-note right of ERROR
-  Auto-retry: tối đa 3 lần
-  Backoff: 1s → 2s → 4s
-  Sau đó: status = ERROR
+note right of INDEXED
+  Từ đây Micro-content Generation
+  và Quiz Generation có thể chạy
+  như pipeline hạ nguồn riêng.
 end note
 
 @enduml

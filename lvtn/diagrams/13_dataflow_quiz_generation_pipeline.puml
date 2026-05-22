@@ -1,0 +1,60 @@
+@startuml dataflow_quiz_generation_pipeline
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+skinparam SequenceParticipantBorderColor #555555
+skinparam SequenceLifeLineBorderColor #999999
+
+title Luồng dữ liệu: Quiz Generation Pipeline\n(GraphRAG -> Quiz Items Draft)
+
+actor "Giảng viên" as GV
+participant "Next.js UI\n(web-bff)" as Web
+participant "core-api" as Core
+queue "Redis\nBullMQ + Pub/Sub" as Redis
+participant "enrichment-worker" as Enrich
+database "Neo4j\nKnowledge Graph" as Neo4j
+database "Qdrant\nlearning_chunks" as Qdrant
+database "PostgreSQL\nquiz_items" as PG
+participant "LLM API\nGemini/Provider Adapter" as LLM
+
+== 1. Yêu cầu sinh quiz ==
+GV -> Web : Generate Quiz\n(target LO / chapter)
+Web -> Core : POST /quiz-generations\n{lo_id, bloom, difficulty, count}
+Core -> PG : INSERT outbox_events\nContentGenerationRequested
+Core -> Redis : enqueue ContentGenerationRequested\n{type=quiz, target_lo}
+Core --> Web : {request_id, status=QUEUED}
+
+== 2. LO targeting ==
+Enrich -> Redis : consume ContentGenerationRequested
+Enrich -> Neo4j : MATCH target LO,\nchapter, prerequisites
+Neo4j --> Enrich : target_LO\n+ prerequisite concepts
+
+== 3. Grounding retrieval ==
+Enrich -> Qdrant : vector search\nquery=LO statement\nfilter={course_id, lo_ids}
+Qdrant --> Enrich : supporting chunks\n+ video segments
+Enrich -> Neo4j : graph expansion\nLO -> Chapter -> Concept
+Neo4j --> Enrich : graph_context
+Enrich -> Enrich : merge + dedupe\nbuild grounded context
+
+== 4. Sinh câu hỏi ==
+Enrich -> LLM : generate_quiz_items\n(context, Bloom, schema)
+LLM --> Enrich : quiz_items[]\nMCQ + Short Answer
+
+== 5. Quality gate ==
+Enrich -> Enrich : validate JSON schema
+Enrich -> Enrich : check MCQ has 4 options\nanswer in options\nno vague options
+Enrich -> Enrich : verify explanation grounded\nin source chunks
+
+alt Passed
+    Enrich -> PG : INSERT quiz_items\nstatus=GENERATED_DRAFT\nsource_chunk_ids
+    Enrich -> Redis : publish ContentDraftGenerated\n{type=quiz}
+    Redis --> Web : progress + draft ready
+    Web --> GV : Hiển thị quiz trong\nReview Inbox
+else Failed
+    Enrich -> Redis : retry with backoff\nor mark FAILED
+    Redis --> Web : generation failed\nwith reason
+end
+
+@enduml

@@ -1,0 +1,93 @@
+@startuml activity_video_pipeline
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ActivityBorderColor #555555
+skinparam ActivityBackgroundColor #F8FBFF
+skinparam ActivityDiamondBorderColor #555555
+skinparam ActivityDiamondBackgroundColor #FFF7E6
+skinparam ArrowColor #555555
+
+title Activity: Video Pipeline\n(Upload -> Transcript -> Segments -> Vector Index)
+
+|Giảng viên / Browser|
+start
+:Chọn video bài giảng;
+
+|web-bff|
+:Yêu cầu upload session;
+
+|core-api|
+:Validate metadata\ncodec, mime type, size;
+if (Codec/format hợp lệ?) then (No)
+  :Reject upload request;
+  |web-bff|
+  :Hiển thị lỗi định dạng;
+  stop
+else (Yes)
+endif
+
+|Stores & Events|
+:Create video record\nstatus = UPLOADING;
+:Create presigned MinIO URL;
+
+|web-bff|
+:Trả upload_url về browser;
+
+|Giảng viên / Browser|
+:PUT video trực tiếp lên MinIO;
+
+|web-bff|
+:Confirm upload;
+
+|core-api|
+:Mark video QUEUED;
+
+|Stores & Events|
+:Publish VideoUploaded;
+
+|video-worker|
+:Consume VideoUploaded;
+:Download raw video từ MinIO;
+:Set status = PROCESSING;
+:Extract audio bằng FFmpeg;
+:Speech-to-Text bằng Whisper;
+:Detect segment boundaries\nsilence + topic shift;
+
+fork
+  |video-worker|
+  :Cut video clips\nfor each segment;
+fork again
+  |video-worker|
+  :Generate thumbnails;
+fork again
+  |Stores & Events|
+  :Insert video_segments\nand transcript_segments;
+end fork
+
+|Stores & Events|
+:Publish TranscriptReady;
+
+|document-worker|
+:document-worker consumes TranscriptReady;
+:Embed transcript segments\nbằng BGE-M3;
+
+|Stores & Events|
+:Upsert transcript vectors\nvào Qdrant;
+:Set video status = INDEXED;
+:Publish VideoIndexed;
+
+note right
+  Video pipeline chỉ tạo segment,
+  transcript và vector index.
+  Lesson/quiz generation là luồng riêng.
+end note
+
+|web-bff|
+:Stream progress SSE/WebSocket;
+
+|Giảng viên / Browser|
+:Hiển thị trạng thái INDEXED;
+stop
+@enduml

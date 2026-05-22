@@ -1,4 +1,5 @@
 \chapter{Kết luận và hướng phát triển}
+\label{chap:ket-luan-huong-phat-trien}
 
 \section{Kết quả đạt được}
 
@@ -47,11 +48,20 @@ Dù hệ thống đã có nền tảng kỹ thuật tương đối đầy đủ,
 \section{Định hướng phát triển tương lai}
 
 \subsection{Adaptive Learning}
+\label{subsec:adaptive-learning-future}
 
 Khi có dữ liệu quiz submission đủ lớn, hệ thống có thể ước lượng mức độ nắm
-vững từng LO của học viên. Các hướng khả thi gồm mastery score theo LO, gợi ý
-card/quiz tiếp theo dựa trên LO yếu và instructor dashboard hiển thị LO cả lớp
-đang gặp khó khăn.
+vững từng LO của học viên. Hướng GĐ2 dự kiến triển khai pipeline ba tầng:
+(i) \textit{Knowledge Tracer} ước lượng mastery theo Learning Outcome bằng
+Bayesian Knowledge Tracing 4 tham số (\texttt{p\_known}, \texttt{p\_learn},
+\texttt{p\_guess}, \texttt{p\_slip}); (ii) \textit{Recommender} chọn nội
+dung tiếp theo bằng bandit (Thompson sampling hoặc LinUCB) để cân bằng
+exploration/exploitation; (iii) \textit{Instructor Dashboard} hiển thị
+phân bố mastery và LO mà cả lớp đang gặp khó khăn. Các bảng schema
+chuẩn bị cho pipeline này (\texttt{lo\_mastery\_states},
+\texttt{recommendation\_logs}, \texttt{learning\_paths}) đã được khai
+báo sẵn ở GĐ1 (xem
+mục~\ref{tab:postgres-tables} trong Chương~\ref{chap:phan-tich-thiet-ke}).
 
 \subsection{Recommendation System}
 

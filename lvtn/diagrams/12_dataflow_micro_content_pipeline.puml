@@ -1,0 +1,59 @@
+@startuml dataflow_micro_content_pipeline
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+skinparam SequenceParticipantBorderColor #555555
+skinparam SequenceLifeLineBorderColor #999999
+
+title Luồng dữ liệu: Micro-Content Generation Pipeline\n(Indexed Chunks -> Lesson Cards Draft)
+
+actor "Giảng viên" as GV
+participant "Next.js UI\n(web-bff)" as Web
+participant "core-api" as Core
+queue "Redis\nBullMQ + Pub/Sub" as Redis
+participant "enrichment-worker" as Enrich
+database "PostgreSQL\nchunks + LO + cards" as PG
+database "Neo4j\nKnowledge Graph" as Neo4j
+database "Qdrant\nlearning_chunks" as Qdrant
+participant "LLM API\nGemini/Provider Adapter" as LLM
+
+== 0. Tiền điều kiện ==
+note over PG, Qdrant
+  Document/Video pipeline đã kết thúc ở INDEXED.
+  Chunks hoặc transcript segments đã search được trong Qdrant.
+end note
+
+== 1. Yêu cầu sinh lesson cards ==
+GV -> Web : Generate Micro-Content\n(course/chapter/section)
+Web -> Core : POST /content-generations\n{type="card", scope}
+Core -> PG : INSERT outbox_events\nContentGenerationRequested
+Core -> Redis : enqueue ContentGenerationRequested\n{type=card, scope}
+Core --> Web : {request_id, status=QUEUED}
+
+== 2. Gom nhóm ngữ cảnh ==
+Enrich -> Redis : consume ContentGenerationRequested
+Enrich -> PG : SELECT chunks\nby heading_path cấp 2
+Enrich -> Neo4j : SELECT related LO / Chapter\nfor scope
+Neo4j --> Enrich : LO statements\n+ prerequisite concepts
+Enrich -> Qdrant : retrieve supporting chunks\nfilter={course_id, lo_ids}
+Qdrant --> Enrich : grounding_chunks[]
+Enrich -> Enrich : aggregate context\nlimit <= 4000 tokens
+
+== 3. Sinh card theo JSON schema ==
+loop mỗi lesson unit
+    Enrich -> LLM : generate_lesson_card\n(context, LO, strict JSON schema)
+    LLM --> Enrich : {title, key_insights[], bullets[]}
+    Enrich -> Enrich : validate schema\nsanitize markdown
+end
+
+== 4. Lưu bản nháp ==
+Enrich -> PG : INSERT lesson_cards\nstatus=GENERATED_DRAFT\nsource_chunk_ids, lo_ids
+Enrich -> Redis : publish ContentDraftGenerated\n{type=card}
+
+== 5. Cập nhật giao diện ==
+Redis --> Web : progress + draft ready
+Web --> GV : Hiển thị card trong\nReview Inbox
+
+@enduml

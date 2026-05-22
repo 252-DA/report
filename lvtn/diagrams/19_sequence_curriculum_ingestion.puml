@@ -1,0 +1,64 @@
+@startuml seq_curriculum_ingestion
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+skinparam SequenceParticipantBorderColor #555555
+skinparam SequenceLifeLineBorderColor #999999
+skinparam SequenceBoxBorderColor #888888
+skinparam SequenceBoxBackgroundColor #F8F8F8
+
+title Sequence: Curriculum Ingestion\n(DCMH -> PostgreSQL -> Neo4j)
+
+actor "Giảng viên" as GV
+participant "Next.js UI\n(web-bff)" as Web
+participant "core-api" as Core
+database "PostgreSQL" as PG
+participant "MinIO\nObject Storage" as MinIO
+queue "Redis\nBullMQ + Pub/Sub" as Redis
+participant "document-worker" as Worker
+participant "DcmhExtractor\nRegex + Gemini Flash" as Extractor
+database "Neo4j\nKnowledge Graph" as Neo4j
+participant "HeuristicLoMapper" as Mapper
+database "Qdrant\nlearning_chunks" as Qdrant
+
+== Upload DCMH ==
+GV -> Web : Upload DCMH PDF
+Web -> Core : POST /documents/upload-session\nsource_type=curriculum
+Core -> PG : INSERT documents\nstatus=UPLOADING
+Core -> MinIO : create presigned PUT URL
+Core --> Web : {document_id, upload_url}
+Web -> MinIO : PUT DCMH file
+Web -> Core : POST /documents/{id}/confirm-upload
+Core -> PG : UPDATE documents\nstatus=QUEUED
+Core -> Redis : enqueue CurriculumIngestionRequested
+
+== Extract curriculum structure ==
+Worker -> Redis : consume CurriculumIngestionRequested
+Worker -> MinIO : GET DCMH file
+Worker -> Extractor : parse(file)\nregex + JSON schema extraction
+Extractor --> Worker : Course metadata\nChapters, LO, Assessments
+
+== Transactional write ==
+Worker -> PG : BEGIN\nUPSERT courses/chapters\nINSERT learning_outcomes\nINSERT assessments\nINSERT lo_assessments\nINSERT outbox_events\nCOMMIT
+Worker -> Redis : publish CurriculumIngested
+Redis --> Web : ingestion progress
+Web --> GV : Hiển thị curriculum đã trích xuất
+
+== Graph projection ==
+Worker -> PG : read outbox_events\nCurriculumIngested
+Worker -> Neo4j : MERGE Course, Chapter, LO,\nAssessment nodes
+Worker -> Neo4j : MERGE HAS_CHAPTER,\nHAS_LO, MEASURES
+Neo4j --> Worker : graph projected
+
+== Map existing chunks to LO ==
+Worker -> Qdrant : list/search chunks\nby course_id
+Qdrant --> Worker : existing chunks[]
+Worker -> Mapper : map chunks -> LO\nheuristic + heading context
+Mapper --> Worker : chunk_lo_mappings[]
+Worker -> PG : UPSERT chunk_lo_mappings
+Worker -> Neo4j : MERGE Chunk SUPPORTS LO
+Worker -> Redis : publish CurriculumGraphReady
+
+@enduml

@@ -39,16 +39,20 @@ review của giảng viên.
     \centering
     \caption{Đặc điểm của micro-learning trong hệ thống đề xuất}
     \label{tab:microlearning-characteristics}
-    \begin{tabular}{p{4cm}p{9.5cm}}
-        \toprule
+    \begin{tabular}{|p{4cm}|p{9.5cm}|}
+        \hline
         \textbf{Đặc điểm} & \textbf{Ý nghĩa trong hệ thống} \\
-        \midrule
+        \hline
         Ngắn gọn & Mỗi đơn vị nội dung tập trung vào một ý chính, giảm tải nhận thức cho học viên. \\
+        \hline
         Có ngữ cảnh nguồn & Card / quiz cần liên kết đến document, page, heading hoặc timestamp video để kiểm chứng. \\
+        \hline
         Có thể kiểm tra nhanh & Mỗi cụm nội dung có thể gắn flashcard hoặc quiz nhằm củng cố ghi nhớ. \\
+        \hline
         Có metadata sư phạm & Nội dung được gắn Learning Outcome, mức Bloom, độ khó và trạng thái review. \\
+        \hline
         Phù hợp cá nhân hóa & Dữ liệu hoàn thành từng card / quiz có thể dùng để đề xuất nội dung ôn tập. \\
-        \bottomrule
+        \hline
     \end{tabular}
 \end{table}
 
@@ -224,16 +228,20 @@ Một prompt sinh quiz trong hệ thống thường gồm các phần:
     \centering
     \caption{Các kỹ thuật prompt engineering áp dụng trong hệ thống}
     \label{tab:prompt-engineering-techniques}
-    \begin{tabular}{p{3.4cm}p{4.6cm}p{5.5cm}}
-        \toprule
+    \begin{tabular}{|p{3.4cm}|p{4.6cm}|p{5.5cm}|}
+        \hline
         \textbf{Kỹ thuật} & \textbf{Mô tả} & \textbf{Ứng dụng trong đề tài} \\
-        \midrule
+        \hline
         Role Prompting & Gán vai trò chuyên môn cho mô hình. & ``Bạn là giảng viên đại học đang soạn quiz cho học viên''. \\
+        \hline
         Constraint Prompting & Đặt ràng buộc về số lượng, độ dài, độ khó và ngôn ngữ. & Sinh đúng 5 câu hỏi, mỗi câu có 4 đáp án và giải thích ngắn. \\
+        \hline
         Context Grounding & Cung cấp ngữ cảnh truy xuất từ tài liệu. & Yêu cầu câu trả lời chỉ dựa trên chunk được đưa vào. \\
+        \hline
         Few-shot Example & Cung cấp ví dụ đầu ra mong muốn. & Minh họa một quiz item đạt schema và Bloom level. \\
+        \hline
         Self-check Instruction & Yêu cầu mô hình tự kiểm tra trước khi trả lời. & Kiểm tra đáp án đúng duy nhất, không lộ đáp án, có citation. \\
-        \bottomrule
+        \hline
     \end{tabular}
 \end{table}
 
@@ -456,16 +464,20 @@ quan trọng gồm:
     \centering
     \caption{So sánh RAG truyền thống và GraphRAG trong hệ thống giáo dục}
     \label{tab:rag-vs-graphrag-c3}
-    \begin{tabular}{p{3.8cm}p{4.8cm}p{5.2cm}}
-        \toprule
+    \begin{tabular}{|p{3.8cm}|p{4.8cm}|p{5.2cm}|}
+        \hline
         \textbf{Tiêu chí} & \textbf{RAG truyền thống} & \textbf{GraphRAG / Curriculum-aware RAG} \\
-        \midrule
+        \hline
         Đơn vị truy xuất & Chunk văn bản & Chunk kết hợp node/edge như LO, Chapter, Concept \\
+        \hline
         Cách tìm kiếm & Vector similarity & Vector similarity + metadata filter + graph traversal \\
+        \hline
         Bám chuẩn đầu ra & Phụ thuộc metadata đơn giản & Có quan hệ tường minh giữa Chunk và Learning Outcome \\
+        \hline
         Sinh quiz theo LO & Có thể lệch nếu query mơ hồ & Ưu tiên chunk hỗ trợ LO mục tiêu \\
+        \hline
         Độ phức tạp triển khai & Thấp hơn & Cao hơn do cần graph schema và đồng bộ dữ liệu \\
-        \bottomrule
+        \hline
     \end{tabular}
 \end{table}
 

@@ -27,9 +27,9 @@
 \usepackage[left=3cm, right=2cm, top=2.5cm, bottom=2.5cm]{geometry}
 \usepackage{setspace}
 \usepackage{tikz}
-\usepackage{booktabs}
 \usepackage{minted}
 \usetikzlibrary{arrows,decorations.pathmorphing,backgrounds,shapes,positioning}
+\usepackage{xurl}
 \usepackage{hyperref}
 \hypersetup{urlcolor=blue, linkcolor=black, citecolor=black, colorlinks=true}
 \usepackage{titlesec}
@@ -160,6 +160,7 @@
 % ============================================================
 \begin{document}
 
+\hypersetup{pageanchor=false}
 \begin{titlepage}
 \thispagestyle{empty}
   \centering
@@ -205,6 +206,7 @@
 
   {\footnotesize THÀNH PHỐ HỒ CHÍ MINH, \the\year\par}
 \end{titlepage}
+\hypersetup{pageanchor=true}
 
 \newpage
 \include{frontmatter/loi_cam_doan}

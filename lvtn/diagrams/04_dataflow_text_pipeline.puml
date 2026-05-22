@@ -9,118 +9,71 @@ skinparam SequenceLifeLineBorderColor #999999
 skinparam SequenceBoxBorderColor #888888
 skinparam SequenceBoxBackgroundColor #F8F8F8
 
-title Luồng dữ liệu: Text Processing Pipeline\n(Upload → Card + Quiz)
+title Luồng dữ liệu: Document Processing Pipeline\n(Presigned Upload -> Parse -> Chunk -> Vector Index)
 
 actor "Giảng viên" as GV
-participant "React\nSPA" as React
-participant "API\nService" as API
-participant "Redis\nQueue" as Redis
-participant "AI Pipeline\nWorker" as Worker
-participant "MinIO\nStorage" as MinIO
-participant "Parser\n(PDF/DOCX/PPTX)" as Parser
-participant "Chunker" as Chunker
+participant "Next.js UI\n(web-bff)" as Web
+participant "core-api" as Core
+database "PostgreSQL\nSource of Truth" as PG
+participant "MinIO\nObject Storage" as MinIO
+queue "Redis\nBullMQ + Pub/Sub" as Redis
+participant "document-worker" as DocWorker
+participant "Parser/OCR\nPDF/DOCX/PPTX" as Parser
+participant "Chunker\n+ LO Mapper" as Chunker
+participant "Outbox\nPoller" as Outbox
 participant "BGE-M3\nEmbedder" as Embedder
-participant "Qdrant\nVector DB" as Qdrant
-participant "spaCy\nNER" as NLP
-participant "LLM\n(OpenAI/Gemini)" as LLM
-participant "Outbox\nWorker" as Outbox
-database "PostgreSQL" as PG
-database "Neo4j\nGraph DB" as Neo4j
+database "Qdrant\nlearning_chunks" as Qdrant
 
-== 1. Upload ==
-GV -> React : Chọn file tài liệu
-React -> API : UploadDocument(file)
-API -> MinIO : PUT file\n(bucket: documents)
-API -> PG : INSERT documents\n(status=QUEUED)
-API -> Redis : LPUSH job {doc_id, type=TEXT}
-API --> React : {document_id, status=QUEUED}
-React -> API : WatchStatus(doc_id) [streaming]
+== 1. Upload qua presigned URL ==
+GV -> Web : Chọn tài liệu
+Web -> Core : POST /documents/upload-session\n(course_id, file metadata)
+Core -> PG : INSERT documents\n(status=UPLOADING)
+Core -> MinIO : Tạo presigned PUT URL\n(bucket: documents)
+Core --> Web : {document_id, upload_url}
+Web -> MinIO : PUT file trực tiếp
+Web -> Core : POST /documents/{id}/confirm-upload
+Core -> PG : UPDATE documents\nstatus=UPLOADED
+Core -> Redis : publish/job DocumentUploaded
+Core --> Web : {status=QUEUED}
 
-== 2. Parse ==
-Worker -> Redis : BRPOP job
-Worker -> MinIO : GET file
-Worker -> PG : UPDATE status=PARSING
-Worker -> Parser : extract(file_bytes)
-Parser --> Worker : ParsedDocument\n{sections[], headings[], metadata}
+== 2. Parse và chunk ==
+DocWorker -> Redis : consume DocumentUploaded
+DocWorker -> PG : UPDATE status=PARSING\nprogress=...
+DocWorker -> MinIO : GET raw file
+DocWorker -> Parser : extract_text(file)\nOCR fallback nếu cần
+Parser --> DocWorker : ParsedDocument\n{sections, headings, metadata}
+DocWorker -> PG : UPDATE status=CHUNKING
+DocWorker -> Chunker : chunk(parsed_doc)\nmap chunks -> LO nếu có
+Chunker --> DocWorker : chunks[]\n{heading_path, content, lo_refs}
 
-== 3. Chunk ==
-Worker -> PG : UPDATE status=CHUNKING
-Worker -> Chunker : chunk(parsed_doc)
-note right of Chunker
-  - Split theo heading boundary
-  - Sliding window nếu section > 1000 tokens
-  - Overlap 10% giữa các chunk
-  - enriched_content = heading_path + content
+== 3. Giao dịch gốc ==
+DocWorker -> PG : BEGIN\nINSERT chunks\nINSERT outbox_events\nCOMMIT
+note right of PG
+  PostgreSQL giữ dữ liệu gốc.
+  Qdrant và Neo4j là derived stores,
+  đồng bộ qua Outbox để retry an toàn.
 end note
-Chunker --> Worker : chunks[]
-Worker -> PG : INSERT chunks (batch)
 
-== 4. Embed ==
-Worker -> PG : UPDATE status=EMBEDDING
-Worker -> Embedder : embed_chunks(chunks[])
-note right of Embedder
-  BGE-M3: 1024-dim dense vector
-  Input: enriched_content (heading + text)
-  Batch size: 32
+== 4. Lập chỉ mục bất đồng bộ ==
+Outbox -> PG : SELECT outbox_events\nWHERE status=PENDING
+Outbox -> Redis : enqueue VectorIndexRequested
+DocWorker -> Redis : consume VectorIndexRequested
+DocWorker -> PG : UPDATE status=EMBEDDING
+DocWorker -> Embedder : embed(chunks[].enriched_content)
+Embedder --> DocWorker : dense_vectors[1024]
+DocWorker -> Qdrant : upsert points\npayload={chunk_id, document_id,\ncourse_id, lo_ids, heading_path,\nsource_type="document"}
+DocWorker -> PG : UPDATE status=INDEXED
+DocWorker -> Redis : publish TextIndexed
+
+note right of Redis
+  TextIndexed chỉ đánh dấu dữ liệu
+  đã sẵn sàng cho các pipeline hạ nguồn.
+  Micro-content và Quiz Generation
+  được mô tả bằng pipeline riêng.
 end note
-Embedder --> Worker : vectors[1024][]
-Worker -> Qdrant : upsert_points(\n  payload={chunk_id, doc_id, course_id,\n  owner_id, heading_path, language}\n)
-Worker -> PG : UPDATE status=EMBEDDING done
 
-== 5. Extract Concepts ==
-Worker -> PG : UPDATE status=EXTRACTING
-Worker -> NLP : extract_candidates(chunk.content)
-note right of NLP
-  spaCy NER: noun phrases,
-  named entities (fast, local)
-  → candidate list (low confidence)
-end note
-NLP --> Worker : candidates[]
-
-loop mỗi chunk đủ dài (> 200 tokens)
-    Worker -> LLM : extract_concepts(\n  prompt + chunk_text\n)
-    note right of LLM
-      GPT-4o-mini
-      Output JSON:
-      [{name, canonical_name,
-        category, domain,
-        prerequisites[], confidence}]
-    end note
-    LLM --> Worker : concepts[]
-end
-
-Worker -> Worker : canonicalize(\n  merge candidates + LLM output,\n  fuzzy match canonical_name\n)
-Worker -> PG : UPSERT concepts\nINSERT chunk_concepts\n(chunk_id, concept_id, confidence, source)
-Worker -> PG : INSERT outbox_event\n(type=concept_graph_project)
-
-== 6. Graph (async via Outbox) ==
-Worker -> PG : UPDATE status=GRAPHING
-Outbox -> PG : SELECT outbox_events WHERE status=PENDING
-Outbox -> Neo4j : MERGE Document, Chunk nodes\nMERGE Heading hierarchy\nMERGE Concept nodes\nCREATE [:MENTIONS {confidence}]\nCREATE [:PREREQUISITE_OF {weight, source}]\nCREATE [:RELATED_TO {weight}]\nCREATE [:NEXT] between chunks
-note right of Neo4j
-  Idempotent MERGE — safe to retry
-  source: "llm" | "order" | "manual"
-  Outbox retry: 3 lần, exp. backoff
-end note
-Outbox -> PG : UPDATE outbox_event status=DONE
-Worker -> PG : UPDATE status=GENERATING
-
-== 7. Generate ==
-loop mỗi batch chunk (4–8 chunks)
-    Worker -> LLM : generate(\n  system_prompt + chunk_text\n)
-    note right of LLM
-      GPT-4o-mini: Summary
-      GPT-4o: Quiz (Bloom level 3+)
-      Retry ≤ 3, backoff 1s→2s→4s
-    end note
-    LLM --> Worker : {summary, quiz_questions[]}
-    Worker -> PG : INSERT cards, quiz_questions
-end
-
-== 8. Done ==
-Worker -> PG : UPDATE status=DONE
-Worker -> API : notify (internal)
-API --> React : StatusUpdate{status=DONE} [stream]
-React --> GV : Thông báo: "Tài liệu đã xử lý xong!"
+== 5. Silent state progression UI ==
+Redis --> Web : BullMQ events / PubSub\nprogress + status
+Web --> GV : SSE/WebSocket update\nprogress bar + status=INDEXED
 
 @enduml

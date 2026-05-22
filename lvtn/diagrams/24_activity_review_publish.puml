@@ -1,0 +1,78 @@
+@startuml activity_review_publish
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ActivityBorderColor #555555
+skinparam ActivityBackgroundColor #F8FBFF
+skinparam ActivityDiamondBorderColor #555555
+skinparam ActivityDiamondBackgroundColor #FFF7E6
+skinparam ArrowColor #555555
+
+title Activity: Review và Publish Flow\n(Draft Review -> Approval -> Published Lesson)
+
+|Giảng viên|
+start
+:Instructor opens Review Inbox;
+
+|web-bff|
+:Request review inbox;
+
+|core-api|
+:Load lesson draft\ncards + quiz + video candidates;
+
+|web-bff|
+:Render draft item list;
+
+repeat
+  |Giảng viên|
+  :Select draft item;
+  |web-bff|
+  :View content and source citation;
+
+  |Giảng viên|
+  if (Review action?) then (Approve)
+    |core-api|
+    :Set item status = APPROVED;
+  elseif (Edit)
+    |web-bff|
+    :Open editor;
+    |Giảng viên|
+    :Edit content;
+    |core-api|
+    :Save edited content;
+    :Write audit diff;
+    :Set item status = REVIEWING;
+  else (Reject)
+    |web-bff|
+    :Capture reject reason\nor regeneration hint;
+    |core-api|
+    :Set item status = CHANGES_REQUESTED;
+  endif
+
+repeat while (Còn item cần review?) is (Yes) not (No)
+
+|core-api|
+if (Tất cả item APPROVED?) then (No)
+  |web-bff|
+  :Disable Publish button;
+  :Show pending / changes requested list;
+  stop
+else (Yes)
+endif
+
+|Giảng viên|
+:Instructor clicks Publish;
+
+|core-api|
+:Set lesson status = PUBLISHED;
+:Write audit log;
+:Publish LessonPublished;
+
+|Outbox / Neo4j|
+:Outbox sync to Neo4j;
+
+|Học viên|
+:Student can access lesson\nfrom Canvas;
+stop
+@enduml

@@ -1,0 +1,60 @@
+@startuml dataflow_review_publish_pipeline
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+skinparam SequenceParticipantBorderColor #555555
+skinparam SequenceLifeLineBorderColor #999999
+
+title Luồng dữ liệu: Review & Publish Pipeline\n(Human-in-the-loop -> Outbox -> Graph Sync)
+
+actor "Giảng viên" as GV
+participant "Next.js UI\nReview Inbox" as Web
+participant "core-api" as Core
+database "PostgreSQL\ncards + quiz + outbox" as PG
+queue "Redis\nBullMQ" as Redis
+participant "Outbox\nPoller" as Outbox
+participant "graph-sync worker" as GraphWorker
+database "Neo4j\nKnowledge Graph" as Neo4j
+
+== 1. Review bản nháp ==
+GV -> Web : Mở Review Inbox
+Web -> Core : GET /review-items\nstatus=GENERATED_DRAFT
+Core -> PG : SELECT lesson_cards,\nquiz_items
+PG --> Core : drafts[]
+Core --> Web : drafts with citations
+Web --> GV : Hiển thị card/quiz\nkèm nguồn tham chiếu
+
+== 2. Chỉnh sửa và phê duyệt ==
+GV -> Web : Edit / approve / reject
+Web -> Core : PATCH /review-items/{id}\ncontent + decision
+Core -> PG : UPDATE status\nREVIEWING / APPROVED /\nCHANGES_REQUESTED
+Core --> Web : saved
+
+== 3. Publish atomic transaction ==
+GV -> Web : Publish
+Web -> Core : POST /review-items/{id}/publish
+Core -> PG : BEGIN\nUPDATE item status=PUBLISHED\nINSERT outbox_events\nCOMMIT
+Core --> Web : {status=PUBLISHED}
+
+note right of PG
+  Business update và outbox event
+  nằm trong cùng transaction để
+  tránh split-brain.
+end note
+
+== 4. Đồng bộ đồ thị bất đồng bộ ==
+Outbox -> PG : SELECT outbox_events\nWHERE status=PENDING
+Outbox -> Redis : enqueue GraphProjectionRequested
+GraphWorker -> Redis : consume GraphProjectionRequested
+GraphWorker -> PG : LOAD published item\n+ LO mappings
+GraphWorker -> Neo4j : MERGE Card/QuizItem\nMERGE relations\n[:EXPLAINS] / [:ASSESSES]
+GraphWorker -> PG : UPDATE outbox_events\nstatus=DONE
+
+== 5. Serving cho học viên ==
+Web -> Core : GET /published-content
+Core -> PG : SELECT PUBLISHED items
+Core --> Web : card/quiz ready for learners
+
+@enduml

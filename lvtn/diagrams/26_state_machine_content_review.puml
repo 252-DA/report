@@ -1,0 +1,54 @@
+@startuml state_machine_content_review
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam StateBorderColor #555555
+skinparam StateBackgroundColor #EBF5FB
+skinparam ArrowColor #333333
+
+title State Machine — Content Review Lifecycle\n(LessonCard / QuizItem)
+
+[*] --> GENERATED_DRAFT : AI generated draft
+
+state GENERATED_DRAFT : AI vừa sinh nội dung\nchưa có instructor review
+GENERATED_DRAFT --> REVIEWING : Instructor opens item
+GENERATED_DRAFT --> CHANGES_REQUESTED : Auto validation failed\nor instructor rejects
+
+state REVIEWING : Instructor đang đọc,\nso sánh citation hoặc chỉnh sửa
+REVIEWING --> APPROVED : Approve
+REVIEWING --> CHANGES_REQUESTED : Reject / request changes
+REVIEWING --> GENERATED_DRAFT : Save as draft\nwithout approval
+
+state CHANGES_REQUESTED : Cần chỉnh sửa hoặc regenerate\nkèm reject reason/hint
+CHANGES_REQUESTED --> REVIEWING : Manual edit
+CHANGES_REQUESTED --> GENERATED_DRAFT : Regenerate with hint
+
+state APPROVED : Đủ điều kiện publish\nnhưng học viên chưa thấy
+APPROVED --> PUBLISHED : Publish lesson/content
+APPROVED --> REVIEWING : Reopen review
+
+state PUBLISHED : Học viên có thể truy cập\nqua lesson từ Canvas/LMS
+PUBLISHED --> UNPUBLISHED : Hide from students
+PUBLISHED --> ARCHIVED : Archive published item
+
+state UNPUBLISHED : Tạm ẩn khỏi học viên\ncó thể republish
+UNPUBLISHED --> PUBLISHED : Republish
+UNPUBLISHED --> REVIEWING : Edit before republish
+UNPUBLISHED --> ARCHIVED : Archive
+
+state ARCHIVED : Lưu trữ, không hiển thị mặc định\nkhông tham gia lesson active
+ARCHIVED --> [*]
+
+note right of GENERATED_DRAFT
+  State này thuộc vòng đời card/quiz,
+  không thuộc document/video processing.
+end note
+
+note right of APPROVED
+  Publish thường diễn ra ở cấp lesson:
+  tất cả item cần được APPROVED
+  trước khi chuyển PUBLISHED.
+end note
+
+@enduml

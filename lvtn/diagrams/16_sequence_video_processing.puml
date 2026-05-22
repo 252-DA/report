@@ -1,0 +1,78 @@
+@startuml seq_video_processing
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+skinparam SequenceParticipantBorderColor #555555
+skinparam SequenceLifeLineBorderColor #999999
+skinparam SequenceBoxBorderColor #888888
+skinparam SequenceBoxBackgroundColor #F8F8F8
+
+title Sequence: Upload và xử lý video\n(Video -> TranscriptReady -> VideoIndexed)
+
+actor "Giảng viên" as GV
+participant "Next.js UI\n(web-bff)" as Web
+participant "core-api" as Core
+database "PostgreSQL" as PG
+participant "MinIO\nObject Storage" as MinIO
+queue "Redis\nBullMQ + Pub/Sub" as Redis
+participant "video-worker\n(Go)" as VideoWorker
+participant "FFmpeg" as FFmpeg
+participant "Whisper\nSTT" as Whisper
+participant "Segmenter" as Segmenter
+participant "document-worker" as DocWorker
+participant "BGE-M3\nEmbedder" as Embedder
+database "Qdrant\nlearning_chunks" as Qdrant
+
+== Upload session ==
+GV -> Web : Chọn video
+Web -> Core : POST /videos/upload-session\n(course_id, file metadata)
+Core -> PG : INSERT videos\nstatus=UPLOADING
+Core -> MinIO : create presigned PUT URL
+Core --> Web : {video_id, upload_url}
+Web -> MinIO : PUT raw video
+Web -> Core : POST /videos/{id}/confirm-upload
+Core -> PG : UPDATE videos\nstatus=QUEUED
+Core -> Redis : enqueue VideoUploaded
+Core --> Web : {status=QUEUED}
+
+== Audio extraction và transcript ==
+VideoWorker -> Redis : consume VideoUploaded
+VideoWorker -> PG : UPDATE status=EXTRACTING_AUDIO
+VideoWorker -> MinIO : GET raw video
+VideoWorker -> FFmpeg : extract_audio(video)
+FFmpeg --> VideoWorker : audio file
+VideoWorker -> PG : UPDATE status=TRANSCRIBING
+VideoWorker -> Whisper : transcribe(audio)
+Whisper --> VideoWorker : transcript segments\nwith timestamps
+
+== Segment artifacts ==
+VideoWorker -> Segmenter : detect_segments(transcript,\nsilence + topic shift)
+Segmenter --> VideoWorker : video_segments[]
+VideoWorker -> FFmpeg : cut clips + thumbnails
+FFmpeg --> VideoWorker : segment artifacts
+VideoWorker -> MinIO : PUT clips/thumbnails
+VideoWorker -> PG : INSERT video_segments\nINSERT transcript_segments
+VideoWorker -> Redis : publish TranscriptReady
+
+== Transcript indexing ==
+DocWorker -> Redis : consume TranscriptReady
+DocWorker -> PG : SELECT transcript_segments\nWHERE video_id = id
+DocWorker -> PG : UPDATE status=EMBEDDING
+DocWorker -> Embedder : embed(transcript_segments[].text)
+Embedder --> DocWorker : dense_vectors[1024]
+DocWorker -> Qdrant : upsert points\npayload={course_id, video_id,\nsegment_id, source_type=video}
+DocWorker -> PG : UPDATE status=INDEXED
+DocWorker -> Redis : publish VideoIndexed
+
+== Progress UI ==
+Redis --> Web : progress events\nEXTRACTING -> TRANSCRIBING -> INDEXED
+Web --> GV : SSE/WebSocket update
+
+note over VideoWorker, DocWorker
+  Video pipeline tạo transcript, segment và vector index.
+  Các nội dung học tập sinh tự động được xử lý ở pipeline hạ nguồn.
+end note
+
+@enduml

@@ -5,15 +5,18 @@
 
 \begin{table}[H]
     \centering
-    \begin{tabular}{p{4.3cm}p{8.7cm}}
-        \toprule
+    \begin{tabular}{|p{4.3cm}|p{8.7cm}|}
+        \hline
         \textbf{Tài nguyên} & \textbf{Đường dẫn} \\
-        \midrule
+        \hline
         Repository hệ thống        & \texttt{https://github.com/...} \\
+        \hline
         Báo cáo LaTeX              & \texttt{https://github.com/...} \\
+        \hline
         Video demo                 & \texttt{https://...} \\
+        \hline
         Bộ dữ liệu đánh giá pilot  & \texttt{TODO: cập nhật sau khi pilot} \\
-        \bottomrule
+        \hline
     \end{tabular}
     \caption*{Bảng đường dẫn quan trọng.}
 \end{table}
@@ -23,18 +26,69 @@
 \begin{table}[H]
     \centering
     \caption*{Danh mục use case của hệ thống.}
-    \begin{tabular}{p{1.3cm}p{3.8cm}p{2.5cm}p{5.6cm}}
-        \toprule
+    \begin{tabular}{|p{1.3cm}|p{3.8cm}|p{2.5cm}|p{5.6cm}|}
+        \hline
         \textbf{ID} & \textbf{Tên} & \textbf{Tác nhân chính} & \textbf{Kết quả chính} \\
-        \midrule
+        \hline
         UC-01 & Upload tài liệu & Giảng viên & File lưu vào MinIO, document ở trạng thái chờ xử lý. \\
+        \hline
         UC-02 & Xử lý tài liệu tự động & AI Pipeline & Tạo chunk, embedding, card và quiz từ tài liệu. \\
+        \hline
         UC-03 & Review nội dung AI & Giảng viên & Card/Quiz được chỉnh sửa và đánh dấu đã duyệt. \\
+        \hline
         UC-04 & Publish khóa học & Giảng viên & Nội dung được công bố cho học viên. \\
+        \hline
         UC-05 & Học bằng card & Học viên & Tiến độ học tập được cập nhật. \\
+        \hline
         UC-06 & Làm quiz & Học viên & Điểm và phản hồi tức thì được lưu. \\
+        \hline
         UC-07 & Tìm kiếm ngữ nghĩa & Học viên & Trả về top-K nội dung liên quan. \\
+        \hline
         UC-08 & Quản lý tài khoản & Quản trị viên & Tài khoản, vai trò và trạng thái người dùng được quản lý. \\
-        \bottomrule
+        \hline
     \end{tabular}
 \end{table}
+
+\section*{Đặc tả DDL cơ sở dữ liệu}
+\addcontentsline{toc}{section}{Đặc tả DDL cơ sở dữ liệu}
+\label{appendix:db-schema}
+
+Toàn bộ DDL khởi tạo PostgreSQL của hệ thống được tách thành tệp riêng
+\texttt{report/lvtn/appendix/db\_schema.sql} để dễ dàng triển khai và
+quản lý phiên bản qua Git. Tệp này bao gồm:
+
+\begin{itemize}
+    \item \textbf{22 bảng phục vụ GĐ1:} ingestion (documents, chunks,
+          videos, segments, transcripts), generated content
+          (lesson\_cards, quiz\_items, attachments), curriculum
+          (courses, chapters, learning\_outcomes có versioning theo
+          năm học, assessments), analytics và audit (quiz\_attempts,
+          chat\_messages, learning\_events, review\_audit\_logs), async
+          outbox và YouTube cache.
+    \item \textbf{03 bảng mở rộng GĐ2 (adaptive learning):}
+          \texttt{lo\_mastery\_states} lưu bốn tham số BKT
+          ($p_{\text{known}}, p_{\text{learn}}, p_{\text{guess}},
+          p_{\text{slip}}$) per (user, LO);
+          \texttt{recommendation\_logs} ghi nhận lượt sinh đề xuất bandit
+          (Thompson sampling hoặc LinUCB) cùng phân phối hậu nghiệm;
+          \texttt{learning\_paths} persist chuỗi LO do beam search lựa
+          chọn làm lộ trình cá nhân hóa.
+    \item \textbf{CHECK constraint cho enum trạng thái:} bảy giá trị
+          khớp State Machine ở mục~4.11.
+    \item \textbf{Partial index:} \texttt{idx\_outbox\_pending\_poller}
+          \texttt{WHERE status = 'PENDING'} cho daemon scan tuần tự;
+          \texttt{idx\_lesson\_cards\_review} \texttt{WHERE status IN
+          ('GENERATED\_DRAFT','REVIEWING','CHANGES\_REQUESTED')} cho
+          review inbox của giảng viên.
+    \item \textbf{View:} \texttt{v\_current\_learning\_outcomes} lọc LO
+          phiên bản hiện hành; \texttt{v\_lo\_mastery\_summary} tổng hợp
+          mastery cho dashboard giảng viên (GĐ2).
+\end{itemize}
+
+Cấu hình Qdrant collection (named vectors dense + sparse, payload
+hard-filter index theo \texttt{course\_id}/\texttt{source\_type}/
+\texttt{lo\_ids}/\texttt{language}) cùng các template upsert mẫu được
+mô tả chi tiết trong cùng thư mục triển khai dưới dạng JSON/REST API
+contract. Cấu hình Neo4j Cypher (constraint duy nhất theo nhãn nút,
+Range Index trên \texttt{course\_id} phục vụ Property-based
+Multi-tenancy) đã được trình bày tại mục~4.4.3 của báo cáo.

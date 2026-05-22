@@ -7,76 +7,75 @@ skinparam SequenceArrowThickness 1.5
 skinparam SequenceParticipantBorderColor #555555
 skinparam SequenceLifeLineBorderColor #999999
 
-title Luồng dữ liệu: Video/Audio Processing Pipeline\n(Upload → Clip + Card + Quiz)
+title Luồng dữ liệu: Video Processing Pipeline\n(Upload -> Transcript -> Segment -> Vector Index)
 
 actor "Giảng viên" as GV
-participant "API\nService" as API
-participant "Redis\nQueue" as Redis
-participant "AI Pipeline\nWorker" as Worker
-participant "Video\nService" as Video
-participant "MinIO\nStorage" as MinIO
-participant "Whisper\nAPI (STT)" as Whisper
+participant "Next.js UI\n(web-bff)" as Web
+participant "core-api" as Core
+database "PostgreSQL\nSource of Truth" as PG
+participant "MinIO\nvideos / video-clips" as MinIO
+queue "Redis\nBullMQ + Pub/Sub" as Redis
+participant "video-worker\n(Go)" as VideoWorker
 participant "FFmpeg" as FFmpeg
-database "PostgreSQL" as PG
+participant "Whisper STT" as Whisper
+participant "document-worker" as DocWorker
+participant "BGE-M3\nEmbedder" as Embedder
+database "Qdrant\nlearning_chunks" as Qdrant
 
-note over Worker, Video : Giao tiếp nội bộ qua gRPC
+== 1. Upload video ==
+GV -> Web : Chọn video bài giảng
+Web -> Core : POST /videos/upload-session\n(course_id, metadata)
+Core -> PG : INSERT videos\n(status=UPLOADING)
+Core -> MinIO : Tạo presigned PUT URL\n(bucket: videos)
+Core --> Web : {video_id, upload_url}
+Web -> MinIO : PUT video trực tiếp
+Web -> Core : POST /videos/{id}/confirm-upload
+Core -> PG : UPDATE videos\nstatus=UPLOADED
+Core -> Redis : publish/job VideoUploaded
+Core --> Web : {status=QUEUED}
 
-== 1. Upload Video ==
-GV -> API : UploadDocument(video.mp4)
-API -> MinIO : PUT file (bucket: media)
-API -> PG : INSERT documents (status=QUEUED, type=VIDEO)
-API -> Redis : LPUSH job {doc_id, type=VIDEO}
-API --> GV : {document_id, status=QUEUED}
+== 2. Xử lý media trong Go worker ==
+VideoWorker -> Redis : consume VideoUploaded
+VideoWorker -> PG : UPDATE status=PROCESSING\nprogress=...
+VideoWorker -> MinIO : GET raw video
+VideoWorker -> FFmpeg : extract_audio(video)
+FFmpeg --> VideoWorker : audio_bytes
+VideoWorker -> Whisper : transcribe(audio)\nword/segment timestamps
+Whisper --> VideoWorker : transcript_segments[]
+VideoWorker -> VideoWorker : segment_by_topic_shift\n+ normalize timestamps
 
-== 2. Transcribe ==
-Worker -> Redis : BRPOP job
-Worker -> PG : UPDATE status=TRANSCRIBING
-Worker -> Video : Transcribe(doc_id) [gRPC]
-Video -> MinIO : GET video file
-Video -> Whisper : transcribe(audio_bytes)
-note right of Whisper
-  Output: transcript với
-  word-level timestamp
-  cho từng câu / đoạn
-end note
-Whisper --> Video : transcript[{text, start_ms, end_ms}]
-Video --> Worker : {transcript, timestamps}
-
-== 3. Segment ==
-Worker -> Worker : AI phân tích transcript\n→ xác định ý chính\n+ timestamp bắt đầu/kết thúc
-note right of Worker
-  Mỗi segment: 1–5 phút
-  Dựa trên topic shift
-  trong transcript
-end note
-
-== 4. Clip ==
-Worker -> PG : UPDATE status=CLIPPING
-Worker -> Video : ClipVideo({segments[]}) [gRPC]
+== 3. Clip và ghi metadata ==
 loop mỗi segment
-    Video -> FFmpeg : cut(video, start_ms, end_ms)
-    FFmpeg --> Video : clip_bytes
-    Video -> MinIO : PUT clip\n(bucket: media/clips)
-    Video -> PG : INSERT media_clips\n({doc_id, clip_url, start_ms, end_ms})
+    VideoWorker -> FFmpeg : cut(video, start_ms, end_ms)
+    FFmpeg --> VideoWorker : clip_bytes
+    VideoWorker -> MinIO : PUT clip\n(bucket: video-clips)
 end
-Video --> Worker : clips_metadata[]
+VideoWorker -> PG : INSERT video_segments,\ntranscript_segments
+VideoWorker -> Redis : publish TranscriptReady
 
-== 5. Text Pipeline (per clip) ==
-Worker -> PG : UPDATE status=CHUNKING
-loop mỗi clip transcript
-    Worker -> Worker : Chunk(transcript_segment)
-    Worker -> Worker : Embed(chunks) → Qdrant
-    Worker -> Worker : Generate(chunks) → LLM
-    Worker -> PG : INSERT cards, quiz_questions\n(linked to clip_id)
-end
-
-== 6. Done ==
-Worker -> PG : UPDATE status=DONE
-note right of PG
-  Mỗi section (clip) gồm:
-  - Video clip (MinIO URL)
-  - Card tóm tắt
-  - Quiz (MCQ)
+note right of Redis
+  video-worker không gọi trực tiếp
+  Python worker. Kết quả đi qua
+  PostgreSQL + BullMQ event.
 end note
+
+== 4. Nhúng vector transcript ==
+DocWorker -> Redis : consume TranscriptReady
+DocWorker -> PG : SELECT transcript_segments
+DocWorker -> Embedder : embed(transcript text)
+Embedder --> DocWorker : dense_vectors[1024]
+DocWorker -> Qdrant : upsert points\npayload={video_id, segment_id,\ncourse_id, start_ms, end_ms,\nsource_type="video"}
+DocWorker -> PG : UPDATE videos\nstatus=INDEXED
+DocWorker -> Redis : publish VideoIndexed
+
+note right of Redis
+  VideoIndexed là sự kiện biên.
+  Các pipeline hạ nguồn dùng
+  transcript đã index khi cần.
+end note
+
+== 5. Cập nhật giao diện ==
+Redis --> Web : BullMQ events / PubSub\nprogress + status
+Web --> GV : SSE/WebSocket update\nstatus=INDEXED
 
 @enduml

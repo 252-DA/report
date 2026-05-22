@@ -1,0 +1,55 @@
+@startuml state_machine_async_job
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam StateBorderColor #555555
+skinparam StateBackgroundColor #EBF5FB
+skinparam ArrowColor #333333
+
+title State Machine — Async Job\n(BullMQ / Broker State)
+
+[*] --> QUEUED : Enqueue job
+
+state QUEUED : Job đã được ghi vào queue\nchờ worker nhận
+QUEUED --> RUNNING : Worker acquired job
+QUEUED --> CANCELLED : Cancel trước khi chạy
+
+state RUNNING : Worker đang xử lý\ncó heartbeat/progress
+RUNNING --> SUCCEEDED : Completed successfully
+RUNNING --> RETRYING : Failed but retryable
+RUNNING --> FAILED : Non-retryable failure\nhoặc hết retry budget
+RUNNING --> CANCELLED : Cancel requested
+
+state RETRYING : Chờ retry với\nexponential backoff
+RETRYING --> RUNNING : Retry attempt
+RETRYING --> DEAD_LETTER : Max retry exceeded
+RETRYING --> CANCELLED : Cancel retry
+
+state SUCCEEDED : Business side-effect đã hoàn tất\nhoặc event đã publish
+SUCCEEDED --> [*]
+
+state FAILED : Job fail cuối cùng\ncần ghi error detail
+FAILED --> DEAD_LETTER : Move to debug queue
+FAILED --> QUEUED : Manual requeue
+
+state DEAD_LETTER : Giữ payload/error để debug\nkhông chạy tự động nữa
+DEAD_LETTER --> QUEUED : Engineer requeue
+DEAD_LETTER --> [*] : Archive / discard
+
+state CANCELLED : Job bị hủy có chủ đích\nkhông retry tự động
+CANCELLED --> [*]
+
+note right of RETRYING
+  Retry policy mặc định:
+  3 lần, exponential backoff
+  1s -> 2s -> 4s.
+end note
+
+note right of DEAD_LETTER
+  DEAD_LETTER tách khỏi business state.
+  Document/video vẫn giữ last_error
+  để instructor hoặc engineer xử lý.
+end note
+
+@enduml

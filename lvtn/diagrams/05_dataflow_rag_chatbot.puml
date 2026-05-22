@@ -7,110 +7,61 @@ skinparam SequenceArrowThickness 1.5
 skinparam SequenceParticipantBorderColor #555555
 skinparam SequenceLifeLineBorderColor #999999
 
-title Luồng dữ liệu: RAG Chatbot Tutor\n(Intent-based Hybrid Retrieval)
+title Luồng dữ liệu: RAG Chatbot Pipeline\n(Hybrid Retrieval + Graph-aware Reranking + SSE)
 
 actor "Học viên" as HV
-participant "React\nSPA" as React
-participant "Chat\nService" as Chat
-participant "Intent\nClassifier" as Intent
+participant "Next.js UI\n(web-bff)" as Web
+participant "chat-service" as Chat
 participant "BGE-M3\nEmbedder" as Embedder
-participant "Redis\n(Semantic Cache)" as Cache
-participant "Qdrant\n(Vector DB)" as Qdrant
-participant "Neo4j\n(Graph DB)" as Neo4j
-participant "Reranker\n(Cross-encoder)" as Reranker
-participant "LLM\n(OpenAI)" as LLM
-database "PostgreSQL\n(Chat History)" as PG
+database "Qdrant\nlearning_chunks" as Qdrant
+database "Neo4j\nKnowledge Graph" as Neo4j
+participant "RRF + Graph-aware\nReranker" as Reranker
+participant "LLM API\nGemini/Provider Adapter" as LLM
+database "PostgreSQL\nchat_messages" as PG
 
-HV -> React : Gửi câu hỏi\n(question + course_id + session_id)
-React -> Chat : SendMessage({question, course_id, session_id})
+HV -> Web : Gửi câu hỏi\n(question, session)
+Web -> Web : Kiểm tra LTI session\ncourse_id + role
+Web -> Chat : SendMessage\n{question, course_id, user_id}
 
-== Bước 1: Kiểm tra Semantic Cache ==
-Chat -> Embedder : embed(question)
-Embedder --> Chat : question_vector[1024]
-Chat -> Cache : search_cache(vector, threshold=0.95)
+== 1. Query embeddings ==
+Chat -> Embedder : embed_dense_and_sparse(question)
+Embedder --> Chat : dense_vector[1024]\n+sparse lexical weights
 
-alt Cache HIT (similarity ≥ 0.95)
-    Cache --> Chat : cached_answer
-    Chat --> React : answer + "[cached]"
-    React --> HV : Câu trả lời (nhanh)
-else Cache MISS
-    Cache --> Chat : null
+== 2. Hybrid retrieval trên Qdrant ==
+Chat -> Qdrant : dense search\nfilter={course_id}\ntop_k=N
+Qdrant --> Chat : dense_results[]
+Chat -> Qdrant : sparse search\nfilter={course_id}\ntop_k=N
+Qdrant --> Chat : sparse_results[]
 
-    == Bước 2: Phân loại Intent ==
-    Chat -> Intent : classify(question)
-    note right of Intent
-      Rules + lightweight classifier:
-      - QUIZ_GENERATION: "tạo câu hỏi", "quiz", "kiểm tra"
-      - EXPLANATION: "giải thích", "là gì", "tại sao"
-      - SYNTHESIS: câu hỏi tổng hợp / mặc định
-    end note
-    Intent --> Chat : intent (QUIZ_GENERATION | EXPLANATION | SYNTHESIS)
+== 3. RRF fusion ==
+Chat -> Reranker : reciprocal_rank_fusion\n(dense_results, sparse_results)
+Reranker --> Chat : fused_candidates[]
 
-    == Bước 3: Semantic Retrieval (Qdrant) ==
-    Chat -> Qdrant : search(\n  vector=question_vector,\n  filter={course_id},\n  top_k=10\n)
-    Qdrant --> Chat : topK_chunks[]\n{chunk_id, content, score, heading_path}
+== 4. Graph-aware reranking ==
+Chat -> Neo4j : MATCH LO/Chapter/Concept context\nfor course_id + candidate chunks
+Neo4j --> Chat : graph_context\n{lo, chapter, concept, paths}
+Chat -> Reranker : boost_by_graph_context\n(candidates, graph_context)
+Reranker --> Chat : final_context[]
 
-    alt Không có chunk liên quan (max_score < 0.5)
-        Chat --> React : "Nội dung này chưa có trong bài học,\nvui lòng hỏi giảng viên."
-        React --> HV : Thông báo
-    else Có chunk liên quan
+note right of Reranker
+  Boost các chunk:
+  - thuộc LO trọng tâm
+  - nằm gần Chapter hiện tại
+  - có concept/prerequisite liên đới
+end note
 
-        == Bước 4: Graph Expansion (Neo4j) ==
+== 5. LLM streaming generation ==
+Chat -> LLM : generate_stream\n(system guardrail,\nquestion, final_context)
+LLM --> Chat : token stream\n+ citations metadata
+Chat --> Web : SSE token stream\nanswer + citations
+Web --> HV : Câu trả lời realtime\nkèm nguồn tham chiếu
 
-        alt intent == QUIZ_GENERATION
-            Chat -> Neo4j : MATCH (c)-[:MENTIONS]->(k:Concept)\n<-[:MENTIONS]-(n:Chunk)\nWHERE c.id IN $topKIds\nAND k.category IN ['theorem','algorithm']\nRETURN n.id, count(*) AS overlap\nORDER BY overlap DESC LIMIT 15
-            note right of Neo4j
-              Concept Neighbor expansion:
-              Tìm chunks cùng concept,
-              ưu tiên category = theorem / algorithm
-              → phong phú ngữ cảnh cho quiz
-            end note
-            Neo4j --> Chat : neighbor_chunks[]
+== 6. Audit và lịch sử học tập ==
+Chat -> PG : INSERT chat_messages\n{question, answer,\nchunks_used, course_id}
 
-        else intent == EXPLANATION
-            Chat -> Neo4j : MATCH path=\n(k:Concept)<-[:MENTIONS]-(c:Chunk)\nWHERE c.id IN $topKIds\nWITH k\nMATCH (pre:Concept)-[:PREREQUISITE_OF*1..3]->(k)\nMATCH (pre)<-[:MENTIONS]-(n:Chunk)\nRETURN n.id, length(path) AS depth\nORDER BY depth ASC LIMIT 10
-            note right of Neo4j
-              Prerequisite Path (n-hop):
-              Tìm chunks chứa concept "cha"
-              → bổ sung nền tảng kiến thức
-              depth ASC = ưu tiên gần nhất
-            end note
-            Neo4j --> Chat : prerequisite_chunks[]
-
-        else intent == SYNTHESIS
-            Chat -> Neo4j : ' Neighbor expansion (1-hop)
-            Neo4j --> Chat : neighbor_chunks[]
-            Chat -> Neo4j : ' Prerequisite path (n-hop)
-            Neo4j --> Chat : prerequisite_chunks[]
-        end
-
-        Chat -> Chat : merge_candidates(\n  topK_chunks ∪ neighbor_chunks\n  ∪ prerequisite_chunks\n)
-        note right of Chat
-          Dedup by chunk_id
-          Max candidates: 25
-        end note
-
-        == Bước 5: Rerank ==
-        Chat -> Reranker : rerank(\n  query=question,\n  candidates=merged_chunks[]\n)
-        note right of Reranker
-          Score = α×semantic + β×graph + γ×freshness + δ×position
-          α=0.5, β=0.3, γ=0.1, δ=0.1
-          (tunable per intent)
-          → chọn top 5
-        end note
-        Reranker --> Chat : final_context[5]
-
-        == Bước 6: Generation ==
-        Chat -> LLM : generate(\n  system="Bạn là giảng viên, chỉ trả lời\ndựa trên context được cung cấp",\n  context=final_context[5],\n  question=question,\n  intent=intent\n)
-        LLM --> Chat : answer + source_citations[]
-
-        == Bước 7: Lưu trữ ==
-        Chat -> Cache : set_cache(question_vector, answer, ttl=1h)
-        Chat -> PG : INSERT chat_history\n({session_id, question, answer, chunks_used, intent})
-
-        Chat --> React : {\n  answer,\n  citations=[{chunk_id, heading, page, relation_path}]\n}
-        React --> HV : Câu trả lời + trích dẫn nguồn
-    end
-end
+note over Chat, LLM
+  Cùng pipeline retrieval này được tái sử dụng cho
+  AI Tutor Chatbot, sinh quiz theo LO và lesson summary có grounding.
+end note
 
 @enduml

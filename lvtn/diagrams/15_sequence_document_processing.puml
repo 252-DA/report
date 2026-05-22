@@ -1,0 +1,66 @@
+@startuml seq_document_processing
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+skinparam SequenceParticipantBorderColor #555555
+skinparam SequenceLifeLineBorderColor #999999
+skinparam SequenceBoxBorderColor #888888
+skinparam SequenceBoxBackgroundColor #F8F8F8
+
+title Sequence: Upload và xử lý tài liệu\n(Document -> TextIndexed)
+
+actor "Giảng viên" as GV
+participant "Next.js UI\n(web-bff)" as Web
+participant "core-api" as Core
+database "PostgreSQL" as PG
+participant "MinIO\nObject Storage" as MinIO
+queue "Redis\nBullMQ + Pub/Sub" as Redis
+participant "document-worker" as Worker
+participant "Parser/OCR" as Parser
+participant "Chunker\n+ LO Mapper" as Chunker
+participant "BGE-M3\nEmbedder" as Embedder
+database "Qdrant\nlearning_chunks" as Qdrant
+
+== Upload session ==
+GV -> Web : Chọn PDF/DOCX/PPTX
+Web -> Core : POST /documents/upload-session\n(course_id, file metadata)
+Core -> PG : INSERT documents\nstatus=UPLOADING
+Core -> MinIO : create presigned PUT URL
+Core --> Web : {document_id, upload_url}
+Web -> MinIO : PUT raw file
+Web -> Core : POST /documents/{id}/confirm-upload
+Core -> PG : UPDATE documents\nstatus=QUEUED
+Core -> Redis : enqueue DocumentUploaded
+Core --> Web : {status=QUEUED}
+
+== Parse, chunk, persist ==
+Worker -> Redis : consume DocumentUploaded
+Worker -> PG : UPDATE status=PARSING
+Worker -> MinIO : GET raw file
+Worker -> Parser : extract_text(file)\nOCR fallback nếu cần
+Parser --> Worker : ParsedDocument\nsections + metadata
+Worker -> PG : UPDATE status=CHUNKING
+Worker -> Chunker : chunk(parsed_document)\nmap chunk -> LO nếu có
+Chunker --> Worker : chunks[]\nheading_path + lo_refs
+Worker -> PG : BEGIN\nINSERT chunks\nINSERT outbox_events\nCOMMIT
+
+== Indexing ==
+Worker -> PG : UPDATE status=EMBEDDING
+Worker -> Embedder : embed(chunks[].content)
+Embedder --> Worker : dense_vectors[1024]
+Worker -> Qdrant : upsert points\npayload={course_id, document_id,\nchunk_id, lo_ids}
+Worker -> PG : UPDATE status=INDEXED
+Worker -> Redis : publish TextIndexed\n{document_id, course_id}
+
+== Progress UI ==
+Redis --> Web : progress events\nPARSING -> CHUNKING -> INDEXED
+Web --> GV : SSE/WebSocket update
+
+note over Worker, Redis
+  Document Processing chỉ chuẩn hóa và lập chỉ mục tri thức.
+  Micro-content và Quiz được kích hoạt bằng pipeline riêng sau TextIndexed.
+end note
+
+@enduml

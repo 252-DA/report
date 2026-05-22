@@ -1,0 +1,63 @@
+@startuml seq_ai_tutor_chatbot
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+skinparam SequenceParticipantBorderColor #555555
+skinparam SequenceLifeLineBorderColor #999999
+skinparam SequenceBoxBorderColor #888888
+skinparam SequenceBoxBackgroundColor #F8F8F8
+
+title Sequence: AI Tutor Chatbot\n(Context Token -> Hybrid RAG -> SSE)
+
+actor "Học viên" as HV
+participant "Next.js UI\n(web-bff)" as Web
+participant "core-api" as Core
+participant "chat-service" as Chat
+participant "BGE-M3\nEmbedder" as Embedder
+database "Qdrant\nlearning_chunks" as Qdrant
+database "Neo4j\nKnowledge Graph" as Neo4j
+participant "RRF + Graph-aware\nReranker" as Reranker
+participant "LLM API\nGemini/Adapter" as LLM
+database "PostgreSQL" as PG
+
+== Context authorization ==
+HV -> Web : Nhập câu hỏi
+Web -> Core : POST /chat/context-token\nsession + course context
+Core -> Core : validate LTI session\nrole + course access
+Core --> Web : short-lived JWT\nallowed course/document/LO ids
+
+== SSE chat stream ==
+Web -> Chat : GET /chat/stream\nJWT + question
+Chat -> Chat : validate JWT\nscope + expiry
+Chat -> Embedder : embed_dense_and_sparse(question)
+Embedder --> Chat : dense vector\n+ sparse weights
+
+== Hybrid retrieval ==
+Chat -> Qdrant : dense search\nfilter={course_id, allowed_lo_ids}
+Qdrant --> Chat : dense_results[]
+Chat -> Qdrant : sparse search\nfilter={course_id, allowed_lo_ids}
+Qdrant --> Chat : sparse_results[]
+Chat -> Reranker : RRF fusion\n(dense, sparse)
+Reranker --> Chat : fused_candidates[]
+
+== Graph-aware context ==
+Chat -> Neo4j : MATCH chunk -> LO/Chapter/Concept\nwithin allowed scope
+Neo4j --> Chat : graph_context\nLO paths + prerequisite links
+Chat -> Reranker : boost_by_graph_context\n(fused_candidates, graph_context)
+Reranker --> Chat : final_context\nwith citations
+
+== Answer streaming ==
+Chat -> LLM : generate_stream\nquestion + final_context + guardrails
+LLM --> Chat : token stream
+Chat --> Web : SSE token\nanswer fragment + citation refs
+Web --> HV : Render realtime answer
+LLM --> Chat : done
+Chat --> Web : event: done\ncitation list
+Web --> HV : Hiển thị nguồn tham chiếu
+
+== Audit ==
+Chat -> PG : INSERT chat_messages\nquestion, answer, chunks_used
+
+@enduml
