@@ -3,16 +3,19 @@
 \section{Môi trường và công cụ phát triển}
 
 Hệ thống được hiện thực thành nhiều thành phần chạy trong Docker Compose:
-frontend Next.js, backend Python gRPC, các worker xử lý bất đồng bộ và các
-dịch vụ hạ tầng gồm PostgreSQL, Redis, MinIO, Qdrant và Neo4j. Cách triển
-khai này phù hợp cho môi trường phát triển, demo và staging; khi đưa vào
-production có thể chuyển dần sang Kubernetes.
+frontend/BFF Next.js, \texttt{core-api} NestJS, các service AI bằng Python,
+worker xử lý bất đồng bộ và các dịch vụ hạ tầng gồm PostgreSQL, Redis, MinIO,
+Qdrant và Neo4j. Cách triển khai này phù hợp cho môi trường phát triển, demo
+và staging; khi đưa vào production có thể chuyển dần sang Kubernetes.
 
 Các công cụ chính gồm:
 \begin{itemize}
-    \item \textbf{Next.js/TypeScript:} xây dựng giao diện người dùng và route
-          LTI.
-    \item \textbf{Python gRPC services:} hiện thực API và use case AI.
+    \item \textbf{Next.js/TypeScript:} xây dựng giao diện người dùng,
+          Backend-for-Frontend và route LTI.
+    \item \textbf{NestJS/TypeScript:} hiện thực \texttt{core-api}, quản lý
+          metadata, phân quyền và điều phối job.
+    \item \textbf{Python FastAPI/worker:} hiện thực các service AI, RAG,
+          video search và pipeline sinh nội dung.
     \item \textbf{PostgreSQL, Qdrant, Neo4j, MinIO, Redis:} các thành phần lưu
           trữ và queue.
     \item \textbf{Docker Compose:} tái lập môi trường chạy local/staging.
@@ -29,14 +32,14 @@ Các công cụ chính gồm:
 
 \section{Hiện thực Frontend và Backend}
 
-\subsection{Next.js}
+\subsection{Web-BFF Next.js}
 
-Frontend được xây dựng bằng Next.js và TypeScript. Thành phần này đảm nhận ba
-vai trò chính:
+Frontend/BFF được xây dựng bằng Next.js và TypeScript. Thành phần này đảm nhận
+ba vai trò chính:
 \begin{itemize}
     \item Cung cấp giao diện giảng viên để upload, review và quản lý nội dung.
     \item Cung cấp giao diện học viên để xem card, làm quiz và nhận phản hồi.
-    \item Xử lý LTI login/launch route để tích hợp với LMS.
+    \item Xử lý LTI login/launch route để tích hợp với Canvas.
 \end{itemize}
 
 Cấu trúc route chính:
@@ -52,11 +55,19 @@ Session LTI được lưu phía server để giảm rủi ro lộ claim nhạy c
 Frontend không tự quyết định quyền truy cập quan trọng mà dựa trên context đã
 xác thực từ LTI/session và backend.
 
-\subsection{Python gRPC Services}
+\subsection{Core API}
 
-Backend AI được hiện thực bằng Python, tổ chức theo Hexagonal Architecture.
-Các use case chính nằm ở application layer, được gọi từ gRPC delivery hoặc
-worker runner.
+\texttt{core-api} được hiện thực bằng NestJS, đóng vai trò trung tâm nghiệp vụ
+cho metadata, phân quyền, review/publish, quản lý trạng thái xử lý và điều
+phối job bất đồng bộ. Mọi request có tác động đến dữ liệu nghiệp vụ đều đi qua
+\texttt{core-api}; các worker và service AI chỉ xử lý tác vụ chuyên biệt theo
+command/event đã được cấp quyền.
+
+\subsection{AI Services và Workers}
+
+Các thành phần AI được hiện thực bằng Python và tổ chức theo Hexagonal
+Architecture. Các use case chính nằm ở application layer, được gọi từ HTTP/gRPC
+delivery hoặc worker runner.
 
 \begin{figure}[H]
     \centering
@@ -72,19 +83,23 @@ Các nhóm API/use case chính:
     \item \textbf{Generated content:} get cards, get quiz, generate curriculum
           quiz.
     \item \textbf{Curriculum:} ingest curriculum, list LO/chapter/assessment.
+    \item \textbf{Chat/RAG:} tạo context token, retrieval, streaming response
+          có citation.
+    \item \textbf{Video:} xử lý transcript, segment và tìm video minh họa.
 \end{itemize}
 
 Dependency injection container khởi tạo adapter theo cấu hình môi trường. Khi
 thiếu một dịch vụ hạ tầng trong môi trường test, hệ thống có thể dùng adapter
 noop hoặc mock để kiểm thử use case.
 
-\subsection{API Gateway}
+\subsection{Internal API Gateway}
 
-API Gateway hoặc frontend server đóng vai trò cầu nối giữa UI, LTI session và
-backend gRPC. Thành phần này kiểm tra session, chuyển đổi request từ giao diện
-sang contract backend và mapping lỗi kỹ thuật thành thông báo dễ hiểu cho
-người dùng. Với các endpoint cần streaming hoặc xử lý lâu, gateway chỉ khởi
-tạo job và trả về trạng thái để frontend polling hoặc subscribe tiến trình.
+API Gateway trong \texttt{web-bff} đóng vai trò cầu nối giữa UI, LTI session,
+\texttt{core-api} và các service AI. Thành phần này kiểm tra session, chuyển
+đổi request từ giao diện sang contract backend và mapping lỗi kỹ thuật thành
+thông báo dễ hiểu cho người dùng. Với các endpoint cần streaming hoặc xử lý
+lâu, gateway chỉ khởi tạo job và trả về trạng thái để frontend polling hoặc
+subscribe tiến trình.
 
 \section{Hiện thực luồng xử lý bất đồng bộ}
 
@@ -96,6 +111,8 @@ Các worker giúp tách tác vụ nặng khỏi request/response trực tiếp:
           lưu metadata.
     \item \textbf{Enrichment worker:} sinh card/quiz bằng LLM và validate kết
           quả.
+    \item \textbf{Video worker:} extract audio, speech-to-text, segment video
+          và lưu transcript/clip metadata.
     \item \textbf{Outbox worker:} đọc sự kiện hoặc bảng outbox từ PostgreSQL
           để đồng bộ sang Neo4j.
 \end{itemize}
@@ -127,24 +144,28 @@ trạng thái draft để giảng viên review trước khi publish.
 
 \section{Tích hợp LMS}
 
-\subsection{Open edX}
+\subsection{Canvas LMS}
 
-Open edX là nền tảng tích hợp chính trong bản hiện tại. Hệ thống được nhúng
-vào khóa học thông qua LTI 1.3. Khi học viên hoặc giảng viên mở activity từ
-Open edX, LMS gửi LTI launch request đến frontend. Frontend xác thực request,
-tạo session và điều hướng đến màn hình học hoặc quản lý.
+Canvas LMS là nền tảng tích hợp chính của hệ thống. Hệ thống được đăng ký
+trong Canvas dưới dạng một External Tool thông qua LTI 1.3. Khi học viên hoặc
+giảng viên mở activity trong khóa học Canvas, Canvas khởi tạo OIDC login/LTI
+launch request đến frontend. Frontend xác thực JWT launch, ánh xạ người dùng
+Canvas sang người dùng nội bộ, tạo session và điều hướng đến màn hình học hoặc
+quản lý tương ứng với vai trò.
 
-Ưu điểm của Open edX là phù hợp môi trường đại học, hỗ trợ course context và
-có cộng đồng triển khai lớn. Nhược điểm là vận hành tương đối nặng, đặc biệt
-khi dùng Tutor stack đầy đủ.
+Việc chọn Canvas giúp hệ thống tận dụng sẵn course, enrollment, role và
+gradebook của LMS mà không phải tự xây dựng các thành phần này. Đồng thời,
+Canvas hỗ trợ LTI Advantage nên các luồng như Deep Linking và Assignment and
+Grade Services có thể được bổ sung mà không cần chỉnh sửa mã nguồn Canvas.
 
-\subsection{Moodle}
+\subsection{Các LMS tương thích LTI}
 
-Moodle được phân tích như hướng triển khai tương thích. Moodle hỗ trợ LTI tốt
-và nhẹ hơn Open edX trong một số môi trường. Vì hệ thống đóng vai trò LTI Tool
-Provider, về nguyên tắc có thể đăng ký như external tool trong Moodle mà không
-phải thay đổi lõi backend. Phần Moodle trong luận văn được xem là định hướng
-mở rộng nếu chưa có demo end-to-end tương ứng.
+Moodle và Open edX được xem là hướng triển khai tương thích trong tương lai.
+Vì hệ thống đóng vai trò LTI Tool Provider, các LMS hỗ trợ LTI 1.3 có thể tích
+hợp bằng cách đăng ký external tool và cung cấp issuer, client ID, deployment
+ID, JWKS URL tương ứng. Tuy nhiên, các khác biệt về UI nhúng, gradebook và
+Deep Linking sẽ được xử lý ở lớp adapter LMS, không làm thay đổi các pipeline
+AI cốt lõi.
 
 \subsection{LTI Configuration}
 
@@ -171,13 +192,14 @@ docker compose up -d --build
 
 Kịch bản demo end-to-end dự kiến:
 \begin{enumerate}
-    \item Giảng viên đăng nhập hoặc mở tool từ LMS qua LTI.
+    \item Giảng viên đăng nhập Canvas và mở công cụ AI từ khóa học qua LTI.
     \item Giảng viên upload một tài liệu môn học.
     \item Hệ thống hiển thị trạng thái xử lý.
     \item Worker parse, chunk, embed và sinh card/quiz.
     \item Giảng viên review, sửa một số card/quiz và publish.
-    \item Học viên mở bài học từ LMS, xem card và làm quiz.
-    \item Hệ thống lưu kết quả và hiển thị phản hồi.
+    \item Học viên mở bài học từ Canvas, xem card và làm quiz.
+    \item Hệ thống lưu kết quả, hiển thị phản hồi và có thể đẩy điểm về
+          Canvas gradebook qua LTI AGS.
 \end{enumerate}
 
 Các thông tin nhạy cảm như LLM API key, database password, JWT/LTI secret và

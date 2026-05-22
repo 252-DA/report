@@ -1,140 +1,479 @@
 \chapter{Tổng quan đề tài}
 
-\section{Bối cảnh và Vấn đề}
+\section{Bối cảnh và động lực nghiên cứu}
 
-Sự phát triển của các nền tảng học trực tuyến giúp giảng viên phân phối tài
-liệu, bài tập và bài kiểm tra nhanh hơn so với lớp học truyền thống. Tuy
-nhiên, trong nhiều học phần kỹ thuật, quy trình chuẩn bị nội dung vẫn phụ
-thuộc nhiều vào thao tác thủ công: giảng viên đọc giáo trình, slide, đề cương
-môn học, tóm tắt lại thành bài học ngắn, sau đó tự soạn câu hỏi kiểm tra và
-đáp án. Khi tài liệu thay đổi hoặc môn học có nhiều chương, quy trình này tốn
-thời gian, khó duy trì chất lượng đồng đều và khó cá nhân hóa cho từng nhóm
-học viên.
+\subsection{Hạn chế của E-learning truyền thống}
 
-Ở phía học viên, tài liệu dài gây khó khăn cho việc ôn tập theo từng đơn vị
-kiến thức nhỏ. Học viên thường cần nội dung ngắn gọn, câu hỏi tự kiểm tra và
-phản hồi tức thì để biết phần nào đã hiểu, phần nào cần học lại. Nhu cầu này
-phù hợp với Micro-learning, trong đó nội dung học tập được chia thành các đơn
-vị nhỏ, dễ tiếp cận, dễ lặp lại và có thể đánh giá thường xuyên.
+Trong những năm gần đây, các hệ thống quản lý học tập trực tuyến (Learning
+Management System --- LMS) đã trở thành hạ tầng quen thuộc trong đào tạo đại
+học và đào tạo trực tuyến. Các nền tảng này giúp giảng viên tổ chức khóa học,
+phân phối tài liệu, giao bài tập, tạo bài kiểm tra và theo dõi quá trình học
+tập của học viên. Nhờ đó, hoạt động dạy và học không còn bị giới hạn hoàn toàn
+bởi không gian lớp học truyền thống, đồng thời tạo điều kiện để tài nguyên học
+tập được lưu trữ, cập nhật và truy cập linh hoạt hơn.
 
-Các mô hình ngôn ngữ lớn (Large Language Models --- LLMs) và Generative AI mở
-ra khả năng tự động hóa một phần quy trình tạo nội dung học tập. LLM có thể
-tóm tắt, diễn giải, sinh câu hỏi và giải thích đáp án. Tuy vậy, nếu gọi LLM
-trực tiếp trên tài liệu thô, hệ thống dễ gặp các vấn đề như sinh nội dung
-không bám nguồn, câu hỏi không gắn với chuẩn đầu ra học phần, thiếu kiểm soát
-chất lượng và khó tích hợp vào Learning Management System (LMS) hiện hữu.
+Tuy nhiên, phần lớn mô hình E-learning hiện nay vẫn thiên về phân phối tài
+liệu hơn là tái cấu trúc tri thức. Trong nhiều học phần kỹ thuật, tài liệu học
+tập thường được đưa lên LMS dưới dạng giáo trình PDF, slide bài giảng, tài
+liệu tham khảo hoặc video ghi hình. Học viên phải tự đọc tài liệu dài, tự xác
+định phần trọng tâm và tự kiểm tra mức độ hiểu bài. LMS có thể cung cấp quiz
+hoặc assignment, nhưng nội dung này thường được giảng viên biên soạn thủ công
+và ít thay đổi theo từng phiên bản tài liệu.
 
-Từ đó, đề tài đặt ra bài toán: xây dựng một hệ thống tích hợp LMS có khả năng
-chuyển đổi tài liệu học thuật thành Micro-Content và Quiz bằng Generative AI,
-đồng thời vẫn đảm bảo khả năng kiểm duyệt học thuật, truy xuất nguồn tri thức
-và gắn kết với chuẩn đầu ra học phần.
+Cách tiếp cận này dẫn đến một số hạn chế. Thứ nhất, học liệu dài gây quá tải
+nhận thức, đặc biệt với học viên cần ôn tập nhanh hoặc học theo từng đơn vị
+kiến thức nhỏ. Thứ hai, phản hồi học tập thường chậm vì học viên phải đợi kết
+quả chấm bài hoặc tự đối chiếu đáp án. Thứ ba, nội dung học, câu hỏi kiểm tra
+và chuẩn đầu ra học phần chưa luôn được liên kết chặt chẽ. Thứ tư, khi tài
+liệu thay đổi, giảng viên phải cập nhật lại bài học ngắn, câu hỏi và đáp án
+một cách thủ công, làm tăng chi phí duy trì học phần.
 
-Các thách thức chính gồm:
+\subsection{Khó khăn trong việc tạo học liệu số}
+
+Tạo học liệu số chất lượng không chỉ là chuyển tài liệu giấy hoặc slide thành
+tệp điện tử. Giảng viên cần đọc hiểu tài liệu nguồn, chọn các ý chính, chia
+nội dung thành các phần nhỏ, viết lại theo ngôn ngữ phù hợp với học viên, tạo
+câu hỏi kiểm tra, xây dựng đáp án và giải thích. Với các học phần có nhiều
+chương hoặc có tài liệu cập nhật thường xuyên, quy trình này tiêu tốn nhiều
+thời gian và khó đảm bảo tính nhất quán.
+
+Khó khăn còn đến từ sự không đồng nhất của dữ liệu đầu vào. Tài liệu học thuật
+có thể ở dạng PDF, DOCX, PPTX, bảng biểu, hình ảnh hoặc video bài giảng. Một
+số tài liệu có cấu trúc heading rõ ràng, trong khi một số khác chỉ là các đoạn
+văn bản dài hoặc bản scan cần OCR. Video bài giảng lại yêu cầu thêm các bước
+trích xuất âm thanh, nhận dạng giọng nói, chia đoạn theo thời gian và liên kết
+transcript với nội dung học tập. Nếu không có pipeline xử lý phù hợp, hệ thống
+rất khó tạo ra nội dung ngắn có nguồn gốc rõ ràng và có thể kiểm chứng.
+
+Ngoài ra, học liệu số trong môi trường đại học cần gắn với đề cương môn học,
+chuẩn đầu ra học phần (Learning Outcome --- LO), mức độ nhận thức theo Bloom
+taxonomy và các hoạt động đánh giá. Một câu hỏi quiz tốt không chỉ đúng về mặt
+nội dung, mà còn phải đo được năng lực mà học phần mong muốn. Đây là điểm mà
+các công cụ tạo nội dung tự động đơn giản thường chưa giải quyết đầy đủ.
+
+\subsection{Nhu cầu Micro-learning trong giáo dục hiện đại}
+
+Micro-learning là cách tổ chức nội dung học tập thành các đơn vị nhỏ, tập
+trung vào một ý hoặc một kỹ năng cụ thể. Mỗi đơn vị học có thể được trình bày
+dưới dạng lesson card, flashcard, đoạn giải thích ngắn, câu hỏi trắc nghiệm
+hoặc bài luyện tập ngắn. Đặc điểm này phù hợp với thói quen học tập hiện đại:
+học viên cần truy cập nhanh, ôn tập theo từng phần, học lại nội dung chưa nắm
+vững và nhận phản hồi tức thì.
+
+Trong bối cảnh giáo dục đại học, Micro-learning không thay thế giáo trình hoặc
+bài giảng đầy đủ, mà đóng vai trò lớp hỗ trợ giúp học viên tiếp cận tri thức
+theo từng bước nhỏ. Khi được thiết kế tốt, Micro-learning giúp giảm cảm giác
+quá tải khi đọc tài liệu dài, tăng tần suất tự kiểm tra và hỗ trợ học viên ôn
+tập trước kỳ thi hoặc trước khi làm bài tập lớn.
+
+Tuy vậy, Micro-learning chỉ có giá trị khi nội dung ngắn vẫn giữ được ngữ cảnh
+học thuật. Nếu đơn thuần cắt nhỏ tài liệu theo số lượng từ, hệ thống có thể
+làm mất mối quan hệ giữa khái niệm, ví dụ, công thức và mục tiêu học tập. Do
+đó, đề tài xem Micro-learning là một bài toán xử lý tri thức: cần kết hợp
+chunking, truy xuất ngữ nghĩa, chuẩn đầu ra và kiểm duyệt của giảng viên để
+tạo các đơn vị học nhỏ nhưng vẫn chính xác và có ý nghĩa sư phạm.
+
+\subsection{Sự phát triển của Generative AI trong EdTech}
+
+Sự phát triển của mô hình ngôn ngữ lớn (Large Language Model --- LLM) và
+Generative AI mở ra khả năng tự động hóa một phần quy trình tạo học liệu.
+Generative AI có thể tóm tắt nội dung, diễn giải khái niệm, sinh câu hỏi trắc
+nghiệm, giải thích đáp án và hỗ trợ đối thoại hỏi đáp với học viên. Trong
+EdTech, các năng lực này đặc biệt hữu ích vì nhiều hoạt động học tập xoay
+quanh văn bản, câu hỏi, phản hồi và giải thích.
+
+Tuy nhiên, việc áp dụng Generative AI vào giáo dục không thể chỉ dừng ở việc
+gửi toàn bộ tài liệu cho mô hình và nhận kết quả sinh ra. LLM có thể sinh nội
+dung không bám sát nguồn, diễn giải sai khái niệm, tạo câu hỏi mơ hồ hoặc đưa
+ra đáp án thiếu căn cứ. Vấn đề càng rõ hơn khi tài liệu đầu vào dài, có nhiều
+chương, nhiều thuật ngữ chuyên ngành hoặc có yêu cầu ràng buộc theo chuẩn đầu
+ra học phần.
+
+Vì vậy, hệ thống AI trong giáo dục cần có kiến trúc kiểm soát. Thay vì xem mô
+hình sinh là thành phần duy nhất, cần kết hợp các bước tiền xử lý tài liệu,
+chia đoạn, embedding, truy xuất ngữ nghĩa, lưu vết nguồn, sinh nội dung dựa
+trên ngữ cảnh được truy xuất và kiểm duyệt bởi con người. Đây là động lực để
+đề tài lựa chọn hướng Retrieval-Augmented Generation (RAG), GraphRAG định
+hướng chương trình học và Human-in-the-Loop Review.
+
+\subsection{Vấn đề nghiên cứu đặt ra}
+
+Từ các bối cảnh trên, đề tài đặt ra bài toán nghiên cứu: xây dựng một hệ thống
+AI tích hợp với LMS có khả năng chuyển đổi tài liệu học thuật và video bài
+giảng thành Micro-content, Quiz và trợ giảng AI bằng Generative AI, đồng thời
+đảm bảo nội dung sinh ra có căn cứ nguồn, có thể được giảng viên kiểm duyệt và
+có khả năng gắn với chuẩn đầu ra học phần.
+
+Trong khuôn khổ đề tài này, Canvas LMS được lựa chọn làm nền tảng thực nghiệm
+vì hỗ trợ chuẩn LTI 1.3/OIDC, có cơ chế Developer Key và External Tool, phù hợp
+với mô hình trong đó Canvas đóng vai trò nền tảng học tập còn hệ thống DA đóng
+vai trò công cụ AI mở rộng. Cách lựa chọn này giúp đề tài tập trung vào bài
+toán tích hợp thực tế mà không cần thay đổi mã nguồn hoặc cài plugin riêng vào
+Canvas.
+
+Bài toán này bao gồm các câu hỏi chính:
 \begin{itemize}
-    \item \textbf{Tài liệu đầu vào không đồng nhất:} PDF, DOCX, PPTX có cấu
-          trúc, heading, bảng biểu và định dạng khác nhau.
-    \item \textbf{Ngữ cảnh dài:} LLM không nên nhận toàn bộ tài liệu một lần;
-          hệ thống cần chunking và truy xuất phù hợp.
-    \item \textbf{Độ tin cậy nội dung:} nội dung sinh ra phải bám sát tài
-          liệu gốc và cần có bước Human-in-the-Loop để giảng viên review.
-    \item \textbf{Liên kết chuẩn đầu ra:} Quiz cần đo đúng Learning Outcome
-          thay vì chỉ hỏi rời rạc theo từng đoạn văn bản.
-    \item \textbf{Tích hợp LMS:} hệ thống phải hoạt động bên cạnh Open edX
-          hoặc Moodle, tránh buộc cơ sở đào tạo thay đổi toàn bộ LMS.
-    \item \textbf{Đánh giá chất lượng:} cần đánh giá cả chức năng, truy xuất,
-          chất lượng nội dung sinh ra, hiệu năng và trải nghiệm sử dụng.
+    \item Làm thế nào để xử lý tài liệu học thuật và video bài giảng không
+          đồng nhất thành các đơn vị tri thức có cấu trúc, có metadata và có
+          thể truy xuất?
+    \item Làm thế nào để sinh Micro-content và Quiz bám sát nguồn, phù hợp
+          với Learning Outcome và mức độ nhận thức mong muốn?
+    \item Làm thế nào để AI Tutor Chatbot trả lời trong phạm vi tài liệu khóa
+          học, hạn chế trả lời thiếu căn cứ và hỗ trợ trích dẫn nguồn?
+    \item Làm thế nào để tích hợp hệ thống như một công cụ mở rộng cho Canvas
+          LMS thông qua LTI 1.3/OIDC, thay vì yêu cầu thay đổi lõi LMS?
+    \item Làm thế nào để đánh giá hệ thống không chỉ ở mức chạy được chức năng,
+          mà còn ở chất lượng truy xuất, chất lượng nội dung sinh ra, hiệu năng
+          và trải nghiệm sử dụng?
 \end{itemize}
 
 \section{Mục tiêu đề tài}
 
 \subsection{Mục tiêu tổng quát}
 
-Xây dựng và đánh giá một hệ thống LMS tích hợp Generative AI có khả năng tự
-động chuyển đổi tài liệu học thuật thành Micro-Content và Quiz, hỗ trợ review
-của giảng viên, tìm kiếm ngữ nghĩa, truy xuất dựa trên RAG/GraphRAG và liên
-kết nội dung với chuẩn đầu ra học phần.
+Mục tiêu tổng quát của đề tài là xây dựng và đánh giá một hệ thống Generative
+AI tích hợp với Canvas LMS nhằm tự động tạo Micro-content và Quiz từ tài liệu
+học thuật, hỗ trợ xử lý video bài giảng, cung cấp AI Tutor Chatbot và cho phép
+giảng viên kiểm duyệt nội dung trước khi công bố cho học viên. Hệ thống hướng
+tới vai trò một lớp mở rộng AI cho Canvas, trong đó Canvas là LTI platform và
+ứng dụng DA/Next.js là LTI tool được launch từ khóa học hoặc assignment.
 
-\subsection{Mục tiêu cụ thể}
+\subsection{Mục tiêu kỹ thuật}
 
+Về mặt kỹ thuật, đề tài hướng tới các mục tiêu sau:
 \begin{enumerate}
     \item Thiết kế kiến trúc hệ thống gồm frontend, backend gRPC, worker xử lý
-          bất đồng bộ, PostgreSQL, Qdrant, Neo4j, MinIO và Redis/Queue.
-    \item Xây dựng pipeline xử lý tài liệu gồm trích xuất nội dung, OCR khi
-          cần, chunking, embedding, retrieval và generation.
-    \item Thiết kế Curriculum-Aware Layer để trích xuất Course, Chapter,
-          Learning Outcome và ánh xạ nội dung học tập với chuẩn đầu ra.
-    \item Tích hợp hệ thống với LMS thông qua LTI 1.3/OIDC, ưu tiên Open edX
-          và phân tích khả năng tương thích với Moodle.
-    \item Xây dựng giao diện cho giảng viên review/publish nội dung và học
-          viên học card/làm quiz.
-    \item Đề xuất phương pháp đánh giá chức năng, tích hợp, chất lượng truy
-          xuất, chất lượng nội dung sinh ra và hiệu năng hệ thống.
+          bất đồng bộ, cơ sở dữ liệu quan hệ, vector database, graph database,
+          object storage và hàng đợi tác vụ.
+    \item Xây dựng pipeline xử lý tài liệu gồm upload, trích xuất nội dung,
+          chuẩn hóa văn bản, chunking, embedding, lưu trữ metadata và truy
+          xuất ngữ nghĩa.
+    \item Thiết kế pipeline xử lý video bài giảng ở mức trích xuất transcript,
+          chia đoạn theo thời gian và liên kết transcript với tài liệu học tập
+          hoặc nội dung sinh ra.
+    \item Xây dựng cơ chế sinh Micro-content, Flashcard/Lesson Card, câu hỏi
+          trắc nghiệm, đáp án và giải thích dựa trên ngữ cảnh truy xuất.
+    \item Thiết kế Curriculum-Aware Layer để biểu diễn Course, Chapter,
+          Learning Outcome, Assessment và quan hệ giữa các thành phần này với
+          chunk nội dung.
+    \item Tích hợp RAG và định hướng GraphRAG để truy xuất nội dung theo ngữ
+          nghĩa, theo cấu trúc chương học và theo chuẩn đầu ra.
+    \item Tích hợp hệ thống với Canvas LMS thông qua LTI 1.3/OIDC, xác thực
+          launch request, ánh xạ người dùng Canvas và tạo session học tập an
+          toàn.
+    \item Đề xuất phương pháp đánh giá chức năng, tích hợp, retrieval, chất
+          lượng nội dung sinh ra, hiệu năng và trải nghiệm người dùng.
 \end{enumerate}
 
-\section{Phạm vi và Giới hạn}
+\subsection{Mục tiêu sản phẩm}
 
-Trong phạm vi luận văn, hệ thống tập trung vào các nội dung sau:
+Về mặt sản phẩm, hệ thống hướng tới hai nhóm người dùng chính là giảng viên và
+học viên. Đối với giảng viên, hệ thống cần cung cấp quy trình upload tài liệu,
+theo dõi trạng thái xử lý, xem nội dung AI sinh ra, chỉnh sửa, duyệt và công
+bố Micro-content/Quiz. Đối với học viên, hệ thống cần cung cấp trải nghiệm học
+theo card, làm quiz, xem giải thích đáp án và hỏi đáp với AI Tutor trong phạm
+vi nội dung khóa học.
+
+Sản phẩm cũng cần đáp ứng yêu cầu triển khai thực tế. Hệ thống hoạt động như
+một External Tool của Canvas, được đăng ký thông qua LTI Developer Key và có
+thể gắn vào khóa học hoặc assignment. Cách tiếp cận này không yêu cầu cài
+plugin vào Canvas hoặc thay đổi mã nguồn Canvas. Việc đóng gói bằng Docker
+Compose giúp triển khai trong môi trường local hoặc staging, đồng thời tạo nền
+tảng để mở rộng lên môi trường production trong các giai đoạn sau.
+
+\section{Phạm vi hệ thống}
+
+\subsection{Xử lý tài liệu học thuật}
+
+Phạm vi đầu tiên của hệ thống là xử lý tài liệu học thuật làm nguồn tri thức
+cho Micro-learning. Các định dạng được ưu tiên gồm PDF, DOCX, PPTX và đề
+cương môn học ở dạng văn bản hoặc PDF có cấu trúc tương đối rõ. Pipeline xử lý
+tài liệu gồm các bước: lưu trữ tệp gốc, trích xuất văn bản, nhận diện cấu trúc
+cơ bản, chia nội dung thành chunk, tạo embedding, lưu metadata và tạo chỉ mục
+truy xuất.
+
+Mỗi chunk cần giữ thông tin nguồn như tài liệu, trang, heading, vị trí hoặc
+đoạn liên quan để phục vụ truy vết. Thông tin này quan trọng vì nội dung AI
+sinh ra cần có khả năng quay lại tài liệu gốc khi giảng viên review hoặc khi
+học viên cần kiểm chứng.
+
+Trong phạm vi đồ án, hệ thống tập trung vào tài liệu số có chất lượng đọc
+được. OCR cho tài liệu scan chất lượng thấp được xem là hướng mở rộng, không
+phải trọng tâm đánh giá chính.
+
+\subsection{Xử lý video bài giảng}
+
+Bên cạnh tài liệu văn bản, hệ thống định hướng hỗ trợ video bài giảng như một
+nguồn học liệu phổ biến trong LMS. Video có thể chứa phần giải thích của giảng
+viên, ví dụ minh họa hoặc trình bày trên slide mà tài liệu văn bản không thể
+hiện đầy đủ. Vì vậy, xử lý video giúp mở rộng nguồn tri thức cho cả
+Micro-content và AI Tutor Chatbot.
+
+Pipeline video tập trung vào các bước: nhận video hoặc audio đầu vào, trích
+xuất âm thanh, nhận dạng giọng nói để tạo transcript, chia transcript thành
+đoạn theo mốc thời gian và liên kết các đoạn này với nội dung bài học. Khi có
+transcript, hệ thống có thể embedding và truy xuất tương tự tài liệu văn bản,
+đồng thời giữ timestamp để người học quay lại đúng đoạn video liên quan.
+
+Trong phạm vi hiện tại, hệ thống không đặt mục tiêu trở thành công cụ biên tập
+video hoàn chỉnh. Các chức năng như chỉnh sửa phụ đề nâng cao, tự động cắt
+clip chất lượng production hoặc phân tích hình ảnh trong video được xem là
+hướng phát triển tiếp theo.
+
+\subsection{Sinh Micro-content và Quiz}
+
+Chức năng trung tâm của hệ thống là sinh Micro-content và Quiz từ nguồn tri
+thức đã được xử lý. Micro-content được hiểu là các đơn vị học ngắn, có thể
+đọc nhanh, tập trung vào một khái niệm, định nghĩa, quy trình, ví dụ hoặc mối
+quan hệ quan trọng trong bài học. Các đơn vị này có thể được hiển thị dưới
+dạng lesson card hoặc flashcard.
+
+Quiz trong hệ thống tập trung vào câu hỏi trắc nghiệm, đáp án đúng, các đáp án
+nhiễu và phần giải thích. Khi có Learning Outcome, câu hỏi cần được gắn với LO
+và mức độ nhận thức tương ứng. Mục tiêu không chỉ là tạo nhiều câu hỏi, mà là
+tạo câu hỏi có khả năng kiểm tra đúng nội dung học tập và hỗ trợ học viên hiểu
+vì sao một đáp án là đúng hoặc sai.
+
+Nội dung sinh ra không được công bố trực tiếp cho học viên. Trước khi publish,
+giảng viên cần có khả năng xem, chỉnh sửa, loại bỏ hoặc phê duyệt. Cách tiếp
+cận này giúp hệ thống tận dụng tốc độ của AI nhưng vẫn giữ kiểm soát học thuật
+ở phía con người.
+
+\subsection{AI Tutor Chatbot}
+
+AI Tutor Chatbot là thành phần hỗ trợ học viên đặt câu hỏi trong quá trình học.
+Khác với chatbot tổng quát, AI Tutor của hệ thống được giới hạn trong ngữ cảnh
+khóa học, tài liệu đã upload, transcript video và nội dung đã được duyệt. Khi
+nhận câu hỏi, chatbot cần truy xuất các chunk liên quan, tạo câu trả lời dựa
+trên nguồn và ưu tiên cung cấp giải thích ngắn gọn, dễ hiểu.
+
+Vai trò của AI Tutor là hỗ trợ học tập, không thay thế giảng viên. Chatbot có
+thể giải thích lại khái niệm, gợi ý phần cần ôn tập, liên kết tới card hoặc
+đoạn tài liệu liên quan và hỗ trợ học viên tự kiểm tra. Với những câu hỏi nằm
+ngoài phạm vi tài liệu, hệ thống cần hạn chế suy đoán và phản hồi theo hướng
+không đủ căn cứ nguồn.
+
+\subsection{Curriculum-aware Learning}
+
+Curriculum-aware Learning trong đề tài là cách tổ chức và truy xuất nội dung
+dựa trên cấu trúc chương trình học. Thay vì chỉ lưu các đoạn văn bản rời rạc,
+hệ thống biểu diễn các thực thể như Course, Chapter, Learning Outcome,
+Assessment, Document, Chunk, Card và Quiz. Quan hệ giữa các thực thể này giúp
+hệ thống hiểu một chunk hỗ trợ LO nào, một quiz đang kiểm tra mục tiêu nào và
+một card thuộc chương học nào.
+
+Lớp curriculum-aware có hai vai trò chính. Thứ nhất, nó hỗ trợ giảng viên kiểm
+soát độ phủ nội dung theo chương và chuẩn đầu ra. Thứ hai, nó hỗ trợ AI sinh
+nội dung có ràng buộc sư phạm rõ hơn, ví dụ sinh câu hỏi cho một LO cụ thể
+hoặc truy xuất các chunk liên quan đến một chủ đề trong chương. Đây cũng là
+nền tảng cho các hướng phát triển như adaptive learning, recommendation và
+GraphRAG nâng cao.
+
+\subsection{Human-in-the-loop Review}
+
+Trong môi trường giáo dục, chất lượng và trách nhiệm học thuật là yêu cầu bắt
+buộc. Vì vậy, hệ thống áp dụng Human-in-the-Loop Review: AI tạo bản nháp, còn
+giảng viên là người quyết định nội dung nào được sử dụng chính thức. Quy trình
+review cần cho phép giảng viên xem nguồn gốc nội dung, kiểm tra card/quiz,
+chỉnh sửa cách diễn đạt, thay đổi đáp án, loại bỏ câu hỏi không phù hợp và
+publish nội dung sau khi đã đạt yêu cầu.
+
+Human-in-the-Loop không chỉ là một bước kiểm duyệt cuối cùng, mà còn là cơ chế
+thu thập phản hồi để cải thiện pipeline. Các trạng thái như draft, reviewed,
+published hoặc rejected giúp hệ thống quản lý vòng đời nội dung và phân biệt
+rõ nội dung AI sinh tự động với nội dung đã được giảng viên xác nhận.
+
+\section{Định hướng và triết lý hệ thống}
+
+\subsection{AI Extension Layer cho LMS}
+
+Đề tài không hướng tới việc xây dựng một LMS mới thay thế Canvas. Thay vào đó,
+hệ thống được thiết kế như một AI Extension Layer cho Canvas LMS. Canvas tiếp
+tục đảm nhiệm các chức năng cốt lõi như quản lý khóa học, danh sách người học,
+phân quyền, assignment, gradebook và ngữ cảnh lớp học. Hệ thống AI đóng vai
+trò công cụ bên ngoài, cung cấp năng lực xử lý tài liệu, tạo Micro-content, tạo
+Quiz và hỗ trợ hỏi đáp.
+
+Định hướng này giúp giảm rủi ro triển khai trong môi trường thực tế. Cơ sở đào
+tạo có thể giữ Canvas làm nền tảng học tập chính, đồng thời bổ sung năng lực
+AI thông qua chuẩn LTI 1.3/OIDC. Trong kiến trúc này, Canvas khởi tạo login và
+launch request, còn hệ thống DA/Next.js xác thực id token, tạo phiên học tập và
+hiển thị trải nghiệm học tương ứng. Các LMS khác có hỗ trợ LTI 1.3 được xem là
+hướng mở rộng sau khi luồng Canvas ổn định.
+
+\subsection{AI-assisted Learning}
+
+Triết lý của hệ thống là AI-assisted Learning, tức AI hỗ trợ quá trình học và
+dạy thay vì thay thế vai trò của giảng viên. AI được dùng để giảm công việc
+lặp lại như tóm tắt tài liệu, tạo bản nháp card, sinh câu hỏi ban đầu hoặc
+giải thích câu trả lời. Giảng viên vẫn giữ vai trò thiết kế học phần, xác định
+chuẩn đầu ra, kiểm duyệt nội dung và điều chỉnh hoạt động học tập theo mục
+tiêu đào tạo.
+
+Đối với học viên, AI không chỉ cung cấp đáp án nhanh mà cần khuyến khích việc
+học chủ động. Các câu trả lời của AI Tutor nên hướng học viên quay lại nội
+dung nguồn, hiểu lý do, tự kiểm tra và nhận biết phần kiến thức còn yếu. Do
+đó, hệ thống ưu tiên giải thích có căn cứ hơn là sinh câu trả lời dài nhưng
+khó kiểm chứng.
+
+\subsection{Mô hình triển khai lai và Tự chủ dữ liệu}
+
+Trong bối cảnh giáo dục, dữ liệu học tập, tài liệu nội bộ và thông tin người
+dùng cần được quản lý cẩn thận. Vì vậy, định hướng self-hosted của đề tài được
+hiểu ở tầng hạ tầng hệ thống và pipeline xử lý, không đồng nghĩa với việc bắt
+buộc tự host toàn bộ mô hình ngôn ngữ lớn. Các dịch vụ như backend, worker, cơ
+sở dữ liệu quan hệ, vector database, graph database, object storage và
+cache/queue có thể được triển khai trong hạ tầng do nhà trường hoặc nhóm vận
+hành kiểm soát.
+
+Ở tầng mô hình, hệ thống được thiết kế theo hướng hybrid AI integration. Tùy
+điều kiện về chi phí, bảo mật và năng lực vận hành, hệ thống có thể cấu hình
+để gọi API mô hình bên ngoài hoặc thay thế bằng mô hình cục bộ trong các giai
+đoạn sau. Việc tách riêng pipeline xử lý dữ liệu, retrieval và generation giúp
+hệ thống giữ quyền kiểm soát đối với dữ liệu, metadata và nguồn tri thức, đồng
+thời vẫn linh hoạt trong lựa chọn mô hình sinh.
+
+Các khóa API, LTI keypair, Canvas client ID, deployment ID, database password
+và thông tin nhạy cảm cần được quản lý qua biến môi trường hoặc cơ chế secret
+management khi triển khai production.
+
+\subsection{Retrieval-first AI Architecture}
+
+Một nguyên tắc quan trọng của đề tài là retrieval-first. Trước khi yêu cầu LLM
+sinh câu trả lời, hệ thống phải truy xuất các nguồn liên quan từ tài liệu,
+transcript, card hoặc knowledge graph. Prompt gửi đến mô hình cần chứa ngữ
+cảnh đã được chọn lọc, metadata và ràng buộc như Learning Outcome hoặc Bloom
+level khi có. Cách tiếp cận này giúp giảm nguy cơ sinh nội dung không bám
+nguồn và tăng khả năng kiểm chứng.
+
+Retrieval-first cũng giúp tách rõ hai trách nhiệm: cơ sở tri thức của khóa học
+được quản lý bởi hệ thống, còn LLM đóng vai trò diễn giải và sinh nội dung dựa
+trên cơ sở tri thức đó. Khi kết hợp vector search với quan hệ trong Knowledge
+Graph, hệ thống có thể truy xuất theo cả ngữ nghĩa và cấu trúc chương trình
+học, tạo nền tảng cho GraphRAG và curriculum-aware retrieval.
+
+\section{Đối tượng sử dụng}
+
+\subsection{Giảng viên}
+
+Giảng viên là nhóm người dùng chịu trách nhiệm tạo, kiểm duyệt và quản lý học
+liệu. Trong hệ thống, giảng viên có thể upload tài liệu hoặc video bài giảng,
+liên kết tài liệu với khóa học, kiểm tra Learning Outcome được trích xuất hoặc
+nhập thủ công, theo dõi trạng thái xử lý, xem các Micro-content và Quiz do AI
+sinh ra, chỉnh sửa nội dung và publish cho học viên.
+
+Lợi ích chính đối với giảng viên là giảm thời gian chuẩn bị học liệu ngắn và
+câu hỏi kiểm tra ban đầu. Thay vì bắt đầu từ trang trắng, giảng viên có một
+bản nháp có nguồn tham chiếu để rà soát. Điều này đặc biệt hữu ích với các
+học phần có nhiều tài liệu, nhiều chương hoặc cần cập nhật thường xuyên.
+
+\subsection{Học viên}
+
+Học viên là nhóm người dùng tiếp nhận nội dung đã được giảng viên công bố.
+Thông qua Canvas, học viên có thể mở công cụ học tập, xem lesson card, ôn tập
+theo từng đơn vị nhỏ, làm quiz và nhận giải thích đáp án. Khi gặp khó khăn,
+học viên có thể hỏi AI Tutor để được giải thích lại dựa trên tài liệu khóa
+học.
+
+Trải nghiệm dành cho học viên cần đơn giản, tập trung và có phản hồi nhanh.
+Hệ thống không yêu cầu học viên hiểu pipeline AI phía sau, mà cần giúp học
+viên biết mình đang học nội dung nào, câu hỏi liên quan đến phần nào và khi
+trả lời sai thì cần ôn lại khái niệm nào.
+
+\section{Ý nghĩa thực tiễn và học thuật}
+
+Về mặt thực tiễn, đề tài hỗ trợ giảm tải cho giảng viên trong quá trình chuẩn
+bị học liệu số. Hệ thống có thể tự động tạo bản nháp Micro-content và Quiz từ
+tài liệu học thuật, nhưng vẫn giữ cơ chế review để giảng viên kiểm soát chất
+lượng. Với học viên, hệ thống giúp chuyển tài liệu dài thành các đơn vị học
+nhỏ, tăng cơ hội tự kiểm tra và nhận phản hồi tức thì. Với cơ sở đào tạo, cách
+tích hợp qua LTI cho phép bổ sung năng lực AI vào Canvas mà không cần thay đổi
+toàn bộ hạ tầng hoặc phát triển plugin riêng cho Canvas.
+
+Về mặt học thuật, đề tài minh họa cách kết hợp Micro-learning, Bloom taxonomy,
+RAG, Knowledge Graph, GraphRAG định hướng chương trình học và
+Human-in-the-Loop Review trong một hệ thống EdTech hoàn chỉnh. Thay vì chỉ
+nghiên cứu riêng lẻ mô hình sinh câu hỏi hoặc chatbot, đề tài đặt các kỹ thuật
+này vào một
+quy trình end-to-end: từ ingest tài liệu, truy xuất, sinh nội dung, kiểm duyệt,
+tích hợp Canvas đến đánh giá hệ thống.
+
+\section{Tiêu chí đánh giá hệ thống}
+
+Để đánh giá hệ thống một cách toàn diện, đồ án xem xét các nhóm tiêu chí
+sau:
 \begin{itemize}
-    \item Tài liệu đầu vào dạng PDF, DOCX, PPTX và đề cương môn học dạng văn
-          bản/PDF có cấu trúc tương đối rõ.
-    \item Sinh Micro-Content, Flashcard/Lesson Card, câu hỏi trắc nghiệm và
-          giải thích đáp án.
-    \item Tìm kiếm ngữ nghĩa và RAG dựa trên chunk đã embedding.
-    \item Knowledge Graph cho Course, Chapter, Learning Outcome, Assessment
-          và quan hệ chunk hỗ trợ LO.
-    \item Tích hợp LMS bằng LTI 1.3 với Open edX; Moodle được phân tích như
-          hướng triển khai tương thích.
-    \item Triển khai local/staging bằng Docker Compose.
+    \item \textbf{Đánh giá chức năng:} kiểm tra các luồng chính như upload tài
+          liệu, xử lý pipeline, sinh card, sinh quiz, review/publish, học card,
+          làm quiz và hỏi đáp với AI Tutor.
+    \item \textbf{Đánh giá tích hợp Canvas:} kiểm tra luồng LTI 1.3/OIDC, xác
+          thực launch request, ánh xạ người dùng Canvas, truyền context khóa
+          học/assignment và tạo session học tập.
+    \item \textbf{Đánh giá retrieval:} đánh giá độ chính xác và mức độ liên quan
+          của ngữ cảnh được truy xuất dựa trên câu hỏi của người dùng; sử dụng 
+          các khung thử nghiệm tự động dựa trên LLM (LLM-as-a-judge) để đo lường 
+          độ phủ ngữ cảnh (Context Recall) và độ chính xác của ngữ cảnh 
+          (Context Precision) mà không phụ thuộc vào tập dữ liệu gán nhãn thủ 
+          công quy mô lớn.
+    \item \textbf{Đánh giá nội dung sinh ra:} xem xét độ đúng, độ bám nguồn,
+          tính rõ ràng, độ phù hợp với Learning Outcome, chất lượng đáp án
+          nhiễu và giải thích đáp án.
+    \item \textbf{Đánh giá curriculum-aware:} kiểm tra khả năng ánh xạ chunk,
+          card và quiz với Course, Chapter và Learning Outcome; đồng thời đánh
+          giá độ phủ nội dung theo chuẩn đầu ra.
+    \item \textbf{Đánh giá hiệu năng:} đo thời gian xử lý tài liệu, thời gian
+          sinh nội dung, độ trễ truy xuất, độ trễ chatbot và khả năng xử lý tác
+          vụ bất đồng bộ.
+    \item \textbf{Đánh giá trải nghiệm sử dụng:} xem xét mức độ dễ dùng của
+          giao diện giảng viên và học viên, mức độ rõ ràng của trạng thái xử
+          lý, thao tác review và trải nghiệm học/làm quiz.
+    \item \textbf{Đánh giá an toàn và vận hành:} kiểm tra quản lý session,
+          cấu hình secret, phân quyền truy cập, log lỗi và khả năng triển khai
+          bằng Docker Compose trong môi trường local/staging.
 \end{itemize}
 
-Các giới hạn hiện tại gồm:
+Trong phạm vi đồ án, các tiêu chí có dữ liệu thực nghiệm sẽ được trình bày
+rõ trong chương đánh giá. Các tiêu chí chưa có điều kiện đo trên quy mô lớn
+được ghi nhận như kế hoạch đánh giá hoặc hướng mở rộng, nhằm tránh đưa ra kết
+luận vượt quá phạm vi dữ liệu thu thập được.
+
+\section{Cấu trúc đồ án}
+
+Đồ án được tổ chức thành 7 chương:
 \begin{itemize}
-    \item OCR production cho tài liệu scan chất lượng thấp chưa phải trọng tâm
-          hiện thực; phần này được trình bày như thiết kế mở rộng.
-    \item Kubernetes production đầy đủ chưa được triển khai trong phạm vi luận
-          văn; hệ thống chỉ nêu định hướng chuyển đổi từ Docker Compose.
-    \item GraphRAG nhiều bước và reasoning trên graph chưa được đánh giá như
-          một module hoàn chỉnh.
-    \item Đánh giá pilot quy mô lớn chưa thuộc phạm vi chính; các chỉ số chưa
-          đo thực nghiệm được đánh dấu rõ để tránh kết luận vượt quá dữ liệu.
-\end{itemize}
-
-\section{Ý nghĩa thực tiễn}
-
-Đề tài có ý nghĩa thực tiễn ở ba khía cạnh. Thứ nhất, hệ thống hỗ trợ giảng
-viên giảm thời gian chuẩn bị học liệu ngắn và câu hỏi kiểm tra, đồng thời vẫn
-giữ quyền kiểm duyệt trước khi công bố cho học viên. Thứ hai, học viên có thể
-tiếp cận tài liệu theo từng đơn vị nhỏ, làm quiz và nhận phản hồi nhanh để ôn
-tập hiệu quả hơn. Thứ ba, cách tiếp cận tích hợp qua LTI giúp hệ thống có thể
-được đưa vào LMS hiện hữu như Open edX hoặc Moodle mà không phải thay thế hạ
-tầng học tập đang sử dụng.
-
-Về mặt kỹ thuật, đề tài minh họa cách kết hợp RAG, Knowledge Graph, Bloom
-taxonomy và kiến trúc xử lý bất đồng bộ để xây dựng một pipeline AI có khả
-năng truy xuất nguồn, kiểm soát chất lượng và mở rộng trong môi trường giáo
-dục.
-
-\section{Cấu trúc luận văn}
-
-Luận văn được tổ chức thành 7 chương:
-\begin{itemize}
-    \item \textbf{Chương 1 --- Tổng quan đề tài:} trình bày bối cảnh, vấn đề,
-          mục tiêu, phạm vi, giới hạn và ý nghĩa thực tiễn.
+    \item \textbf{Chương 1 --- Tổng quan đề tài:} trình bày bối cảnh, động lực,
+          vấn đề nghiên cứu, mục tiêu, phạm vi, đối tượng sử dụng, ý nghĩa và
+          tiêu chí đánh giá hệ thống.
     \item \textbf{Chương 2 --- Nền tảng lý thuyết và công nghệ:} trình bày
           Micro-learning, Bloom taxonomy, LLM, Generative AI, RAG, GraphRAG,
-          LTI 1.3 và các công nghệ lõi.
+          LTI 1.3 và các công nghệ lõi được sử dụng.
     \item \textbf{Chương 3 --- Phân tích yêu cầu và nghiệp vụ:} phân tích tác
-          nhân, yêu cầu hệ thống, use case và luồng nghiệp vụ chính.
+          nhân, yêu cầu chức năng, yêu cầu phi chức năng, use case và các luồng
+          nghiệp vụ chính.
     \item \textbf{Chương 4 --- Thiết kế hệ thống:} trình bày kiến trúc tổng
-          thể, tích hợp LMS, AI pipeline, thiết kế dữ liệu, Knowledge Graph,
-          giao tiếp nội bộ và system flows.
+          thể, tích hợp Canvas/LTI, AI pipeline, thiết kế dữ liệu, Knowledge Graph,
+          giao tiếp nội bộ và các luồng xử lý chính.
     \item \textbf{Chương 5 --- Hiện thực và triển khai:} mô tả môi trường phát
-          triển, frontend, backend, workers, tích hợp LMS và đóng gói triển
-          khai.
-    \item \textbf{Chương 6 --- Đánh giá hệ thống:} trình bày phương pháp đánh
-          giá chức năng, tích hợp, retrieval, chất lượng nội dung sinh ra và
-          hiệu năng.
-    \item \textbf{Chương 7 --- Kết luận và hướng phát triển:} tổng kết kết
-          quả, hạn chế, định hướng mở rộng và kế hoạch triển khai giai đoạn
-          luận văn tốt nghiệp.
+          triển, frontend, backend, worker, tích hợp Canvas, cấu hình vận hành và
+          đóng gói triển khai.
+    \item \textbf{Chương 6 --- Đánh giá hệ thống:} trình bày phương pháp và
+          kết quả đánh giá chức năng, tích hợp, retrieval, chất lượng nội dung
+          sinh ra, hiệu năng và trải nghiệm sử dụng.
+    \item \textbf{Chương 7 --- Kết luận và hướng phát triển:} tổng kết kết quả
+          đạt được, hạn chế còn tồn tại và các hướng phát triển tiếp theo.
 \end{itemize}
+
+\section{Tổng kết chương}
+
+Chương này đã trình bày bối cảnh hình thành đề tài, xuất phát từ hạn chế của
+E-learning truyền thống, khó khăn trong việc tạo học liệu số, nhu cầu
+Micro-learning và tiềm năng của Generative AI trong giáo dục. Từ đó, chương
+xác định vấn đề nghiên cứu là xây dựng một hệ thống AI tích hợp Canvas LMS có
+khả năng xử lý tài liệu và video bài giảng, sinh Micro-content/Quiz, hỗ trợ AI
+Tutor Chatbot, gắn với Learning Outcome và duy trì cơ chế kiểm duyệt của giảng
+viên.
+
+Chương cũng xác định mục tiêu, phạm vi, triết lý thiết kế, đối tượng sử dụng,
+ý nghĩa và tiêu chí đánh giá của hệ thống. Các nội dung này là cơ sở để các
+chương tiếp theo trình bày nền tảng lý thuyết, phân tích yêu cầu, thiết kế,
+hiện thực và đánh giá hệ thống một cách có hệ thống.

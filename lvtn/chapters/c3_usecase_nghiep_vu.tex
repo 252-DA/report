@@ -1,294 +1,592 @@
-\chapter{Phân tích yêu cầu và nghiệp vụ}
+\chapter{Cơ sở lý thuyết và công nghệ}
+\label{chap:co-so-ly-thuyet-cong-nghe}
 
-\section{Phân tích tác nhân (Actors)}
+Chương này trình bày các nền tảng lý thuyết và kỹ thuật cốt lõi được sử dụng
+trong hệ thống LMS tự động tạo Micro-Content và Quiz bằng Generative AI. Trọng
+tâm của chương gồm bốn nhóm nội dung: Micro-learning và Bloom Taxonomy, mô hình
+ngôn ngữ lớn, Retrieval-Augmented Generation, và các kỹ thuật chunking / xử lý
+tài liệu. Đây là cơ sở để thiết kế pipeline xử lý tài liệu, sinh nội dung, sinh
+quiz và chatbot học tập ở các chương sau.
 
-Hệ thống phục vụ ba nhóm người dùng chính là giảng viên, học viên và quản trị
-viên. Bên cạnh đó, một số tác nhân hệ thống như LMS, AI Pipeline và LLM
-Provider được mô hình hóa riêng vì chúng tham gia trực tiếp vào các luồng
-nghiệp vụ.
+\section{Micro-learning và Bloom Taxonomy}
+\label{sec:microlearning-bloom}
+
+\subsection{Micro-learning}
+\label{subsec:microlearning}
+
+Micro-learning là cách tổ chức nội dung học tập thành các đơn vị nhỏ, tập
+trung vào một khái niệm, kỹ năng hoặc mục tiêu học tập cụ thể. Thay vì yêu cầu
+người học tiếp nhận một chương dài hoặc một video bài giảng kéo dài hàng chục
+phút, micro-learning chia nội dung thành các phần ngắn như lesson summary, key
+concept card, flashcard, câu hỏi tự kiểm tra hoặc một đoạn giải thích có ví dụ.
+
+Trong bối cảnh LMS, micro-learning có ba ý nghĩa quan trọng. Thứ nhất, nó giúp
+học viên tiếp cận kiến thức theo nhịp ngắn, phù hợp với thói quen học trên
+thiết bị di động và học xen kẽ trong thời gian ngắn. Thứ hai, nó giúp hệ thống
+dễ theo dõi tiến độ ở mức hạt mịn hơn: học viên đã đọc card nào, trả lời sai
+khái niệm nào, hay cần ôn lại Learning Outcome nào. Thứ ba, nó tạo định dạng
+đầu ra rõ ràng cho AI generation: từ một chunk tài liệu, hệ thống có thể sinh
+ra một tập card và quiz có cấu trúc.
+
+Đối với đề tài, micro-learning không chỉ là giao diện hiển thị, mà còn ảnh
+hưởng trực tiếp đến pipeline xử lý tài liệu. Tài liệu đầu vào cần được trích
+xuất, chia chunk, gắn metadata nguồn, sau đó chuyển thành các đơn vị học ngắn
+có thể kiểm duyệt và publish. Mỗi đơn vị micro-content phải giữ được quan hệ
+với tài liệu gốc, vị trí trong chương, Learning Outcome liên quan và trạng thái
+review của giảng viên.
 
 \begin{table}[H]
     \centering
-    \caption{Danh sách tác nhân của hệ thống.}
-    \label{tab:actors}
-    \begin{tabular}{p{3.5cm}p{10.5cm}}
+    \caption{Đặc điểm của micro-learning trong hệ thống đề xuất}
+    \label{tab:microlearning-characteristics}
+    \begin{tabular}{p{4cm}p{9.5cm}}
         \toprule
-        \textbf{Tác nhân} & \textbf{Mô tả} \\
+        \textbf{Đặc điểm} & \textbf{Ý nghĩa trong hệ thống} \\
         \midrule
-        Giảng viên & Người tạo khóa học, upload tài liệu, review nội dung AI và publish cho học viên. \\
-        Học viên & Người học nội dung đã publish, làm quiz và tìm kiếm nội dung liên quan. \\
-        Quản trị viên & Người quản lý tài khoản, cấu hình hệ thống, theo dõi vận hành và chi phí. \\
-        LMS & Nền tảng bên ngoài như Open edX hoặc Moodle, khởi tạo LTI launch và truyền context người dùng. \\
-        AI Pipeline & Tác nhân hệ thống xử lý tài liệu, sinh embedding, card, quiz và đồng bộ dữ liệu. \\
-        LLM Provider & Dịch vụ mô hình ngôn ngữ được gọi để sinh nội dung hoặc phân tích tri thức. \\
+        Ngắn gọn & Mỗi đơn vị nội dung tập trung vào một ý chính, giảm tải nhận thức cho học viên. \\
+        Có ngữ cảnh nguồn & Card / quiz cần liên kết đến document, page, heading hoặc timestamp video để kiểm chứng. \\
+        Có thể kiểm tra nhanh & Mỗi cụm nội dung có thể gắn flashcard hoặc quiz nhằm củng cố ghi nhớ. \\
+        Có metadata sư phạm & Nội dung được gắn Learning Outcome, mức Bloom, độ khó và trạng thái review. \\
+        Phù hợp cá nhân hóa & Dữ liệu hoàn thành từng card / quiz có thể dùng để đề xuất nội dung ôn tập. \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-Vòng đời nghiệp vụ chính bắt đầu khi giảng viên đưa tài liệu vào hệ thống.
-AI Pipeline xử lý tài liệu bất đồng bộ, sinh nội dung nháp, sau đó giảng viên
-review và publish. Học viên chỉ tương tác với nội dung đã được công bố và kết
-quả học tập được lưu lại để phục vụ phản hồi, thống kê và định hướng adaptive
-learning về sau.
+\subsection{Bloom Taxonomy}
+\label{subsec:bloom-taxonomy}
 
-\section{Yêu cầu hệ thống}
+Bloom Taxonomy là khung phân loại mục tiêu học tập theo mức độ nhận thức. Trong
+bản phân loại được sử dụng phổ biến, các mức nhận thức gồm: Remember,
+Understand, Apply, Analyze, Evaluate và Create. Các mức này biểu diễn sự tăng
+dần về độ phức tạp nhận thức, từ ghi nhớ thông tin cơ bản đến đánh giá và sáng
+tạo sản phẩm mới.
 
-\subsection{Yêu cầu nghiệp vụ}
+Trong hệ thống sinh quiz, Bloom Taxonomy được dùng như một lớp metadata sư
+phạm để định hướng câu hỏi. Nếu hệ thống chỉ sinh câu hỏi dựa trên nội dung bề
+mặt, quiz dễ rơi vào mức ghi nhớ đơn giản. Khi có Bloom level, giảng viên có
+thể yêu cầu hệ thống tạo câu hỏi theo mục tiêu cụ thể, ví dụ kiểm tra khả năng
+``giải thích'', ``áp dụng'' hoặc ``phân tích'' thay vì chỉ ``liệt kê''.
 
-\begin{longtable}{|p{1.5cm}|p{4cm}|p{8.5cm}|}
-    \caption{Yêu cầu nghiệp vụ (BR).} \label{tab:br-lvtn} \\
-    \hline
-    \textbf{ID} & \textbf{Tên} & \textbf{Mô tả} \\
-    \hline
-    \endfirsthead
-    \hline
-    \textbf{ID} & \textbf{Tên} & \textbf{Mô tả} \\
-    \hline
-    \endhead
-
-    BR-01 & Xác thực và phân quyền &
-    Hệ thống phải phân biệt giảng viên, học viên và quản trị viên; mỗi vai trò chỉ được truy cập chức năng phù hợp. \\ \hline
-
-    BR-02 & Quản lý tài liệu học tập &
-    Giảng viên có thể đưa tài liệu vào hệ thống, theo dõi xử lý, review và công bố nội dung. \\ \hline
-
-    BR-03 & Sinh nội dung AI có kiểm soát &
-    Hệ thống tự động sinh card/quiz nhưng nội dung phải được kiểm duyệt trước khi học viên nhìn thấy. \\ \hline
-
-    BR-04 & Gắn kết chuẩn đầu ra &
-    Nội dung và câu hỏi cần liên kết với Learning Outcome khi có đề cương môn học. \\ \hline
-
-    BR-05 & Tích hợp LMS &
-    Hệ thống phải hoạt động như công cụ học tập bên ngoài thông qua LTI, không phụ thuộc vào một LMS duy nhất. \\ \hline
-
-    BR-06 & Theo dõi học tập &
-    Hệ thống cần lưu tiến độ học, kết quả quiz và dữ liệu phục vụ phân tích học tập. \\ \hline
+\begin{longtable}{|p{2.6cm}|p{4.2cm}|p{7cm}|}
+\caption{Các mức Bloom và ý nghĩa khi sinh quiz}
+\label{tab:bloom-levels}\\
+\hline
+\textbf{Mức Bloom} & \textbf{Động từ thường gặp} & \textbf{Ý nghĩa trong sinh câu hỏi} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Mức Bloom} & \textbf{Động từ thường gặp} & \textbf{Ý nghĩa trong sinh câu hỏi} \\
+\hline
+\endhead
+Remember & liệt kê, định nghĩa, nhận biết, gọi tên & Kiểm tra khả năng nhớ thuật ngữ, khái niệm, công thức hoặc sự kiện. \\
+\hline
+Understand & giải thích, mô tả, phân biệt, tóm tắt & Kiểm tra khả năng diễn giải ý nghĩa và nhận ra quan hệ cơ bản giữa các khái niệm. \\
+\hline
+Apply & áp dụng, tính toán, sử dụng, minh họa & Kiểm tra khả năng dùng kiến thức trong tình huống hoặc ví dụ cụ thể. \\
+\hline
+Analyze & phân tích, so sánh, suy luận, phân loại & Kiểm tra khả năng tách vấn đề thành thành phần, nhận ra nguyên nhân, hệ quả hoặc cấu trúc. \\
+\hline
+Evaluate & đánh giá, lựa chọn, phản biện, biện minh & Kiểm tra khả năng đưa ra nhận xét dựa trên tiêu chí. Mức này thường phù hợp với câu hỏi tự luận hơn trắc nghiệm đơn giản. \\
+\hline
+Create & thiết kế, xây dựng, đề xuất, sáng tạo & Kiểm tra khả năng tạo ra sản phẩm hoặc giải pháp mới. Mức này thường cần bài tập dự án hoặc câu hỏi mở. \\
+\hline
 \end{longtable}
 
-\subsection{Yêu cầu chức năng}
+Trong phạm vi đề tài, bốn mức Remember, Understand, Apply và Analyze là phù
+hợp nhất với quiz trắc nghiệm tự động. Hai mức Evaluate và Create vẫn được
+lưu trong mô hình metadata để mở rộng về sau, nhưng không phải trọng tâm của
+MVP vì chúng thường đòi hỏi chấm tự luận, rubric hoặc bài tập dự án.
 
-\begin{longtable}{|p{1.5cm}|p{4cm}|p{8.5cm}|}
-    \caption{Yêu cầu chức năng (FR).} \label{tab:fr-lvtn} \\
-    \hline
-    \textbf{ID} & \textbf{Nhóm chức năng} & \textbf{Mô tả} \\
-    \hline
-    \endfirsthead
-    \hline
-    \textbf{ID} & \textbf{Nhóm chức năng} & \textbf{Mô tả} \\
-    \hline
-    \endhead
+\subsection{Bloom-aware Quiz Generation}
+\label{subsec:bloom-aware-quiz-generation}
 
-    FR-01 & Xác thực & Hỗ trợ đăng nhập nội bộ và LTI launch từ LMS; lưu session an toàn phía server. \\ \hline
-    FR-02 & Upload tài liệu & Nhận file PDF/DOCX/PPTX, kiểm tra kích thước/định dạng, lưu object storage và tạo document metadata. \\ \hline
-    FR-03 & Xử lý bất đồng bộ & Enqueue job, cập nhật trạng thái pipeline và retry lỗi tạm thời. \\ \hline
-    FR-04 & Parsing và chunking & Trích xuất văn bản/cấu trúc, chia chunk theo heading hoặc fallback chunking. \\ \hline
-    FR-05 & Embedding và tìm kiếm & Sinh embedding cho chunk, lưu Qdrant và hỗ trợ semantic search top-K. \\ \hline
-    FR-06 & Sinh card/quiz & Gọi LLM để sinh summary, lesson card, quiz, đáp án đúng và giải thích. \\ \hline
-    FR-07 & Curriculum extraction & Trích xuất course, chapter, LO, assessment từ đề cương môn học. \\ \hline
-    FR-08 & LO-aware quiz & Sinh quiz theo LO/chapter/assessment, có Bloom level và rationale. \\ \hline
-    FR-09 & Review/publish & Giảng viên xem, sửa, xóa, thêm và publish nội dung sau khi review. \\ \hline
-    FR-10 & Learning experience & Học viên xem card, làm quiz, nhận phản hồi và lưu tiến độ. \\ \hline
-    FR-11 & Admin/observability & Quản trị viên xem log, trạng thái job, cấu hình provider và thống kê chi phí. \\ \hline
+Bloom-aware Quiz Generation là quá trình sinh câu hỏi có ý thức về mức độ nhận
+thức. Thay vì chỉ yêu cầu LLM ``tạo 5 câu hỏi từ đoạn văn'', hệ thống cung cấp
+thêm ràng buộc về Learning Outcome, Bloom level, độ khó, loại câu hỏi và cấu
+trúc đầu ra. Cách này giúp câu hỏi sinh ra phù hợp hơn với mục tiêu sư phạm và
+dễ đánh giá chất lượng hơn.
+
+Một câu hỏi Bloom-aware trong hệ thống cần có các trường tối thiểu:
+
+\begin{itemize}
+    \item \texttt{question}: nội dung câu hỏi.
+    \item \texttt{options}: danh sách đáp án lựa chọn.
+    \item \texttt{correct\_answer}: đáp án đúng.
+    \item \texttt{explanation}: giải thích vì sao đáp án đúng.
+    \item \texttt{bloom\_level}: mức Bloom mục tiêu.
+    \item \texttt{learning\_outcome\_id}: Learning Outcome liên quan nếu có.
+    \item \texttt{source\_chunk\_id}: chunk tài liệu làm nguồn.
+\end{itemize}
+
+Để tăng chất lượng, hệ thống cần kiểm tra đầu ra sau khi LLM sinh. Các kiểm
+tra cơ bản gồm: câu hỏi có đúng số đáp án, có duy nhất một đáp án đúng, giải
+thích có bám nguồn, Bloom level thuộc tập giá trị hợp lệ và câu hỏi không lộ
+đáp án ngay trong phần stem. Những câu hỏi chưa đạt có thể được đưa vào trạng
+thái cần review hoặc yêu cầu LLM sửa theo schema.
+
+\subsection{Phân loại Micro-Content trong hệ thống}
+\label{subsec:phan-loai-micro-content}
+
+Trong hệ thống đề xuất, micro-content được phân loại theo mục đích học tập và
+cách tương tác của người học. Việc phân loại này giúp pipeline sinh nội dung có
+đầu ra ổn định, đồng thời giúp giao diện học tập trình bày nội dung theo nhịp
+rõ ràng.
+
+\begin{longtable}{|p{3cm}|p{4.2cm}|p{6.8cm}|}
+\caption{Phân loại micro-content trong hệ thống}
+\label{tab:micro-content-types}\\
+\hline
+\textbf{Loại nội dung} & \textbf{Mục đích} & \textbf{Đặc điểm} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Loại nội dung} & \textbf{Mục đích} & \textbf{Đặc điểm} \\
+\hline
+\endhead
+Lesson Summary & Tóm tắt phần học & Trình bày ý chính của một section hoặc chunk lớn; thường dài hơn card nhưng ngắn hơn bài học đầy đủ. \\
+\hline
+Key Concept Card & Làm rõ khái niệm trọng tâm & Tập trung vào một khái niệm, định nghĩa, ví dụ hoặc lỗi hiểu nhầm thường gặp. \\
+\hline
+Flashcard & Hỗ trợ ghi nhớ và ôn tập & Gồm mặt trước là câu hỏi/gợi ý và mặt sau là đáp án/ngắn giải thích; phù hợp spaced repetition. \\
+\hline
+Quiz Question & Kiểm tra hiểu biết & Câu hỏi có đáp án, giải thích, mức Bloom và nguồn; dùng để đánh giá tiến độ học. \\
+\hline
+Video Timestamp Card & Gắn nội dung với video & Liên kết card với mốc thời gian bắt đầu/kết thúc trong video hoặc transcript. \\
+\hline
 \end{longtable}
 
-\subsection{Yêu cầu phi chức năng}
+Tất cả loại micro-content đều cần giữ metadata nguồn để hỗ trợ truy vết, review
+và cập nhật lại khi tài liệu gốc thay đổi. Đây là khác biệt quan trọng giữa hệ
+thống đề xuất và các công cụ tóm tắt hoặc tạo flashcard độc lập.
 
-\begin{longtable}{|p{1.5cm}|p{4cm}|p{8.5cm}|}
-    \caption{Yêu cầu phi chức năng (NFR).} \label{tab:nfr-lvtn} \\
-    \hline
-    \textbf{ID} & \textbf{Tên} & \textbf{Tiêu chí} \\
-    \hline
-    \endfirsthead
-    \hline
-    \textbf{ID} & \textbf{Tên} & \textbf{Tiêu chí} \\
-    \hline
-    \endhead
+\section{Large Language Models và Generative AI}
+\label{sec:llm-generative-ai}
 
-    NFR-01 & Hiệu năng & API đọc card/quiz mục tiêu P95 $\leq$ 500ms trong môi trường staging; pipeline xử lý tài liệu 20 trang mục tiêu $\leq$ 3 phút. \\ \hline
-    NFR-02 & Khả dụng & Giao diện responsive, thông báo lỗi rõ, người dùng không cần thao tác kỹ thuật khi pipeline lỗi tạm thời. \\ \hline
-    NFR-03 & Bảo mật & Session/token không lộ ra client không cần thiết; LTI launch xác thực JWT/OIDC; API key lưu qua biến môi trường. \\ \hline
-    NFR-04 & Tin cậy & Pipeline idempotent ở mức job/document; lỗi tạm thời retry có giới hạn; lỗi cuối cùng lưu trạng thái \texttt{ERROR}. \\ \hline
-    NFR-05 & Bảo trì & Use case không phụ thuộc trực tiếp vào adapter hạ tầng; có unit test cho domain/application. \\ \hline
-    NFR-06 & Mở rộng & Có thể thêm parser, embedder, LLM provider, vector DB hoặc LMS integration thông qua adapter. \\ \hline
-    NFR-07 & Đánh giá được & Hệ thống lưu đủ metadata để đánh giá retrieval, chất lượng quiz, latency và tỷ lệ lỗi. \\ \hline
-\end{longtable}
+\subsection{Kiến trúc cơ bản của LLM}
+\label{subsec:kien-truc-llm}
 
-\section{Phân tích Use Case}
+Large Language Model (LLM) là mô hình học sâu được huấn luyện trên lượng lớn
+văn bản để học biểu diễn ngôn ngữ và sinh chuỗi token. Kiến trúc nền tảng của
+phần lớn LLM hiện đại là Transformer, được giới thiệu bởi Vaswani và cộng sự
+\cite{vaswani2017attention}. Thành phần cốt lõi của Transformer là cơ chế
+self-attention, cho phép mô hình tính mức độ liên quan giữa các token trong
+chuỗi đầu vào và học được phụ thuộc dài hạn hiệu quả hơn các kiến trúc tuần tự
+truyền thống.
 
-\subsection{Biểu đồ Use Case tổng quát}
+LLM thường hoạt động theo cơ chế dự đoán token tiếp theo. Với một prompt đầu
+vào, mô hình sinh từng token mới dựa trên phân phối xác suất điều kiện của
+ngữ cảnh trước đó. Trong các mô hình hội thoại hiện đại, prompt không chỉ là
+câu hỏi của người dùng mà còn gồm instruction hệ thống, vai trò, ngữ cảnh truy
+xuất, ví dụ đầu ra và các ràng buộc định dạng.
+
+Trong đề tài, LLM được sử dụng cho các tác vụ cần diễn giải tri thức:
+
+\begin{itemize}
+    \item tóm tắt chunk thành lesson summary hoặc key concept card;
+    \item sinh flashcard và câu hỏi quiz;
+    \item chuẩn hóa / trích xuất Learning Outcome từ đề cương môn học khi cần;
+    \item sinh câu trả lời cho AI Tutor Chatbot dựa trên ngữ cảnh RAG;
+    \item hỗ trợ giải thích đáp án và lý do câu hỏi gắn với Bloom level.
+\end{itemize}
+
+Các mô hình như GPT-4o, Gemini hoặc mô hình open-weights có thể được dùng tùy
+theo yêu cầu chi phí, tốc độ, bảo mật và chất lượng đầu ra
+\cite{openai2024gpt4o,google2024gemini}. Vì vậy, thiết kế hệ thống nên đặt
+LLM sau một adapter hoặc port trừu tượng để thay đổi provider mà không làm
+thay đổi nghiệp vụ.
+
+\subsection{Prompt Engineering}
+\label{subsec:prompt-engineering}
+
+Prompt Engineering là kỹ thuật thiết kế đầu vào cho LLM nhằm điều khiển hành
+vi, chất lượng và định dạng đầu ra mà không cần huấn luyện lại mô hình. Trong
+hệ thống giáo dục, prompt không nên chỉ mô tả nhiệm vụ chung chung; nó cần nêu
+rõ vai trò sư phạm, nguồn tài liệu, mục tiêu học tập, ràng buộc Bloom, định
+dạng đầu ra và các điều kiện an toàn.
+
+Một prompt sinh quiz trong hệ thống thường gồm các phần:
+
+\begin{enumerate}
+    \item \textbf{Vai trò}: yêu cầu mô hình đóng vai giảng viên hoặc trợ lý
+          sư phạm.
+    \item \textbf{Nhiệm vụ}: sinh câu hỏi trắc nghiệm, flashcard hoặc card học
+          tập.
+    \item \textbf{Nguồn}: chunk tài liệu, heading path, Learning Outcome và
+          metadata.
+    \item \textbf{Ràng buộc}: số lượng câu hỏi, ngôn ngữ, mức Bloom, độ khó,
+          độ dài tối đa.
+    \item \textbf{Định dạng}: schema JSON hoặc cấu trúc trường cố định.
+    \item \textbf{Quy tắc an toàn}: không bịa ngoài nguồn, không đưa đáp án lộ
+          trong câu hỏi, trả về lỗi nếu thiếu ngữ cảnh.
+\end{enumerate}
+
+\begin{table}[H]
+    \centering
+    \caption{Các kỹ thuật prompt engineering áp dụng trong hệ thống}
+    \label{tab:prompt-engineering-techniques}
+    \begin{tabular}{p{3.4cm}p{4.6cm}p{5.5cm}}
+        \toprule
+        \textbf{Kỹ thuật} & \textbf{Mô tả} & \textbf{Ứng dụng trong đề tài} \\
+        \midrule
+        Role Prompting & Gán vai trò chuyên môn cho mô hình. & ``Bạn là giảng viên đại học đang soạn quiz cho học viên''. \\
+        Constraint Prompting & Đặt ràng buộc về số lượng, độ dài, độ khó và ngôn ngữ. & Sinh đúng 5 câu hỏi, mỗi câu có 4 đáp án và giải thích ngắn. \\
+        Context Grounding & Cung cấp ngữ cảnh truy xuất từ tài liệu. & Yêu cầu câu trả lời chỉ dựa trên chunk được đưa vào. \\
+        Few-shot Example & Cung cấp ví dụ đầu ra mong muốn. & Minh họa một quiz item đạt schema và Bloom level. \\
+        Self-check Instruction & Yêu cầu mô hình tự kiểm tra trước khi trả lời. & Kiểm tra đáp án đúng duy nhất, không lộ đáp án, có citation. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Prompt Engineering giúp tăng chất lượng đầu ra nhưng không đủ để đảm bảo tuyệt
+đối. Do đó, hệ thống vẫn cần kiểm tra schema, kiểm tra dữ liệu nguồn, giới hạn
+quyền truy cập và review bởi giảng viên.
+
+\subsection{Structured Output Generation}
+\label{subsec:structured-output-generation}
+
+Structured Output Generation là kỹ thuật yêu cầu LLM trả về dữ liệu theo cấu
+trúc xác định, ví dụ JSON, thay vì văn bản tự do. Trong hệ thống LMS, đầu ra có
+cấu trúc rất quan trọng vì kết quả AI cần được lưu vào cơ sở dữ liệu, hiển thị
+trên UI, chỉnh sửa bởi giảng viên và đánh giá bằng các tiêu chí tự động.
+
+Nếu LLM sinh văn bản tự do, hệ thống khó biết đâu là câu hỏi, đâu là đáp án
+đúng, đâu là giải thích hoặc nguồn. Ngược lại, với schema rõ ràng, backend có
+thể validate từng trường và từ chối dữ liệu không hợp lệ. Ví dụ, một quiz item
+có thể được mô hình hóa như sau:
+
+\begin{lstlisting}[caption={Ví dụ cấu trúc đầu ra cho quiz item}]
+{
+  "question": "Cau hoi ...",
+  "options": ["A", "B", "C", "D"],
+  "correct_index": 1,
+  "explanation": "Giai thich ngan gon ...",
+  "bloom_level": "Understand",
+  "source_chunk_id": "chunk-123"
+}
+\end{lstlisting}
+
+Sau khi nhận kết quả, hệ thống cần kiểm tra:
+
+\begin{itemize}
+    \item JSON có parse được hay không.
+    \item Số lượng option đúng yêu cầu.
+    \item \texttt{correct\_index} nằm trong phạm vi hợp lệ.
+    \item \texttt{bloom\_level} thuộc tập giá trị cho phép.
+    \item \texttt{source\_chunk\_id} tồn tại trong tài liệu của khóa học.
+    \item Câu hỏi, đáp án và giải thích không rỗng.
+\end{itemize}
+
+Khi dữ liệu không đạt, hệ thống có thể retry bằng prompt sửa lỗi hoặc chuyển
+kết quả sang trạng thái cần review. Cách làm này giúp giảm lỗi vận hành do đầu
+ra LLM không ổn định.
+
+\subsection{Hallucination trong hệ thống giáo dục}
+\label{subsec:hallucination-giao-duc}
+
+Hallucination là hiện tượng LLM sinh ra thông tin không chính xác, không có
+trong nguồn hoặc không phù hợp với ngữ cảnh, nhưng vẫn diễn đạt mạch lạc và có
+vẻ thuyết phục. Trong giáo dục, hallucination là rủi ro lớn vì học viên có thể
+tiếp nhận sai kiến thức, còn giảng viên có thể mất thời gian phát hiện và sửa
+lỗi.
+
+Các nguyên nhân thường gặp gồm:
+
+\begin{itemize}
+    \item prompt thiếu nguồn tài liệu cụ thể;
+    \item mô hình suy diễn dựa trên tri thức tổng quát thay vì tài liệu khóa
+          học;
+    \item truy xuất sai chunk hoặc thiếu ngữ cảnh quan trọng;
+    \item yêu cầu sinh nội dung vượt quá phạm vi dữ liệu;
+    \item output không được kiểm tra và review trước khi publish.
+\end{itemize}
+
+Trong hệ thống đề xuất, hallucination được giảm bằng các nguyên tắc sau:
+
+\begin{enumerate}
+    \item \textbf{Retrieval-first}: mọi câu trả lời hoặc nội dung sinh ra nên
+          dựa trên chunk được truy xuất từ tài liệu khóa học.
+    \item \textbf{Citation}: micro-content, quiz và chatbot answer cần liên kết
+          nguồn đến document/chunk gốc.
+    \item \textbf{Structured output}: đầu ra được validate trước khi lưu.
+    \item \textbf{Human-in-the-loop}: giảng viên review trước khi publish cho
+          học viên.
+    \item \textbf{Refusal rule}: nếu không tìm thấy ngữ cảnh phù hợp, chatbot
+          phải trả lời rằng nội dung không có trong khóa học thay vì tự bịa.
+\end{enumerate}
+
+\section{Retrieval-Augmented Generation (RAG)}
+\label{sec:rag}
+
+\subsection{Kiến trúc RAG}
+\label{subsec:kien-truc-rag}
+
+Retrieval-Augmented Generation (RAG) là kiến trúc kết hợp truy xuất thông tin
+với mô hình sinh ngôn ngữ \cite{lewis2020rag}. Thay vì để LLM trả lời hoàn
+toàn dựa trên tri thức đã học trong quá trình huấn luyện, hệ thống sẽ truy xuất
+các đoạn tài liệu liên quan và đưa chúng vào prompt làm ngữ cảnh.
+
+Kiến trúc RAG cơ bản gồm năm bước:
+
+\begin{enumerate}
+    \item \textbf{Ingestion}: tài liệu được parse, chia chunk, tạo embedding và
+          lưu vào vector database.
+    \item \textbf{Query understanding}: câu hỏi của người dùng hoặc yêu cầu
+          sinh nội dung được chuẩn hóa.
+    \item \textbf{Retrieval}: hệ thống tìm top-K chunk liên quan trong kho
+          vector, có thể lọc theo course, document, role hoặc Learning Outcome.
+    \item \textbf{Prompt assembly}: các chunk liên quan được đưa vào prompt
+          cùng instruction và schema đầu ra.
+    \item \textbf{Generation}: LLM sinh câu trả lời, micro-content hoặc quiz
+          dựa trên ngữ cảnh đã truy xuất.
+\end{enumerate}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.88\textwidth,height=0.68\textheight,keepaspectratio]{diagrams/usecase_diagram.png}
-    \caption{Use case diagram tổng quát của hệ thống.}
-    \label{fig:usecase-diagram-lvtn}
+    \begin{tikzpicture}[
+        node distance=1.2cm,
+        box/.style={draw, rounded corners, align=center, minimum width=3.1cm, minimum height=1cm},
+        arrow/.style={->, thick}
+    ]
+        \node[box] (doc) {Tài liệu\\PDF/DOCX/PPTX};
+        \node[box, right=of doc] (chunk) {Parse\\Chunk\\Embedding};
+        \node[box, right=of chunk] (store) {Vector DB\\Metadata};
+        \node[box, below=of store] (retrieve) {Retrieve\\top-K chunk};
+        \node[box, left=of retrieve] (prompt) {Prompt\\+ Context};
+        \node[box, left=of prompt] (llm) {LLM\\Generation};
+        \draw[arrow] (doc) -- (chunk);
+        \draw[arrow] (chunk) -- (store);
+        \draw[arrow] (store) -- (retrieve);
+        \draw[arrow] (retrieve) -- (prompt);
+        \draw[arrow] (prompt) -- (llm);
+    \end{tikzpicture}
+    \caption{Kiến trúc RAG tổng quát trong hệ thống}
+    \label{fig:rag-architecture}
 \end{figure}
 
-Các use case chính gồm upload tài liệu, xử lý tài liệu tự động, review nội
-dung, publish khóa học, học bằng card, làm quiz, tìm kiếm ngữ nghĩa, ingest
-curriculum và quản lý tài khoản. Tác nhân AI Pipeline được mô hình hóa riêng
-vì quá trình xử lý diễn ra bất đồng bộ sau khi người dùng upload tài liệu.
+Trong hệ thống giáo dục, RAG có vai trò đặc biệt quan trọng vì tài liệu khóa
+học là nguồn sự thật chính. Cùng một câu hỏi, câu trả lời phù hợp phải bám vào
+nội dung môn học, cách định nghĩa của giảng viên và phạm vi chương trình.
 
-\subsection{Đặc tả các Use Case chính}
+\subsection{Semantic Retrieval}
+\label{subsec:semantic-retrieval}
 
-\subsubsection{UC-01: Upload tài liệu}
+Semantic Retrieval là quá trình truy xuất tài liệu dựa trên ý nghĩa thay vì
+khớp từ khóa chính xác. Mỗi chunk và mỗi query được biểu diễn thành một vector
+embedding trong không gian nhiều chiều. Các văn bản có ý nghĩa gần nhau sẽ có
+vector gần nhau theo một độ đo như cosine similarity.
+
+Với embedding model \(f\), một chunk \(c_i\) được biểu diễn thành vector:
+
+\[
+    \vec{e_i} = f(c_i)
+\]
+
+Một truy vấn \(q\) được biểu diễn thành:
+
+\[
+    \vec{e_q} = f(q)
+\]
+
+Độ tương đồng cosine giữa query và chunk được tính như sau:
+
+\[
+    sim(\vec{e_q}, \vec{e_i}) =
+    \frac{\vec{e_q} \cdot \vec{e_i}}{\|\vec{e_q}\| \|\vec{e_i}\|}
+\]
+
+Hệ thống chọn các chunk có similarity cao nhất để đưa vào context. Để tránh
+truy xuất sai phạm vi, semantic retrieval cần kết hợp với metadata filtering:
+lọc theo \texttt{course\_id}, \texttt{document\_id}, trạng thái publish, quyền
+truy cập và Learning Outcome nếu có. Các mô hình embedding đa ngôn ngữ như
+BGE-M3 có thể hỗ trợ truy xuất tiếng Việt và tiếng Anh trong cùng không gian
+biểu diễn \cite{chen2024bge}.
+
+\subsection{Curriculum-aware Retrieval}
+\label{subsec:curriculum-aware-retrieval}
+
+Curriculum-aware Retrieval là mở rộng của semantic retrieval trong bối cảnh
+giáo dục. Thay vì chỉ tìm chunk gần nhất với query, hệ thống còn xét đến cấu
+trúc chương trình học như Course, Chapter, Learning Outcome, Bloom level và
+Assessment. Cách tiếp cận này giúp truy xuất đúng phần kiến thức mà giảng viên
+muốn đánh giá hoặc học viên cần ôn tập.
+
+Ví dụ, nếu giảng viên yêu cầu sinh quiz cho LO-3.2, hệ thống không nên lấy mọi
+chunk có từ khóa giống câu hỏi. Nó cần ưu tiên các chunk đã được map với
+LO-3.2, nằm trong chương liên quan và có trạng thái đã review. Nếu học viên
+yếu ở một LO cụ thể, hệ thống có thể tìm các card, flashcard và quiz liên quan
+đến LO đó để đề xuất ôn tập.
+
+Một pipeline curriculum-aware có thể gồm:
+
+\begin{enumerate}
+    \item Trích xuất hoặc nhập danh sách Learning Outcome từ đề cương môn học.
+    \item Map chunk tài liệu với Learning Outcome bằng heading, keyword,
+          embedding similarity hoặc LLM.
+    \item Lưu quan hệ chunk--LO trong metadata store hoặc graph database.
+    \item Khi truy xuất, lọc hoặc tăng trọng số các chunk thuộc LO mục tiêu.
+    \item Sinh nội dung/quiz và ghi lại LO, Bloom level, source chunk để phục
+          vụ analytics.
+\end{enumerate}
+
+Curriculum-aware Retrieval là nền tảng cho các chức năng như Bloom-aware Quiz
+Generation, dashboard LO yếu và adaptive learning trong các giai đoạn sau.
+
+\subsection{GraphRAG}
+\label{subsec:graphrag}
+
+GraphRAG là hướng kết hợp RAG với Knowledge Graph. Trong RAG truyền thống, đơn
+vị truy xuất chính là chunk văn bản. Trong GraphRAG, hệ thống bổ sung các node
+và edge biểu diễn quan hệ giữa Course, Chapter, Learning Outcome, Concept,
+Chunk, Quiz và Assessment. Nhờ đó, truy xuất không chỉ dựa trên similarity mà
+còn dựa trên quan hệ có cấu trúc.
+
+Trong hệ thống đề xuất, GraphRAG được hiểu theo hướng curriculum-aware, không
+nhất thiết phải trích xuất toàn bộ tri thức thế giới thành đồ thị. Các quan hệ
+quan trọng gồm:
+
+\begin{itemize}
+    \item Course chứa Chapter.
+    \item Chapter có Learning Outcome.
+    \item Chunk hỗ trợ Learning Outcome.
+    \item Quiz đo Learning Outcome.
+    \item Concept xuất hiện trong Chunk.
+\end{itemize}
 
 \begin{table}[H]
     \centering
-    \caption{Thông tin UC-01: Upload tài liệu.}
-    \label{tab:uc-upload-lvtn}
-    \begin{tabular}{p{3.5cm}p{10.5cm}}
+    \caption{So sánh RAG truyền thống và GraphRAG trong hệ thống giáo dục}
+    \label{tab:rag-vs-graphrag-c3}
+    \begin{tabular}{p{3.8cm}p{4.8cm}p{5.2cm}}
         \toprule
-        \textbf{Thuộc tính} & \textbf{Mô tả} \\
+        \textbf{Tiêu chí} & \textbf{RAG truyền thống} & \textbf{GraphRAG / Curriculum-aware RAG} \\
         \midrule
-        Tác nhân chính & Giảng viên \\
-        Tác nhân phụ & AI Pipeline, Object Storage \\
-        Mục tiêu & Đưa tài liệu học tập vào hệ thống để bắt đầu pipeline sinh nội dung. \\
-        Tiền điều kiện & Giảng viên đã xác thực; khóa học hoặc context LMS đã tồn tại. \\
-        Hậu điều kiện & File được lưu, document metadata được tạo, job xử lý được enqueue. \\
+        Đơn vị truy xuất & Chunk văn bản & Chunk kết hợp node/edge như LO, Chapter, Concept \\
+        Cách tìm kiếm & Vector similarity & Vector similarity + metadata filter + graph traversal \\
+        Bám chuẩn đầu ra & Phụ thuộc metadata đơn giản & Có quan hệ tường minh giữa Chunk và Learning Outcome \\
+        Sinh quiz theo LO & Có thể lệch nếu query mơ hồ & Ưu tiên chunk hỗ trợ LO mục tiêu \\
+        Độ phức tạp triển khai & Thấp hơn & Cao hơn do cần graph schema và đồng bộ dữ liệu \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-Luồng chính:
-\begin{enumerate}
-    \item Giảng viên mở màn hình quản lý tài liệu.
-    \item Giảng viên chọn file PDF/DOCX/PPTX và nhập metadata cơ bản.
-    \item Frontend kiểm tra định dạng và kích thước.
-    \item Backend lưu file vào MinIO và tạo document ở trạng thái
-          \texttt{QUEUED}.
-    \item Backend enqueue job xử lý tài liệu.
-    \item Frontend chuyển sang màn hình theo dõi tiến trình.
-\end{enumerate}
+GraphRAG không thay thế semantic retrieval mà bổ sung một lớp cấu trúc. Trong
+MVP, hệ thống có thể dùng metadata và quan hệ chunk--LO ở mức cơ bản. Khi mở
+rộng, graph có thể được dùng để rerank kết quả, giải thích vì sao một chunk
+được chọn hoặc sinh quiz đòi hỏi liên kết nhiều khái niệm.
 
-Luồng thay thế gồm file sai định dạng, lưu file thất bại hoặc queue tạm thời
-không khả dụng. Trong các trường hợp này, hệ thống cần hiển thị lỗi rõ ràng và
-cho phép retry khi phù hợp.
+\section{Text Chunking và Document Intelligence}
+\label{sec:text-chunking-document-intelligence}
 
-\subsubsection{UC-02: Xử lý tài liệu tự động}
+\subsection{Fixed-size Chunking}
+\label{subsec:fixed-size-chunking}
 
-\begin{table}[H]
-    \centering
-    \caption{Thông tin UC-02: Xử lý tài liệu tự động.}
-    \label{tab:uc-process-lvtn}
-    \begin{tabular}{p{3.5cm}p{10.5cm}}
-        \toprule
-        \textbf{Thuộc tính} & \textbf{Mô tả} \\
-        \midrule
-        Tác nhân chính & AI Pipeline \\
-        Mục tiêu & Chuyển tài liệu thô thành chunk, embedding, card và quiz. \\
-        Tiền điều kiện & File tồn tại trong MinIO; document ở trạng thái \texttt{QUEUED}. \\
-        Hậu điều kiện & Document có chunks, vectors, generated cards/quizzes và trạng thái \texttt{DONE}. \\
-        \bottomrule
-    \end{tabular}
-\end{table}
+Fixed-size Chunking là chiến lược chia văn bản theo kích thước cố định, ví dụ
+500 hoặc 1000 token mỗi chunk. Đây là cách triển khai đơn giản, dễ kiểm soát
+chi phí và phù hợp khi tài liệu không có cấu trúc rõ ràng.
 
-Luồng chính:
-\begin{enumerate}
-    \item Worker nhận job từ queue.
-    \item Worker tải file từ MinIO và chọn parser theo loại file.
-    \item Parser trích xuất text, heading và metadata.
-    \item Chunker chia tài liệu thành các đơn vị học tập.
-    \item Embedder tạo vector và upsert vào Qdrant.
-    \item LLM adapter sinh card/quiz cho từng chunk hoặc nhóm chunk.
-    \item Metadata store lưu kết quả vào PostgreSQL.
-    \item Document chuyển sang \texttt{DONE}.
-\end{enumerate}
+Ưu điểm của fixed-size chunking là mỗi chunk có kích thước tương đối đồng đều,
+giúp dự đoán chi phí embedding và số token đưa vào LLM. Tuy nhiên, nhược điểm
+lớn là nó có thể cắt ngang câu, bảng hoặc ý nghĩa hoàn chỉnh. Một khái niệm có
+thể bị chia sang hai chunk khác nhau, làm giảm chất lượng retrieval và khiến
+LLM thiếu ngữ cảnh khi sinh nội dung.
 
-Luồng thay thế gồm parser lỗi, LLM timeout hoặc Qdrant unavailable. Các lỗi
-tạm thời được retry có giới hạn; lỗi cuối cùng được ghi log và chuyển document
-sang \texttt{ERROR}.
+Trong hệ thống đề xuất, fixed-size chunking phù hợp như phương án fallback khi
+tài liệu không có heading, parser không trích xuất được cấu trúc hoặc nội dung
+đầu vào là plain text.
 
-\subsubsection{UC-03: Review và publish nội dung}
+\subsection{Heading-based Chunking}
+\label{subsec:heading-based-chunking}
 
-\begin{table}[H]
-    \centering
-    \caption{Thông tin UC-03: Review và publish nội dung.}
-    \label{tab:uc-review-lvtn}
-    \begin{tabular}{p{3.5cm}p{10.5cm}}
-        \toprule
-        \textbf{Thuộc tính} & \textbf{Mô tả} \\
-        \midrule
-        Tác nhân chính & Giảng viên \\
-        Mục tiêu & Kiểm duyệt nội dung do AI sinh ra trước khi học viên truy cập. \\
-        Quy tắc nghiệp vụ & Nội dung chưa review không được publish; hệ thống phải lưu dấu vết chỉnh sửa quan trọng. \\
-        \bottomrule
-    \end{tabular}
-\end{table}
+Heading-based Chunking chia tài liệu dựa trên cấu trúc heading như chương,
+mục, tiểu mục hoặc slide title. Đây là chiến lược phù hợp với tài liệu học
+thuật vì nội dung thường được tổ chức theo chủ đề. Khi chunk bám theo heading,
+mỗi chunk có khả năng chứa một đơn vị kiến thức tương đối hoàn chỉnh.
 
-Luồng chính:
-\begin{enumerate}
-    \item Giảng viên mở màn hình review của document đã xử lý.
-    \item Hệ thống hiển thị card, quiz, đáp án, giải thích và nguồn chunk.
-    \item Giảng viên chỉnh sửa hoặc xóa nội dung chưa phù hợp.
-    \item Giảng viên đánh dấu section/document đã review.
-    \item Giảng viên publish nội dung cho học viên.
-\end{enumerate}
+Ví dụ, một tài liệu có cấu trúc:
 
-\subsubsection{UC-04: Học bằng card và làm quiz}
+\begin{itemize}
+    \item Chương 1: Tổng quan
+    \item 1.1 Khái niệm cơ bản
+    \item 1.2 Ví dụ minh họa
+\end{itemize}
 
-\begin{table}[H]
-    \centering
-    \caption{Thông tin UC-04: Học bằng card và làm quiz.}
-    \label{tab:uc-learn-lvtn}
-    \begin{tabular}{p{3.5cm}p{10.5cm}}
-        \toprule
-        \textbf{Thuộc tính} & \textbf{Mô tả} \\
-        \midrule
-        Tác nhân chính & Học viên \\
-        Mục tiêu & Học viên tiếp cận nội dung ngắn, làm câu hỏi kiểm tra và nhận phản hồi. \\
-        Dữ liệu lưu & Learning progress, quiz submission, score, timestamp và context bài học. \\
-        \bottomrule
-    \end{tabular}
-\end{table}
+Hệ thống có thể tạo chunk theo từng mục và lưu \texttt{heading\_path} để biết
+chunk thuộc vị trí nào. Metadata này rất quan trọng cho citation, giao diện
+review và truy xuất theo chương.
 
-Luồng chính:
-\begin{enumerate}
-    \item Học viên mở bài học từ LMS hoặc trang học tập.
-    \item Hệ thống hiển thị danh sách card đã publish.
-    \item Học viên đọc card và chuyển sang quiz tương ứng.
-    \item Học viên chọn đáp án.
-    \item Hệ thống hiển thị đúng/sai, giải thích và lưu kết quả.
-\end{enumerate}
+Nhược điểm của heading-based chunking là phụ thuộc vào chất lượng tài liệu gốc.
+Nếu file PDF không có cấu trúc heading rõ, hoặc slide dùng style không nhất
+quán, hệ thống cần fallback sang chunking theo đoạn, câu hoặc kích thước.
 
-\section{Luồng nghiệp vụ chính}
+\subsection{Semantic Chunking}
+\label{subsec:semantic-chunking}
 
-\subsection{Activity Diagrams}
+Semantic Chunking là chiến lược chia văn bản dựa trên sự thay đổi ngữ nghĩa
+giữa các đoạn. Thay vì chỉ dựa vào số token hoặc heading, hệ thống phân tích
+embedding của câu/đoạn để tìm điểm tách khi chủ đề thay đổi. Về lý thuyết,
+semantic chunking tạo ra các chunk tự nhiên hơn và giữ được tính toàn vẹn ý
+nghĩa tốt hơn.
 
-Luồng nghiệp vụ xử lý tài liệu gồm hai nhóm bước chính. Nhóm thứ nhất chuẩn
-hóa tri thức từ tài liệu gốc thông qua parse, chunk, embed và persist. Nhóm
-thứ hai sinh nội dung học tập thông qua LLM generation, validation và review.
-Việc tách hai nhóm bước giúp hệ thống tái sử dụng chunk và embedding cho nhiều
-tác vụ khác nhau như search, RAG chatbot hoặc sinh quiz theo Learning Outcome.
+Tuy nhiên, semantic chunking có chi phí cao hơn vì cần tạo embedding ở mức câu
+hoặc đoạn trước khi quyết định điểm cắt. Nó cũng phức tạp hơn trong việc debug:
+giảng viên và lập trình viên khó dự đoán vì sao hệ thống tách tại vị trí cụ
+thể. Do đó, trong phạm vi hệ thống, semantic chunking phù hợp như hướng tối ưu
+chất lượng retrieval ở giai đoạn sau, còn MVP ưu tiên heading-based chunking
+kết hợp fallback.
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.92\textwidth]{diagrams/dataflow_text_pipeline.png}
-    \caption{Activity/dataflow cho pipeline xử lý tài liệu văn bản.}
-    \label{fig:activity-text-pipeline-lvtn}
-\end{figure}
+\subsection{Sliding Window và Overlap}
+\label{subsec:sliding-window-overlap}
 
-\subsection{Dataflow Diagrams}
+Sliding Window là kỹ thuật chia văn bản thành các cửa sổ có kích thước cố định
+và dịch dần theo một bước nhất định. Overlap là phần chồng lấn giữa hai chunk
+liên tiếp. Ví dụ, nếu chunk size là 800 token và overlap là 100 token, chunk
+sau sẽ lặp lại 100 token cuối của chunk trước.
 
-Luồng RAG bắt đầu từ câu hỏi của học viên hoặc yêu cầu sinh quiz của giảng
-viên. Hệ thống tạo embedding cho query, truy xuất chunk liên quan trong
-Qdrant, kết hợp metadata và quan hệ trong Knowledge Graph nếu có, sau đó đưa
-context vào LLM để sinh câu trả lời hoặc nội dung học tập.
+Overlap giúp giảm nguy cơ mất ngữ cảnh ở ranh giới chunk. Đây là vấn đề quan
+trọng trong tài liệu học thuật, vì định nghĩa có thể nằm ở cuối một đoạn còn ví
+dụ nằm ở đầu đoạn tiếp theo. Nếu không overlap, query có thể truy xuất thiếu
+phần liên quan.
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.92\textwidth]{diagrams/dataflow_rag_chatbot.png}
-    \caption{Dataflow cho truy xuất RAG và chatbot học tập.}
-    \label{fig:activity-rag-lvtn}
-\end{figure}
+Tuy nhiên, overlap cũng làm tăng số lượng token, tăng chi phí embedding và có
+thể tạo kết quả trùng lặp trong retrieval. Vì vậy, overlap cần được chọn vừa
+đủ. Trong hệ thống đề xuất, sliding window được dùng chủ yếu khi một heading
+section quá dài hoặc khi phải fallback từ tài liệu không có cấu trúc.
 
-Các quy tắc nghiệp vụ cần được duy trì trong các luồng trên:
-\begin{enumerate}
-    \item Học viên chỉ nhìn thấy nội dung đã publish.
-    \item Nội dung AI sinh ra phải có nguồn liên kết đến document/chunk gốc.
-    \item Quiz sinh theo LO phải lưu LO code, Bloom level và rationale nếu có.
-    \item Job xử lý tài liệu phải có trạng thái cuối rõ ràng: \texttt{DONE}
-          hoặc \texttt{ERROR}.
-    \item Lỗi LLM hoặc vector DB không được làm mất document gốc.
-    \item LTI launch phải xác thực trước khi tạo session học tập.
-\end{enumerate}
+\subsection{Trade-off trong thiết kế chunk}
+\label{subsec:tradeoff-thiet-ke-chunk}
+
+Thiết kế chunk là một trong những quyết định quan trọng nhất của pipeline RAG.
+Chunk quá ngắn giúp retrieval chính xác ở mức câu nhưng dễ thiếu ngữ cảnh để
+LLM sinh câu trả lời hoặc quiz. Chunk quá dài giữ được nhiều ngữ cảnh hơn nhưng
+có thể làm loãng nội dung, tăng chi phí token và khiến kết quả semantic search
+kém sắc nét.
+
+\begin{longtable}{|p{3cm}|p{4.2cm}|p{6.8cm}|}
+\caption{Trade-off trong thiết kế chunk}
+\label{tab:chunking-tradeoff}\\
+\hline
+\textbf{Yếu tố} & \textbf{Nếu chọn quá thấp / nhỏ} & \textbf{Nếu chọn quá cao / lớn} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Yếu tố} & \textbf{Nếu chọn quá thấp / nhỏ} & \textbf{Nếu chọn quá cao / lớn} \\
+\hline
+\endhead
+Kích thước chunk & Thiếu ngữ cảnh, khó sinh câu hỏi có giải thích đầy đủ. & Loãng nội dung, retrieval kém chính xác, tăng token đưa vào LLM. \\
+\hline
+Overlap & Dễ mất thông tin ở ranh giới chunk. & Tăng số chunk, tăng chi phí embedding, dễ trả kết quả trùng lặp. \\
+\hline
+Số lượng top-K & Có thể bỏ sót chunk liên quan. & Prompt dài, nhiễu ngữ cảnh, tăng chi phí và latency. \\
+\hline
+Độ sâu heading & Chunk quá rộng nếu chỉ lấy heading cấp cao. & Chunk quá vụn nếu tách đến heading quá nhỏ. \\
+\hline
+Metadata nguồn & Khó citation và review nếu metadata nghèo. & Metadata quá phức tạp làm tăng chi phí lưu trữ và đồng bộ. \\
+\hline
+\end{longtable}
+
+Với tài liệu học thuật, chiến lược phù hợp là ưu tiên heading-based chunking,
+sau đó áp dụng sliding window cho section quá dài. Mỗi chunk cần lưu metadata
+tối thiểu gồm \texttt{document\_id}, \texttt{chunk\_id},
+\texttt{heading\_path}, vị trí trang hoặc timestamp, ngôn ngữ và trạng thái
+publish/review. Các metadata này là nền tảng cho RAG, GraphRAG,
+curriculum-aware retrieval và human-in-the-loop review.

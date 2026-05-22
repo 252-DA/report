@@ -1,160 +1,975 @@
-\chapter{Nền tảng lý thuyết và công nghệ}
+\chapter{Khảo sát và phân tích hệ thống}
+\label{chap:khao-sat-phan-tich-he-thong}
 
-\section{Micro-learning và Bloom Taxonomy}
+\section{Khảo sát thực trạng E-learning và nhu cầu AI trong LMS hiện đại}
+\label{sec:khao-sat-thuc-trang-elearning}
 
-Micro-learning là cách tổ chức nội dung học tập thành các đơn vị nhỏ, tập
-trung vào một khái niệm hoặc kỹ năng cụ thể. Trong bối cảnh LMS, mỗi đơn vị có
-thể được biểu diễn dưới dạng lesson card, flashcard, câu hỏi tự kiểm tra hoặc
-một đoạn giải thích ngắn. Cách tiếp cận này phù hợp với nhu cầu ôn tập nhanh,
-học lặp lại và theo dõi tiến độ theo từng phần nhỏ của học phần.
+Trong nhiều năm, các hệ thống quản lý học tập (Learning Management System ---
+LMS) đóng vai trò trung tâm trong việc tổ chức lớp học số. LMS giúp giảng viên
+phân phối tài liệu, giao bài, tạo quiz, quản lý điểm, theo dõi tiến độ học tập
+và giao tiếp với học viên. Tuy nhiên, phần lớn LMS truyền thống được thiết kế
+chủ yếu theo tư duy \textbf{quản trị khóa học} hơn là \textbf{hỗ trợ học tập
+thích ứng}. Nội dung học vẫn thường được tạo thủ công, trải nghiệm học còn
+tuyến tính, và việc cá nhân hóa theo năng lực từng học viên còn hạn chế.
 
-Đối với đề tài, Micro-learning không chỉ là định dạng hiển thị mà còn ảnh
-hưởng đến pipeline xử lý tài liệu. Tài liệu dài cần được chia thành các chunk
-có ngữ cảnh đủ rõ, sau đó chuyển thành nội dung học tập ngắn có liên kết nguồn
-và có thể kiểm duyệt bởi giảng viên.
+Sự phát triển nhanh của Generative AI mở ra khả năng chuyển đổi LMS từ một hệ
+thống lưu trữ và phân phối nội dung thành một lớp hỗ trợ thông minh, có thể
+phân tích tài liệu, tạo học liệu vi mô, sinh câu hỏi, hỗ trợ hỏi đáp theo ngữ
+cảnh và cung cấp tín hiệu học tập cho giảng viên. Vì vậy, trước khi thiết kế hệ
+thống đề xuất, cần khảo sát quy trình E-learning hiện tại, các điểm nghẽn trong
+quá trình tạo học liệu và các nhu cầu AI cốt lõi trong LMS hiện đại.
 
-Bloom Taxonomy được sử dụng để phân loại mức độ nhận thức của Learning
-Outcome và câu hỏi. Sáu mức gồm Remember, Understand, Apply, Analyze,
-Evaluate và Create. Với quiz trắc nghiệm trong phạm vi hệ thống, các mức
-Remember, Understand, Apply và Analyze là phù hợp nhất; Evaluate và Create
-thường cần dạng tự luận hoặc bài tập dự án.
+\subsection{Quy trình tổ chức học tập trên LMS truyền thống}
 
-Hệ thống sử dụng Bloom level như metadata và ràng buộc sinh câu hỏi. Ví dụ,
-Learning Outcome có động từ ``trình bày'', ``liệt kê'' thường gắn với
-Remember; ``giải thích'', ``phân biệt'' thường gắn với Understand; ``áp
-dụng'', ``tính toán'' thường gắn với Apply; ``phân tích'', ``so sánh'' thường
-gắn với Analyze hoặc Evaluate tùy ngữ cảnh. Bloom level ảnh hưởng đến prompt,
-độ khó câu hỏi và rubric đánh giá chất lượng quiz.
+Một khóa học trên LMS truyền thống thường được tổ chức theo cấu trúc gồm khóa
+học, module/chủ đề, tài liệu, bài tập, quiz, diễn đàn, thông báo và gradebook.
+Giảng viên là người thiết kế chính: chuẩn bị tài liệu, chia nhỏ nội dung theo
+tuần hoặc chương, upload file, tạo bài kiểm tra, cấu hình deadline và theo dõi
+kết quả của học viên.
 
-\section{Mô hình ngôn ngữ lớn (LLM) và Generative AI}
+Quy trình phổ biến có thể mô tả như sau:
 
-Mô hình ngôn ngữ lớn (Large Language Model --- LLM) là mô hình học sâu có khả
-năng hiểu, sinh và biến đổi ngôn ngữ tự nhiên. Trong hệ thống, LLM được dùng
-cho các tác vụ cần diễn giải tri thức:
-\begin{itemize}
-    \item Tóm tắt chunk thành Micro-Content hoặc Flashcard.
-    \item Sinh câu hỏi trắc nghiệm, đáp án đúng, distractor và giải thích.
-    \item Chuẩn hóa hoặc trích xuất thông tin từ đề cương môn học khi parser
-          heuristic không đủ.
-    \item Hỗ trợ RAG chatbot hoặc trợ lý học tập trong hướng mở rộng.
-\end{itemize}
-
-Để giảm phụ thuộc vào một provider cụ thể, hệ thống đặt LLM sau interface
-\texttt{LLMClient}. Use case chỉ yêu cầu một contract: nhận prompt có cấu trúc
-và trả về dữ liệu đúng schema. Provider như Gemini, GPT hoặc mô hình mã nguồn
-mở có thể được thay đổi ở tầng adapter mà không làm thay đổi nghiệp vụ cốt
-lõi.
-
-Prompt được thiết kế theo nguyên tắc: nêu vai trò, nêu nhiệm vụ, đưa dữ liệu
-nguồn, yêu cầu định dạng đầu ra và ràng buộc chất lượng. Với quiz generation,
-prompt cần chứa context chunk, Learning Outcome nếu có, Bloom level mục tiêu,
-số lượng câu hỏi, ngôn ngữ và schema JSON đầu ra gồm question, options,
-correct answer, explanation, source chunk và rationale.
-
-Sau khi LLM trả về, hệ thống cần validate JSON, kiểm tra số lượng option, đáp
-án đúng, độ dài câu hỏi và giải thích. Nếu JSON lỗi, adapter có thể retry với
-prompt sửa lỗi. Nếu nội dung vẫn không đạt, kết quả được đánh dấu cần review
-thay vì publish tự động.
-
-\section{Kiến trúc RAG và GraphRAG trong giáo dục}
-
-Retrieval-Augmented Generation (RAG) kết hợp truy xuất thông tin với LLM.
-Thay vì để LLM trả lời dựa hoàn toàn trên tri thức nội tại, hệ thống cung cấp
-context từ tài liệu đã xử lý. Cách tiếp cận này giúp tăng khả năng bám sát
-tài liệu gốc, cho phép liên kết nguồn chunk và giảm nguy cơ sinh nội dung
-không thuộc học phần.
-
-Pipeline RAG trong hệ thống gồm các bước cơ bản:
 \begin{enumerate}
-    \item Chuẩn hóa query hoặc yêu cầu sinh nội dung.
-    \item Tạo embedding cho query.
-    \item Tìm top-K chunk liên quan trong Qdrant.
-    \item Lọc theo course, document, chapter hoặc quyền truy cập LMS.
-    \item Lắp prompt từ instruction, Learning Outcome, Bloom level và context
-          chunk.
-    \item Gọi LLM để sinh câu trả lời, card hoặc quiz.
+    \item \textbf{Khởi tạo khóa học.} Giảng viên hoặc quản trị viên tạo course
+          shell trên LMS, thiết lập thông tin môn học, danh sách học viên, lịch
+          học và các quyền truy cập.
+    \item \textbf{Tổ chức nội dung.} Giảng viên upload slide, file PDF, tài
+          liệu đọc thêm, video bài giảng hoặc đường dẫn bên ngoài vào từng
+          module học.
+    \item \textbf{Thiết kế hoạt động học tập.} Giảng viên tạo assignment,
+          quiz, discussion hoặc các hoạt động tương tác khác để học viên thực
+          hành.
+    \item \textbf{Đánh giá và phản hồi.} Học viên làm bài, hệ thống ghi nhận
+          điểm, giảng viên chấm bài, phản hồi và cập nhật gradebook.
+    \item \textbf{Theo dõi tiến độ.} Giảng viên sử dụng báo cáo cơ bản của LMS
+          như số lượt truy cập, tỷ lệ hoàn thành, điểm trung bình để đánh giá
+          tình hình lớp học.
 \end{enumerate}
 
-GraphRAG mở rộng RAG bằng cách dùng Knowledge Graph để bổ sung quan hệ cấu
-trúc. Trong giáo dục, tri thức không chỉ là đoạn văn bản mà còn có quan hệ
-giữa Course, Chapter, Learning Outcome, Assessment và nội dung học tập. Khi
-giảng viên yêu cầu sinh quiz cho một LO cụ thể, hệ thống không chỉ tìm chunk
-gần query bằng vector similarity mà còn ưu tiên chunk có quan hệ hỗ trợ LO đó.
+Quy trình này phù hợp với mục tiêu quản lý lớp học trực tuyến, nhưng chưa giải
+quyết tốt bài toán tự động hóa soạn giảng, học tập cá nhân hóa và hỗ trợ học
+viên theo thời gian thực. LMS truyền thống thường lưu trữ rất nhiều dữ liệu học
+tập, nhưng chưa khai thác sâu các dữ liệu đó để tự điều chỉnh nội dung, phát
+hiện lỗ hổng kiến thức hoặc gợi ý hoạt động học phù hợp.
 
-Đề tài tiếp cận GraphRAG theo hướng curriculum-aware. Knowledge Graph được
-dùng để lọc, tăng trọng số hoặc giải thích mối liên hệ giữa nội dung và chuẩn
-đầu ra. Graph reasoning nhiều bước là hướng mở rộng, còn trọng tâm luận văn là
-xây dựng nền tảng truy xuất có ý thức về chương trình học.
+\subsection{Quy trình tạo học liệu và bài kiểm tra hiện tại}
 
-\section{Chuẩn tích hợp hệ thống học tập (LMS và LTI 1.3)}
+Trong thực tế, quá trình tạo học liệu số vẫn phụ thuộc lớn vào công sức của
+giảng viên. Với một tài liệu đầu vào như giáo trình, slide, PDF học thuật hoặc
+video bài giảng, giảng viên phải đọc, tóm tắt, chọn ý chính, chuyển thành bài
+học ngắn, viết câu hỏi, tạo đáp án, giải thích, kiểm tra lỗi và sau đó nhập lại
+vào LMS.
 
-Learning Management System (LMS) như Open edX hoặc Moodle đóng vai trò nền
-tảng quản lý khóa học, người dùng, tài liệu và hoạt động học tập. Thay vì xây
-dựng một LMS mới, đề tài thiết kế hệ thống như một công cụ học tập bên ngoài
-có thể nhúng vào LMS hiện hữu.
+\begin{longtable}{|p{3cm}|p{3cm}|p{4cm}|p{4cm}|}
+\caption{Quy trình tạo học liệu và bài kiểm tra hiện tại}
+\label{tab:quy-trinh-tao-hoc-lieu-hien-tai}\\
+\hline
+\textbf{Hoạt động} & \textbf{Đầu vào thường gặp} & \textbf{Thao tác thủ công} & \textbf{Rủi ro / hạn chế} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Hoạt động} & \textbf{Đầu vào thường gặp} & \textbf{Thao tác thủ công} & \textbf{Rủi ro / hạn chế} \\
+\hline
+\endhead
+Soạn nội dung bài học & Giáo trình, PDF, slide, DOCX & Đọc tài liệu, chọn ý chính, viết lại thành bài học & Tốn thời gian, dễ bỏ sót nội dung quan trọng \\
+\hline
+Tạo micro-content & Nội dung chương / bài & Chia nhỏ nội dung, viết summary, key concept, flashcard & Không đồng đều giữa các bài, phụ thuộc kinh nghiệm giảng viên \\
+\hline
+Tạo quiz & Learning Outcome, nội dung bài học & Viết câu hỏi, đáp án, distractor, giải thích & Khó bảo đảm bao phủ đủ kiến thức và mức Bloom \\
+\hline
+Gắn nội dung với chuẩn đầu ra & Đề cương môn học, learning outcome & Đọc DCMH, map từng nội dung với LO & Dễ thiếu nhất quán, khó cập nhật khi tài liệu thay đổi \\
+\hline
+Đưa lên LMS & File học liệu, quiz, rubric & Nhập liệu nhiều bước trong LMS & Mất thời gian, dễ lỗi định dạng \\
+\hline
+Theo dõi kết quả & Điểm quiz, log học tập & Xem báo cáo thủ công & Khó phát hiện sớm học viên yếu theo từng năng lực \\
+\hline
+\end{longtable}
 
-Learning Tools Interoperability (LTI) 1.3 là chuẩn cho phép LMS (platform)
-khởi chạy một công cụ bên ngoài (tool) với thông tin người dùng, course
-context và quyền truy cập đã được xác thực. Luồng LTI 1.3 dựa trên OIDC login
-và JWT đã ký. Khi người dùng mở activity từ LMS, LMS gửi launch request đến
-tool; tool kiểm tra issuer, client ID, deployment ID, nonce, chữ ký và claim
-người dùng trước khi tạo session nội bộ.
+Đối với các lớp đông hoặc môn học có nhiều tài liệu, khối lượng thao tác thủ
+công trở thành một điểm nghẽn lớn. Ngay cả khi giảng viên có chuyên môn tốt,
+việc chuyển kiến thức thành các đơn vị học ngắn, tương tác và có kiểm tra
+thường xuyên vẫn đòi hỏi nhiều thời gian. Điều này làm giảm khả năng cập nhật
+học liệu nhanh theo thay đổi của chương trình học, đặc biệt trong các môn công
+nghệ có nội dung biến động nhanh.
 
-Trong thiết kế của luận văn, Open edX là nền tảng tích hợp chính. Moodle được
-phân tích như nền tảng tương thích vì cùng hỗ trợ LTI external tool. Cách tích
-hợp này giúp hệ thống AI có thể được triển khai bên cạnh LMS mà không can
-thiệp sâu vào lõi của từng nền tảng.
+\subsection{Hạn chế của LMS truyền thống}
 
-\section{Nền tảng kiến trúc và công nghệ lõi}
+\subsubsection*{a. Phụ thuộc nhiều vào thao tác thủ công của giảng viên}
 
-\subsection{Hexagonal Architecture}
+LMS truyền thống cung cấp công cụ nhập liệu, quản lý và phân phối nội dung,
+nhưng phần lớn không tự hiểu nội dung học liệu. Hệ thống không tự biết một file
+PDF chứa những khái niệm chính nào, cần chia thành bao nhiêu bài học nhỏ, nên
+tạo câu hỏi ở mức độ nhận biết hay vận dụng, hoặc phần nào cần được nhấn mạnh
+cho học viên yếu. Do đó, giảng viên vẫn phải thực hiện toàn bộ quá trình chuyển
+đổi từ tài liệu thô sang hoạt động học tập.
 
-Hexagonal Architecture tách nghiệp vụ cốt lõi khỏi chi tiết hạ tầng. Phần
-domain/application chỉ phụ thuộc vào các port trừu tượng, còn các adapter cụ
-thể chịu trách nhiệm giao tiếp với PostgreSQL, Qdrant, Neo4j, MinIO, Redis,
-LLM provider hoặc LMS.
+Sự phụ thuộc này làm tăng chi phí vận hành khóa học. Với cùng một tài liệu đầu
+vào, mỗi giảng viên có thể tạo nội dung với mức chi tiết và phong cách khác
+nhau, dẫn đến chất lượng học liệu không đồng nhất giữa các lớp học hoặc học kỳ.
 
-Trong đề tài, cách tách lớp này giúp các use case như ProcessDocument,
-SearchChunks, IngestCurriculum hoặc GenerateCurriculumQuiz không bị phụ thuộc
-trực tiếp vào công nghệ lưu trữ hay provider AI. Khi cần thay Qdrant bằng
-vector database khác hoặc thay LLM provider, hệ thống chỉ cần thay adapter phù
-hợp.
+\subsubsection*{b. Thiếu khả năng cá nhân hóa theo người học}
 
-\subsection{Vector Database}
+Nhiều LMS tổ chức nội dung theo một lộ trình chung cho toàn bộ lớp. Học viên
+thường học cùng một thứ tự module, làm cùng một bộ quiz và nhận cùng một dạng
+phản hồi. Cách tiếp cận này chưa phản ánh sự khác biệt về nền tảng kiến thức,
+tốc độ tiếp thu và mục tiêu học tập của từng cá nhân.
 
-Vector database lưu embedding của chunk để phục vụ semantic search và RAG.
-Mỗi chunk sau khi được trích xuất từ tài liệu sẽ được chuyển thành vector số,
-kèm metadata như \texttt{chunk\_id}, \texttt{document\_id},
-\texttt{course\_id}, heading path, ngôn ngữ và vị trí trong tài liệu.
+Trong khi đó, dữ liệu học tập như lịch sử làm quiz, thời gian xem nội dung, số
+lần làm lại, câu hỏi thường sai và chủ đề thường hỏi chatbot có thể cung cấp
+tín hiệu quan trọng về năng lực của học viên. Nếu không có lớp phân tích thông
+minh, các tín hiệu này thường chỉ được hiển thị dưới dạng báo cáo tĩnh, chưa
+được chuyển hóa thành gợi ý học tập cụ thể.
 
-Qdrant được chọn cho giai đoạn luận văn vì có Docker image chính thức, API
-đơn giản, hỗ trợ payload filtering và phù hợp với môi trường tự host. Vector
-database là thành phần quyết định chất lượng truy xuất nên cần được đánh giá
-bằng các chỉ số như Recall@K, MRR và latency.
+\subsubsection*{c. Thiếu trợ lý học tập theo ngữ cảnh khóa học}
 
-\subsection{Knowledge Graph}
+Trong môi trường học trực tuyến, học viên thường gặp khó khăn khi tự học ngoài
+giờ lên lớp. Nếu không hiểu một khái niệm trong tài liệu, học viên có thể phải
+gửi email cho giảng viên, hỏi bạn học, tìm kiếm trên Internet hoặc sử dụng LLM
+công khai. Các cách này đều có hạn chế: phản hồi có thể chậm, thông tin có thể
+không bám sát tài liệu môn học, hoặc câu trả lời không phù hợp với ngữ cảnh mà
+giảng viên muốn truyền đạt.
 
-Knowledge Graph biểu diễn tri thức dưới dạng node và relationship. Với bài
-toán giáo dục, các node chính gồm Course, Chapter, LearningOutcome,
-Assessment và Chunk. Các quan hệ như \texttt{COURSE\_HAS\_CHAPTER},
-\texttt{CHAPTER\_HAS\_LO}, \texttt{ASSESSMENT\_MEASURES\_LO} và
-\texttt{CHUNK\_SUPPORTS\_LO} giúp hệ thống hiểu nội dung nào hỗ trợ chuẩn đầu
-ra nào.
+Một LMS hiện đại cần có trợ lý học tập có khả năng truy xuất tài liệu của khóa
+học, trả lời trong phạm vi nội dung đã được cung cấp và trích dẫn nguồn rõ
+ràng. Điều này giúp học viên nhận hỗ trợ 24/7 nhưng vẫn giữ được tính nhất quán
+với bài giảng và tài liệu chính thức.
 
-Neo4j được sử dụng như graph database để lưu projection tri thức. PostgreSQL
-vẫn là source of truth cho dữ liệu nghiệp vụ, còn Neo4j tối ưu cho truy vấn
-quan hệ phục vụ curriculum-aware retrieval, GraphRAG và adaptive learning về
-sau.
+\subsubsection*{d. Hạn chế trong phân tích năng lực và can thiệp sớm}
 
-\subsection{Event-driven / Async Processing}
+Các báo cáo truyền thống thường tập trung vào điểm số tổng hợp như điểm quiz,
+điểm bài tập, tỷ lệ hoàn thành hoặc số lượt truy cập. Những chỉ số này hữu ích
+nhưng chưa đủ để trả lời các câu hỏi sâu hơn: học viên đang yếu ở Learning
+Outcome nào, nhóm nào có nguy cơ tụt hậu, nội dung nào gây nhầm lẫn nhiều nhất,
+hay câu hỏi nào có chất lượng kém.
 
-Xử lý tài liệu, sinh embedding và gọi LLM là các tác vụ tốn thời gian, không
-phù hợp với request/response đồng bộ. Vì vậy hệ thống sử dụng mô hình xử lý
-bất đồng bộ thông qua queue và worker. Sau khi giảng viên upload tài liệu,
-backend lưu file, tạo metadata và enqueue job; worker thực hiện parse,
-chunking, embedding, generation và cập nhật trạng thái pipeline.
+Nếu thiếu phân tích theo năng lực, giảng viên khó can thiệp đúng lúc. Ví dụ,
+hai học viên cùng đạt 6/10 điểm quiz có thể yếu ở hai nhóm kiến thức hoàn toàn
+khác nhau. Một hệ thống hỗ trợ học tập hiệu quả cần liên kết kết quả đánh giá
+với bản đồ kỹ năng hoặc Learning Outcome để đưa ra tín hiệu hành động cụ thể.
 
-Mô hình event-driven/async giúp frontend phản hồi nhanh, pipeline có thể retry
-khi lỗi tạm thời và worker có thể scale độc lập theo số lượng tài liệu. Đồng
-thời, outbox/event flow cho phép đồng bộ dữ liệu từ PostgreSQL sang Neo4j mà
-không làm chậm luồng nghiệp vụ chính.
+\subsection{Các tính năng AI cốt lõi trong LMS hiện đại}
+
+\subsubsection*{a. Tạo sinh nội dung và Micro-learning}
+
+Tạo sinh nội dung là một trong những ứng dụng AI có giá trị thực tiễn cao trong
+LMS. Hệ thống có thể nhận tài liệu thô như PDF, DOCX, slide hoặc transcript
+video, sau đó trích xuất kiến thức chính và chuyển đổi thành các đơn vị học
+ngắn như lesson summary, key concept card, flashcard hoặc câu hỏi quiz.
+
+Khi kết hợp với micro-learning, AI không chỉ tóm tắt nội dung mà còn giúp chia
+nhỏ kiến thức thành các đơn vị dễ tiêu thụ. Mỗi card có thể tập trung vào một
+khái niệm, một ví dụ, một câu hỏi tự kiểm tra hoặc một lỗi hiểu nhầm thường
+gặp. Điều này phù hợp với thói quen học ngắn, học lặp lại và học trên thiết bị
+di động.
+
+Tuy nhiên, trong giáo dục, nội dung AI sinh ra không nên được publish trực
+tiếp. Hệ thống cần có cơ chế kiểm duyệt bởi giảng viên, lưu vết nguồn tài liệu
+và cho phép chỉnh sửa trước khi học viên tiếp cận.
+
+\subsubsection*{b. Cá nhân hóa lộ trình học tập}
+
+Adaptive Learning là khả năng điều chỉnh nội dung, độ khó và hoạt động học tập
+dựa trên năng lực thực tế của từng học viên. AI có thể phân tích lịch sử học,
+kết quả quiz, thời gian tương tác, mức độ thành thạo từng Learning Outcome và
+các câu hỏi học viên đặt ra để gợi ý module tiếp theo.
+
+Ví dụ, nếu học viên thường sai câu hỏi ở mức ``vận dụng'' trong một chủ đề, hệ
+thống có thể đề xuất học lại key concept card, làm thêm flashcard hoặc nhận một
+bộ câu hỏi luyện tập dễ hơn trước khi quay lại quiz chính. Với cách tiếp cận
+này, LMS không còn là một danh sách nội dung tĩnh mà trở thành môi trường học
+tập phản hồi theo tiến độ cá nhân.
+
+Trong phạm vi đề tài, Adaptive Learning được định hướng ở mức
+curriculum-aware: hệ thống gắn micro-content và quiz với Learning Outcome, từ
+đó có thể theo dõi độ thành thạo và đề xuất nội dung ôn tập phù hợp.
+
+\subsubsection*{c. Gia sư ảo và trợ lý học tập}
+
+AI Tutor hoặc chatbot học tập có thể đóng vai trò trợ lý trả lời câu hỏi theo
+ngữ cảnh khóa học. Điểm khác biệt giữa chatbot giáo dục và chatbot tổng quát là
+khả năng bám sát tài liệu chính thức, trích dẫn nguồn và giới hạn câu trả lời
+trong phạm vi môn học.
+
+Trong kiến trúc hiện đại, chức năng này thường được xây dựng theo hướng
+Retrieval-Augmented Generation (RAG). Khi học viên đặt câu hỏi, hệ thống tìm
+các đoạn tài liệu liên quan trong kho học liệu của khóa học, đưa vào prompt cho
+LLM và yêu cầu mô hình trả lời dựa trên nguồn tìm được. Cách này giúp giảm
+hallucination, tăng khả năng kiểm chứng và phù hợp hơn với bối cảnh giáo dục.
+
+\subsubsection*{d. Phân tích học tập và Skill Mapping}
+
+AI có thể hỗ trợ tổng hợp dữ liệu học tập thành bản đồ năng lực. Thay vì chỉ
+hiển thị điểm số cuối cùng, hệ thống có thể phân tích điểm quiz theo Learning
+Outcome, nhóm chủ đề, mức Bloom hoặc kỹ năng. Kết quả này giúp giảng viên biết
+được lớp đang yếu ở đâu và học viên nào cần hỗ trợ sớm.
+
+Skill Mapping đặc biệt hữu ích khi môn học có chuẩn đầu ra rõ ràng. Mỗi câu hỏi
+quiz có thể được gắn với một hoặc nhiều Learning Outcome; mỗi lần học viên trả
+lời đúng/sai sẽ cập nhật mức thành thạo tương ứng. Từ đó, hệ thống có thể hiển
+thị learning analytics theo năng lực thay vì chỉ theo điểm số tổng hợp.
+
+\subsubsection*{e. Giám sát thi cử thông minh}
+
+AI Proctoring sử dụng thị giác máy tính, nhận diện khuôn mặt, phân tích hành vi
+và phát hiện bất thường để hỗ trợ giám sát thi trực tuyến. Đây là một nhóm tính
+năng thường được nhắc đến trong LMS hiện đại, đặc biệt trong bối cảnh đánh giá
+từ xa.
+
+Tuy nhiên, AI Proctoring cũng đặt ra nhiều vấn đề về quyền riêng tư, độ chính
+xác, thiên lệch mô hình và trải nghiệm học viên. Vì vậy, trong phạm vi đề tài
+này, AI Proctoring được xem là năng lực tham khảo của thị trường, không phải
+tính năng triển khai trọng tâm. Hệ thống đề xuất tập trung vào tạo học liệu,
+quiz, RAG tutor, review workflow, curriculum-aware learning và tích hợp LMS.
+
+\subsection{Hạn chế khi sử dụng LLM trực tiếp trong giáo dục}
+
+\subsubsection*{a. Hallucination}
+
+LLM có khả năng sinh văn bản tự nhiên nhưng không bảo đảm mọi câu trả lời đều
+chính xác. Trong giáo dục, một câu trả lời sai nhưng diễn đạt tự tin có thể gây
+hiểu nhầm nghiêm trọng cho học viên. Đây là rủi ro đặc biệt quan trọng khi hệ
+thống dùng AI để giải thích kiến thức chuyên môn hoặc tạo câu hỏi đánh giá.
+
+Do đó, sử dụng LLM trực tiếp theo kiểu ``hỏi gì đáp nấy'' không phù hợp cho
+LMS. Hệ thống cần giảm rủi ro bằng cách truy xuất nguồn tài liệu, yêu cầu trích
+dẫn, giới hạn phạm vi trả lời, dùng structured output và đưa nội dung AI qua
+bước review của giảng viên.
+
+\subsubsection*{b. Không bám sát tài liệu khóa học}
+
+Một LLM tổng quát có thể trả lời dựa trên tri thức huấn luyện rộng, nhưng câu
+trả lời đó chưa chắc phù hợp với tài liệu, chuẩn đầu ra hoặc cách diễn giải của
+môn học. Hai khóa học cùng chủ đề có thể có phạm vi khác nhau, thuật ngữ khác
+nhau và mức độ yêu cầu khác nhau.
+
+Vì vậy, hệ thống cần đặt tài liệu khóa học làm nguồn sự thật chính. Với kiến
+trúc retrieval-first, AI chỉ trả lời hoặc sinh nội dung dựa trên những đoạn tài
+liệu đã được xử lý, chunk, embedding và lưu trong kho truy xuất của khóa học.
+
+\subsubsection*{c. Thiếu kiểm soát sư phạm}
+
+LLM có thể sinh câu hỏi hoặc tóm tắt nhanh, nhưng không tự bảo đảm câu hỏi phù
+hợp với mục tiêu học tập, mức Bloom, độ khó, thời lượng học hoặc chiến lược sư
+phạm của giảng viên. Nếu không có ràng buộc, nội dung sinh ra có thể quá dễ,
+quá khó, trùng lặp hoặc lệch trọng tâm.
+
+Một hệ thống AI trong giáo dục cần có metadata sư phạm: Learning Outcome, mức
+Bloom, loại câu hỏi, nguồn tài liệu, độ khó, trạng thái review và phiên bản nội
+dung. Những metadata này giúp nội dung AI có thể được kiểm tra, chỉnh sửa,
+publish và đánh giá chất lượng.
+
+\subsubsection*{d. Thiếu tích hợp với LMS và dữ liệu học tập}
+
+Khi giảng viên hoặc học viên sử dụng LLM bên ngoài LMS, dữ liệu sinh ra thường
+nằm rời rạc: prompt ở một nơi, nội dung học ở một nơi, quiz ở một nơi khác và
+điểm số vẫn phải nhập lại vào LMS. Cách làm này làm mất tính liên tục của quy
+trình học tập.
+
+Hệ thống AI cần tích hợp với LMS để nhận danh tính người dùng, ngữ cảnh khóa
+học, vai trò, danh sách lớp, gradebook và liên kết hoạt động học tập. Nhờ đó,
+AI không chỉ là công cụ sinh văn bản mà trở thành một lớp mở rộng trong quy
+trình dạy và học.
+
+\subsection{Tổng hợp vấn đề nghiên cứu}
+
+Từ các phân tích trên, có thể thấy vấn đề nghiên cứu của đề tài không chỉ là
+``dùng AI để tạo quiz'' mà là thiết kế một hệ thống AI hỗ trợ LMS theo hướng có
+kiểm soát, có ngữ cảnh và có khả năng mở rộng. Hệ thống cần giải quyết đồng
+thời các yêu cầu sau:
+
+\begin{itemize}
+    \item Tự động xử lý tài liệu học thuật đa định dạng và video bài giảng.
+    \item Chuyển đổi tài liệu thô thành micro-content, flashcard và quiz có
+          cấu trúc.
+    \item Gắn nội dung sinh ra với Learning Outcome và metadata sư phạm.
+    \item Cung cấp AI Tutor Chatbot dựa trên RAG, trả lời theo tài liệu khóa
+          học.
+    \item Cho phép giảng viên review, chỉnh sửa và publish nội dung trước khi
+          học viên truy cập.
+    \item Tích hợp với Canvas LMS thông qua LTI 1.3 để tận dụng danh tính, ngữ
+          cảnh khóa học và gradebook.
+    \item Bảo đảm các yêu cầu về bảo mật, kiểm soát chi phí, logging,
+          monitoring và đánh giá chất lượng AI.
+\end{itemize}
+
+Vì vậy, hệ thống đề xuất được định hướng như một \textbf{AI Extension Layer cho
+LMS}: không thay thế toàn bộ LMS, nhưng bổ sung lớp xử lý AI tập trung vào
+document-to-micro-content, quiz generation, RAG tutor, curriculum-aware
+learning và human-in-the-loop review.
+
+\section{Khảo sát các hệ thống và giải pháp AI trong giáo dục}
+\label{sec:khao-sat-giai-phap-ai-giao-duc}
+
+Các giải pháp AI trong giáo dục hiện nay có thể chia thành ba nhóm chính: LMS
+thương mại có tích hợp AI, nền tảng học tập hoặc công cụ EdTech ứng dụng
+Generative AI, và LMS mã nguồn mở có khả năng mở rộng bằng plugin hoặc chuẩn
+tích hợp. Mỗi nhóm có thế mạnh riêng nhưng cũng tồn tại giới hạn khi đặt trong
+bài toán của đề tài.
+
+\subsection{Khảo sát các LMS thương mại có tích hợp AI}
+
+\subsubsection*{a. Canvas LMS / Instructure IgniteAI}
+
+Canvas LMS là một trong những LMS phổ biến trong giáo dục đại học. Các tính
+năng AI của Instructure được định hướng dưới bộ IgniteAI, bao gồm hỗ trợ tìm
+kiếm nội dung khóa học, tạo câu hỏi quiz, tóm tắt thảo luận, dịch nội dung,
+tạo rubric, hỗ trợ chấm điểm và các tác vụ quản trị bằng agent trong các gói
+sản phẩm mới.\footnote{Instructure, ``Canvas LMS by Instructure: Core, Plus \&
+Next with AI for Teaching \& Learning'', \url{https://www.instructure.com/products/canvas-tiers}.}
+
+Điểm mạnh của Canvas là hệ sinh thái LMS hoàn chỉnh: quản lý khóa học,
+assignment, quiz, gradebook, role, API và hỗ trợ chuẩn LTI. Với đề tài này,
+Canvas là lựa chọn phù hợp để đóng vai trò LMS nền, trong khi hệ thống AI đề
+xuất hoạt động như một external tool tích hợp qua LTI 1.3.
+
+Tuy nhiên, các năng lực AI thương mại của Canvas phụ thuộc vào gói dịch vụ và
+môi trường triển khai của Instructure. Với mục tiêu nghiên cứu và tự chủ kiến
+trúc AI, việc xây dựng một AI Extension Layer riêng giúp chủ động hơn trong xử
+lý tài liệu, lựa chọn mô hình, thiết kế RAG, kiểm soát dữ liệu và tùy biến giao
+diện review.
+
+\subsubsection*{b. Blackboard Learn AI Design Assistant}
+
+Blackboard Learn cung cấp AI Design Assistant nhằm hỗ trợ giảng viên xây dựng
+cấu trúc khóa học, tạo module, đề xuất nội dung, hỗ trợ tạo assessment, rubric
+và hình ảnh theo ngữ cảnh khóa học.\footnote{Blackboard Help, ``AI Design
+Assistant'', \url{https://help.blackboard.com/Learn/Instructor/Ultra/Course_Content/Create_Content/AI_Design_Assistant}.}
+Đây là ví dụ điển hình cho xu hướng đưa Generative AI vào workflow soạn giảng
+của LMS.
+
+Điểm mạnh của Blackboard là AI được đặt trực tiếp trong trải nghiệm của giảng
+viên, giúp giảm công sức phác thảo khóa học. Tuy nhiên, tính năng này vẫn nằm
+trong hệ sinh thái thương mại đóng, khó tùy biến sâu theo pipeline nghiên cứu
+riêng như document parsing, vector search, curriculum graph hoặc review state
+machine.
+
+\subsubsection*{c. Docebo}
+
+Docebo là LMS/Learning Platform hướng đến doanh nghiệp, tập trung mạnh vào tự
+động hóa quản trị học tập, tagging nội dung, gán kỹ năng, tìm kiếm nội dung và
+hỗ trợ quản trị bằng AI.\footnote{Docebo Help \& Support, ``Overview of
+artificial intelligence functionality and models in Docebo'',
+\url{https://help.docebo.com/hc/en-us/articles/22706749501842-Overview-of-artificial-intelligence-functionality-and-models-in-Docebo}.}
+Docebo phù hợp với các tổ chức có nhu cầu đào tạo quy mô lớn, phân nhóm người
+học theo vai trò công việc và quản lý kỹ năng trong môi trường doanh nghiệp.
+
+Giá trị nổi bật của Docebo nằm ở content intelligence và skill-based learning.
+Tuy nhiên, trong bối cảnh đề tài, Docebo không phải lựa chọn tối ưu vì hệ thống
+cần tập trung vào môi trường học thuật, tài liệu môn học, micro-content, quiz
+theo Learning Outcome và khả năng tự triển khai hoặc tích hợp sâu với Canvas.
+
+\subsubsection*{d. TalentLMS}
+
+TalentLMS nhấn mạnh sự đơn giản trong tạo khóa học và đào tạo nội bộ. Các tính
+năng AI như TalentCraft, tạo mô tả khóa học, tạo hình ảnh, sinh nội dung và tạo
+câu hỏi kiểm tra từ prompt hoặc nội dung có sẵn giúp giảng viên/nhà đào tạo rút
+ngắn thời gian thiết kế khóa học.\footnote{TalentLMS Help Center, ``What are
+the TalentLMS AI features'',
+\url{https://help.talentlms.com/hc/en-us/articles/18209693273372-What-are-the-TalentLMS-AI-features}.}
+
+Ưu điểm của TalentLMS là workflow gọn, dễ tiếp cận và phù hợp với đào tạo doanh
+nghiệp hoặc khóa học ngắn. Tuy nhiên, nếu xét theo yêu cầu nghiên cứu của đề
+tài, TalentLMS chưa phải là nền tảng mở để triển khai pipeline AI tùy biến như
+RAG theo tài liệu, vector database riêng, curriculum graph và tích hợp Canvas
+gradebook thông qua LTI.
+
+\subsubsection*{e. CYPHER Learning AI 360}
+
+CYPHER Learning phát triển bộ AI 360 / CYPHER Agent để hỗ trợ tạo khóa học, nội
+dung học, đánh giá, rubric và cá nhân hóa học tập.\footnote{CYPHER Learning,
+``AI-powered course creation, learning and more in your LMS'',
+\url{https://www.cypherlearning.com/resources/guides/cypher/ai-360}.}
+Nền tảng này thể hiện xu hướng LMS ``AI-first'', trong đó AI tham gia từ bước
+thiết kế khóa học đến vận hành trải nghiệm học.
+
+Điểm mạnh của CYPHER là khả năng tự động hóa nhiều khâu trong authoring. Tuy
+nhiên, tương tự các LMS thương mại khác, hệ thống vẫn bị giới hạn bởi kiến trúc
+và khả năng tùy biến của nhà cung cấp. Đối với đề tài cần chứng minh thiết kế
+kỹ thuật, việc tự xây dựng AI Extension Layer sẽ thể hiện rõ hơn các quyết định
+kiến trúc như chunking, embedding, RAG, async pipeline, human review và
+observability.
+
+\subsection{Khảo sát các nền tảng học tập và công cụ EdTech ứng dụng Generative AI}
+
+\subsubsection*{a. Coursera AI-assisted Course Builder}
+
+Coursera cung cấp Course Builder như một công cụ authoring có AI hỗ trợ, giúp
+giảng viên tạo khóa học tùy chỉnh và nhận gợi ý nội dung liên quan từ hệ sinh
+thái Coursera.\footnote{Coursera, ``Course Builder'',
+\url{https://www.coursera.org/campus/course-builder}.} Đây là hướng tiếp cận
+tận dụng kho nội dung lớn có sẵn để hỗ trợ xây dựng khóa học nhanh hơn.
+
+Tuy nhiên, Coursera là nền tảng học tập/MOOC hơn là LMS triển khai nội bộ theo
+chuẩn tích hợp mở. Hệ thống phù hợp cho phân phối khóa học trên nền tảng
+Coursera, nhưng không giải quyết trực tiếp bài toán tích hợp với Canvas, xử lý
+tài liệu riêng của giảng viên hoặc publish quiz về gradebook LMS của một
+trường.
+
+\subsubsection*{b. Quizlet AI Study Tools}
+
+Quizlet tập trung vào công cụ học tập cá nhân như flashcard, practice test,
+study guide, PDF summarizer và hỗ trợ tạo flashcard từ ghi chú, slide hoặc tài
+liệu.\footnote{Quizlet, ``AI Study Tools'',
+\url{https://quizlet.com/features/ai-study-tools}.} Đây là ví dụ tiêu biểu
+cho khả năng AI tự động chuyển tài liệu thành học liệu ngắn, dễ ôn tập.
+
+Điểm mạnh của Quizlet là trải nghiệm học nhanh, tập trung và phù hợp với người
+học cá nhân. Tuy nhiên, Quizlet không phải LMS hoàn chỉnh: không quản lý toàn
+bộ course lifecycle, không thay thế gradebook chính thức, không có workflow
+review theo vai trò giảng viên/học viên của một LMS học thuật, và không gắn
+chặt với Learning Outcome của một môn học cụ thể.
+
+\subsubsection*{c. Khanmigo}
+
+Khanmigo là trợ lý AI của Khan Academy, được định vị như gia sư cá nhân cho học
+viên và trợ lý giảng dạy cho giáo viên.\footnote{Khan Academy, ``Meet
+Khanmigo'', \url{https://www.khanacademy.org/khan-labs}.} Cách tiếp cận của
+Khanmigo đáng chú ý vì không chỉ đưa ra đáp án trực tiếp mà hướng đến việc gợi
+mở, dẫn dắt và hỗ trợ học viên suy nghĩ.
+
+Khanmigo cho thấy tiềm năng lớn của AI Tutor trong giáo dục. Tuy nhiên, hệ
+thống hoạt động chủ yếu trong hệ sinh thái nội dung của Khan Academy. Đối với
+bài toán của đề tài, yêu cầu quan trọng là chatbot phải truy xuất tài liệu
+riêng của từng khóa học trong LMS, liên kết với micro-content, quiz và Learning
+Outcome do giảng viên cung cấp.
+
+\subsubsection*{d. Các công cụ tạo Quiz / Flashcard từ tài liệu}
+
+Ngoài các nền tảng lớn, thị trường còn có nhiều công cụ chuyên biệt cho phép
+upload PDF, slide hoặc ghi chú để tự động tạo flashcard, quiz, summary hoặc
+study guide. Các công cụ này hữu ích cho nhu cầu học cá nhân và giúp giảm thời
+gian tạo tài liệu ôn tập.
+
+Tuy nhiên, các công cụ đơn lẻ thường gặp một số hạn chế:
+
+\begin{itemize}
+    \item Không tích hợp sâu với LMS, danh sách lớp, gradebook và quyền truy
+          cập.
+    \item Không bảo đảm dữ liệu học tập được quản lý theo chính sách của cơ sở
+          giáo dục.
+    \item Thiếu workflow review chính thức bởi giảng viên.
+    \item Thiếu liên kết với Learning Outcome, Bloom Taxonomy và learning
+          analytics.
+    \item Khó kiểm soát nguồn tài liệu, phiên bản nội dung và chất lượng câu
+          hỏi.
+\end{itemize}
+
+Do đó, chúng phù hợp như công cụ hỗ trợ cục bộ, nhưng chưa đủ để trở thành kiến
+trúc nền cho một hệ thống LMS tự động tạo micro-content và quiz có kiểm soát.
+
+\subsection{Khảo sát các LMS mã nguồn mở và khả năng mở rộng AI}
+
+\subsubsection*{a. Moodle và AI Subsystem / AI Plugins}
+
+Moodle là LMS mã nguồn mở phổ biến, có cộng đồng plugin lớn và định hướng hỗ
+trợ AI thông qua AI Subsystem. Moodle mô tả AI Subsystem như nền tảng để tích
+hợp công cụ AI vào LMS mà không khóa chặt vào một nhà cung cấp duy
+nhất.\footnote{Moodle, ``Moodle and AI'',
+\url{https://moodle.com/solutions/ai-and-moodle/}.}
+
+Ưu điểm của Moodle là tính mở, cộng đồng lớn và khả năng tùy biến cao. Tuy
+nhiên, chính mô hình plugin cũng có thể dẫn đến trải nghiệm phân mảnh nếu các
+tính năng AI được thêm vào rời rạc. Với đề tài này, Moodle là phương án khả thi
+để tích hợp AI, nhưng hệ thống đang ưu tiên Canvas vì cần khai thác chuẩn LTI
+1.3, API, gradebook và bối cảnh triển khai cụ thể của đồ án.
+
+\subsubsection*{b. Canvas LMS Open Source}
+
+Canvas LMS có mã nguồn mở được duy trì trên GitHub bởi
+Instructure.\footnote{Instructure, ``Canvas LMS open-source repository'',
+\url{https://github.com/instructure/canvas-lms}.} Điều này cho phép nghiên cứu
+kiến trúc LMS, tự triển khai hoặc tích hợp các dịch vụ bên ngoài. Canvas cũng
+có hệ API và hỗ trợ LTI, phù hợp với hướng xây dựng external tool.
+
+Tuy vậy, tự sửa trực tiếp lõi Canvas để thêm AI sẽ tạo chi phí bảo trì lớn, đặc
+biệt khi cần cập nhật phiên bản LMS. Do đó, cách tiếp cận hợp lý hơn là xây
+dựng hệ thống AI như một service độc lập, tích hợp qua LTI và API, hạn chế can
+thiệp vào core LMS.
+
+\subsubsection*{c. Open edX}
+
+Open edX là nền tảng mã nguồn mở mạnh cho MOOC và học trực tuyến quy mô lớn.
+Nền tảng này hỗ trợ mở rộng trải nghiệm học bằng XBlock và hỗ trợ tích hợp LTI
+1.3 / LTI Advantage.\footnote{Open edX, ``LTI 1.3 and LTI Advantage'',
+\url{https://openedx.org/features/lti}.} Open edX phù hợp với các tổ chức cần
+phân phối khóa học trực tuyến quy mô lớn, có cấu trúc nội dung phức tạp và
+nhiều thành phần học tương tác.
+
+Tuy nhiên, Open edX có độ phức tạp triển khai và vận hành cao. Nếu mục tiêu
+chính là xây dựng AI Extension Layer để xử lý tài liệu, sinh micro-content,
+quiz và chatbot, việc bắt đầu từ Canvas/LTI có thể giúp phạm vi hệ thống rõ
+hơn và tập trung hơn vào bài toán AI.
+
+\subsubsection*{d. Sakai}
+
+Sakai là LMS mã nguồn mở lâu đời, được sử dụng trong môi trường đại học và hỗ
+trợ chuẩn LTI.\footnote{Sakai LMS, ``Sakai Learning Management System'',
+\url{https://www.sakailms.org/}.} Sakai có điểm mạnh ở tính cộng đồng, khả
+năng mở rộng và định hướng học thuật.
+
+Tuy nhiên, so với Moodle, Canvas hoặc Open edX, hệ sinh thái AI phổ biến quanh
+Sakai không nổi bật bằng. Việc tích hợp AI thường cần xây dựng custom tool hoặc
+external service. Vì vậy, Sakai được xem là nền tảng tham khảo để so sánh khả
+năng mở rộng LMS, nhưng không phải lựa chọn chính trong phạm vi đồ án.
+
+\subsection{So sánh các nhóm giải pháp}
+
+\begingroup
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{|p{2.4cm}|p{2.9cm}|p{3cm}|p{2.8cm}|p{3cm}|}
+\caption{So sánh các nhóm giải pháp AI trong giáo dục}
+\label{tab:so-sanh-giai-phap-ai-giao-duc}\\
+\hline
+\textbf{Tiêu chí} & \textbf{LMS thương mại có AI} & \textbf{EdTech / AI learning tools} & \textbf{LMS mã nguồn mở} & \textbf{Hệ thống đề xuất} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Tiêu chí} & \textbf{LMS thương mại có AI} & \textbf{EdTech / AI learning tools} & \textbf{LMS mã nguồn mở} & \textbf{Hệ thống đề xuất} \\
+\hline
+\endhead
+Tạo sinh học liệu & Có, ngày càng mạnh trong authoring & Mạnh ở flashcard, quiz, summary & Phụ thuộc plugin / custom & Trọng tâm chính: document/video to micro-content \\
+\hline
+Tích hợp LMS & Rất mạnh trong chính hệ sinh thái của nhà cung cấp & Thường yếu hoặc gián tiếp & Có thể tích hợp qua plugin/LTI & Tích hợp Canvas qua LTI 1.3 \\
+\hline
+Cá nhân hóa học tập & Có ở một số nền tảng & Chủ yếu cá nhân hóa cho người học cá nhân & Tùy triển khai & Curriculum-aware, dựa trên LO và kết quả học \\
+\hline
+Truy xuất theo tài liệu khóa học & Có nhưng phụ thuộc nền tảng & Không đồng nhất & Tùy pipeline tích hợp & RAG theo tài liệu của từng khóa học \\
+\hline
+Review bởi giảng viên & Có ở mức authoring & Thường không phải workflow LMS & Tùy plugin & Human-in-the-loop review trước publish \\
+\hline
+Kiểm soát dữ liệu và mô hình & Hạn chế do phụ thuộc vendor & Hạn chế & Cao hơn nếu tự host & Chủ động thiết kế service, vector DB, storage \\
+\hline
+Observability và cost control & Phụ thuộc nhà cung cấp & Thường hạn chế & Tự xây dựng & Thiết kế rõ logging, metrics, cost tracking \\
+\hline
+Phù hợp với đề tài & Có giá trị tham khảo & Có giá trị tham khảo về UX học tập & Có giá trị tham khảo về mở rộng & Phù hợp nhất với mục tiêu nghiên cứu \\
+\hline
+\end{longtable}
+\endgroup
+
+Bảng so sánh cho thấy không có nhóm giải pháp nào giải quyết trọn vẹn yêu cầu
+của đề tài. LMS thương mại mạnh về quản trị và tích hợp nội bộ nhưng khó tùy
+biến sâu. Các công cụ EdTech mạnh về trải nghiệm học và tạo học liệu nhanh
+nhưng không phải LMS hoàn chỉnh. LMS mã nguồn mở linh hoạt nhưng cần nhiều công
+sức tích hợp và dễ phát sinh phân mảnh plugin.
+
+\subsection{Phân tích khoảng trống công nghệ}
+
+\subsubsection*{a. LMS truyền thống mạnh về quản trị nhưng AI còn rời rạc}
+
+LMS được thiết kế tốt cho quản trị khóa học, nhưng khi thêm AI, nhiều hệ thống
+thường bổ sung từng tính năng riêng lẻ như search, rubric generator, quiz
+assistant hoặc summary. Cách này giúp cải thiện một phần workflow nhưng chưa
+chắc tạo thành pipeline thống nhất từ tài liệu đầu vào đến micro-content, quiz,
+review, publish và analytics.
+
+\subsubsection*{b. Công cụ AI học tập mạnh về sinh nội dung nhưng không phải LMS hoàn chỉnh}
+
+Các công cụ như Quizlet hoặc các flashcard generator có thể tạo nội dung học
+nhanh, nhưng thiếu các chức năng LMS như quản lý khóa học, role, enrollment,
+gradebook, chuẩn LTI, learning analytics và kiểm soát quyền truy cập. Nếu dùng
+riêng lẻ, dữ liệu học tập bị tách khỏi hệ thống chính thức của cơ sở giáo dục.
+
+\subsubsection*{c. Các giải pháp plugin dễ phân mảnh trải nghiệm}
+
+Plugin là cách mở rộng nhanh nhưng có thể tạo trải nghiệm không đồng nhất nếu
+mỗi chức năng AI có giao diện, dữ liệu và workflow riêng. Ví dụ, một plugin tạo
+quiz, một plugin chatbot và một plugin analytics có thể không chia sẻ cùng
+nguồn tài liệu, cùng metadata Learning Outcome hoặc cùng cơ chế review.
+
+Hệ thống đề xuất cần tránh tình trạng này bằng cách thiết kế một pipeline AI
+thống nhất, trong đó document processing, chunking, embedding, generation, RAG,
+review và analytics dùng chung dữ liệu lõi.
+
+\subsubsection*{d. Thiếu hệ thống tập trung vào Micro-learning, RAG, review và LMS integration ngay từ kiến trúc}
+
+Khoảng trống quan trọng nhất là thiếu một hệ thống được thiết kế ngay từ đầu
+cho bài toán: \textbf{tài liệu học thuật / video bài giảng $\rightarrow$
+micro-content $\rightarrow$ quiz $\rightarrow$ review $\rightarrow$ publish
+$\rightarrow$ học tập và đánh giá trong LMS}.
+
+Một hệ thống như vậy cần kết hợp nhiều lớp kỹ thuật:
+
+\begin{itemize}
+    \item Document Intelligence để xử lý PDF, DOCX, PPTX và transcript video.
+    \item Chunking và embedding để tạo nền tảng semantic retrieval.
+    \item RAG để chatbot và generation bám sát tài liệu khóa học.
+    \item Structured output để sinh quiz, flashcard và metadata có thể lưu trữ.
+    \item Curriculum mapping để gắn nội dung với Learning Outcome.
+    \item Human-in-the-loop review để giảng viên kiểm soát nội dung trước
+          publish.
+    \item LTI 1.3 / Advantage để tích hợp với LMS mà không cần thay thế LMS.
+    \item Observability để theo dõi job, lỗi, chi phí AI và chất lượng đầu ra.
+\end{itemize}
+
+Đây chính là không gian mà hệ thống đề xuất hướng tới.
+
+\subsection{Phân tích hướng tiếp cận của hệ thống đề xuất}
+
+\subsubsection*{a. Tự xây dựng LMS hoàn toàn}
+
+Hướng tiếp cận đầu tiên là xây dựng LMS mới từ đầu, bao gồm quản lý người dùng,
+khóa học, nội dung, quiz, gradebook, discussion, notification và analytics. Ưu
+điểm là toàn quyền kiểm soát thiết kế sản phẩm và kiến trúc dữ liệu.
+
+Tuy nhiên, nhược điểm rất lớn là phạm vi phát triển bị mở rộng. Việc xây dựng
+một LMS hoàn chỉnh đòi hỏi nhiều chức năng nền tảng không trực tiếp liên quan
+đến đóng góp chính của đề tài. Nếu tập trung quá nhiều vào LMS core, hệ thống
+sẽ giảm nguồn lực cho các vấn đề trọng tâm như RAG, micro-content generation,
+quiz generation, curriculum mapping và AI safety.
+
+\subsubsection*{b. Tích hợp AI vào LMS mã nguồn mở}
+
+Hướng tiếp cận thứ hai là chọn một LMS mã nguồn mở như Moodle, Canvas Open
+Source hoặc Open edX, sau đó phát triển plugin hoặc chỉnh sửa core để bổ sung
+AI. Ưu điểm là tận dụng được hệ thống LMS sẵn có và có thể tùy biến sâu hơn so
+với nền tảng thương mại đóng.
+
+Tuy nhiên, việc chỉnh sửa core LMS làm tăng chi phí bảo trì và khó cập nhật
+phiên bản. Nếu phát triển nhiều plugin riêng lẻ, trải nghiệm người dùng có thể
+bị phân mảnh. Ngoài ra, mỗi LMS có kiến trúc plugin khác nhau, nên việc chuyển
+sang nền tảng khác sẽ tốn nhiều công sức.
+
+\subsubsection*{c. Xây dựng AI Extension Layer cho LMS}
+
+Hướng tiếp cận được lựa chọn là xây dựng một lớp AI độc lập, tích hợp với LMS
+thông qua chuẩn LTI 1.3 / LTI Advantage.\footnote{1EdTech, ``LTI Advantage
+Overview'', \url{https://www.imsglobal.org/lti-advantage-overview}.} Trong mô
+hình này, Canvas LMS vẫn đảm nhiệm các chức năng LMS chính như course, user,
+role, assignment và gradebook. Hệ thống đề xuất đảm nhiệm các chức năng AI:
+
+\begin{itemize}
+    \item Upload và xử lý tài liệu / video.
+    \item Sinh micro-content, flashcard và quiz.
+    \item Lưu embedding và thực hiện semantic retrieval.
+    \item Cung cấp AI Tutor Chatbot dựa trên RAG.
+    \item Quản lý review và publish nội dung.
+    \item Theo dõi tiến độ xử lý bằng async job và streaming update.
+    \item Ghi nhận kết quả học tập và đồng bộ điểm quiz về LMS khi cần.
+\end{itemize}
+
+Cách tiếp cận này có một số lợi thế:
+
+\begin{itemize}
+    \item \textbf{Giảm phạm vi xây dựng LMS core.} Hệ thống không cần tự phát
+          triển lại toàn bộ chức năng LMS đã có.
+    \item \textbf{Tăng khả năng tích hợp.} LTI là chuẩn phổ biến giữa LMS và
+          external tool, giúp hệ thống có cơ hội mở rộng sang LMS khác trong
+          tương lai.
+    \item \textbf{Tách biệt trách nhiệm.} LMS quản lý lớp học; AI Extension
+          Layer xử lý AI pipeline và trải nghiệm micro-learning.
+    \item \textbf{Dễ kiểm soát dữ liệu AI.} Tài liệu, chunk, embedding,
+          generation result và trạng thái review được quản lý trong hệ thống
+          riêng.
+    \item \textbf{Phù hợp với hướng nghiên cứu.} Đề tài có thể tập trung vào
+          giá trị kỹ thuật: document processing, RAG, structured generation,
+          review workflow, security và observability.
+\end{itemize}
+
+\subsubsection*{d. Lý do lựa chọn hướng tiếp cận của đề tài}
+
+Từ khảo sát trên, hệ thống đề xuất lựa chọn mô hình \textbf{AI Extension Layer
+cho Canvas LMS}. Đây là hướng cân bằng giữa tính thực tiễn và tính nghiên cứu:
+vừa tận dụng được LMS có sẵn, vừa cho phép tự thiết kế pipeline AI chuyên biệt.
+
+Với hướng này, đóng góp chính của đề tài không nằm ở việc tạo thêm một LMS mới,
+mà nằm ở việc xây dựng lớp AI có khả năng:
+
+\begin{itemize}
+    \item biến tài liệu học thuật và video bài giảng thành micro-content có cấu
+          trúc;
+    \item sinh quiz có giải thích, metadata và gắn với Learning Outcome;
+    \item cung cấp chatbot truy xuất theo tài liệu khóa học;
+    \item hỗ trợ giảng viên review trước khi publish;
+    \item tích hợp với Canvas qua LTI 1.3;
+    \item bảo đảm các yêu cầu về bảo mật, kiểm soát chi phí và observability.
+\end{itemize}
+
+Như vậy, hệ thống đề xuất giải quyết khoảng trống giữa hai nhóm giải pháp hiện
+có: LMS mạnh về quản trị nhưng AI chưa đủ liền mạch, và công cụ AI học tập mạnh
+về sinh nội dung nhưng thiếu tích hợp LMS chính thức.
+
+\section{Phân tích tác nhân hệ thống}
+\label{sec:phan-tich-tac-nhan-he-thong}
+
+Hệ thống đề xuất hoạt động ở vai trò \textbf{AI Extension Layer} kết nối với
+LMS Canvas qua chuẩn LTI 1.3 / OIDC, nên các tác nhân được phân tích bao gồm
+cả người dùng (human actors) lẫn hệ thống bên ngoài (system actors). Bảng
+\ref{tab:tac-nhan-he-thong} tổng hợp năm tác nhân chính.
+
+\begin{longtable}{|p{1.5cm}|p{4cm}|p{2cm}|p{6cm}|}
+\caption{Các tác nhân chính của hệ thống}
+\label{tab:tac-nhan-he-thong}\\
+\hline
+\textbf{Mã} & \textbf{Tác nhân} & \textbf{Loại} & \textbf{Vai trò trong hệ thống} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Mã} & \textbf{Tác nhân} & \textbf{Loại} & \textbf{Vai trò trong hệ thống} \\
+\hline
+\endhead
+AC-01 & Giảng viên (Instructor) & Human & Cung cấp tài liệu / video, review và publish micro-content \& quiz \\
+\hline
+AC-02 & Học viên (Learner) & Human & Tiêu thụ micro-content, làm quiz, hỏi chatbot, theo dõi tiến độ \\
+\hline
+AC-03 & Canvas LMS & System & Cung cấp danh tính, course, gradebook qua chuẩn LTI 1.3 / OIDC \\
+\hline
+AC-04 & LLM Provider (Gemini, OpenAI) & System & Sinh embedding, micro-content, quiz, câu trả lời chatbot \\
+\hline
+AC-05 & Quản trị viên hệ thống (Admin) & Human & Vận hành hệ thống: quota, cost, observability, đăng ký LTI Tool \\
+\hline
+\end{longtable}
+
+\subsection{Giảng viên}
+
+\textbf{Vai trò.} Giảng viên là người tạo và kiểm duyệt nội dung học. Trong
+triết lý \textit{Human-in-the-loop Review} của đề tài, giảng viên là chốt chặn
+cuối cùng đảm bảo chất lượng nội dung trước khi học viên tiếp cận. AI chỉ sinh
+nháp, còn giảng viên duyệt và chịu trách nhiệm chuyên môn.
+
+\textbf{Kênh truy cập.} Giảng viên không đăng nhập trực tiếp vào hệ thống AI.
+Họ làm việc trong Canvas LMS, click vào External Tool đã được đăng ký trong
+khóa học. Canvas khởi tạo LTI launch, chuyển hướng sang giao diện AI của đề
+tài, kèm danh tính giảng viên và ngữ cảnh khóa học. Chi tiết giao thức được
+trình bày trong chương thiết kế hệ thống.
+
+\textbf{Trách nhiệm chính.}
+
+\begin{itemize}
+    \item Upload tài liệu học hoặc đề cương môn học (DCMH) lên hệ thống.
+    \item Upload / nhúng video bài giảng để hệ thống sinh micro-content theo
+          timestamp.
+    \item Theo dõi tiến trình xử lý của hệ thống AI.
+    \item Review và chỉnh sửa nội dung micro-content / quiz do AI sinh ra;
+          thêm câu hỏi thủ công nếu cần.
+    \item Publish khóa học, toàn bộ hoặc theo section, chỉ sau khi đã review.
+    \item Xem dashboard học tập của lớp: tỷ lệ hoàn thành, điểm quiz trung
+          bình, các Learning Outcome mà học viên còn yếu.
+\end{itemize}
+
+\textbf{Mức độ am hiểu công nghệ.} Trung bình: biết upload file, kéo thả, dùng
+text editor; không yêu cầu hiểu biết chuyên sâu về AI.
+
+\subsection{Học viên}
+
+\textbf{Vai trò.} Học viên là người tiêu thụ nội dung micro-learning và là đối
+tượng được hệ thống cá nhân hóa hướng đến.
+
+\textbf{Kênh truy cập.} Tương tự giảng viên, học viên truy cập hệ thống thông
+qua Canvas, không cần đăng nhập riêng. Canvas xác thực học viên và chuyển
+hướng sang giao diện AI, kèm danh tính và vai trò \texttt{Learner} trong khóa
+học.
+
+\textbf{Trách nhiệm chính.}
+
+\begin{itemize}
+    \item Đọc Lesson Summary, Key Concept Card, lật Flashcard theo trình tự do
+          hệ thống đề xuất.
+    \item Xem video bài giảng có chú thích micro-content theo timestamp.
+    \item Làm Quiz: nhận phản hồi tức thì và giải thích cho từng đáp án.
+    \item Tương tác với AI Tutor Chatbot: đặt câu hỏi trong phạm vi tài liệu
+          của khóa học và nhận câu trả lời có trích nguồn.
+    \item Xem tiến độ học tập cá nhân, các LO đã thành thạo và LO cần ôn lại.
+\end{itemize}
+
+\textbf{Mức độ am hiểu công nghệ.} Đủ để dùng web/app cơ bản; không yêu cầu
+hiểu biết kỹ thuật chuyên sâu.
+
+\subsection{LMS / External System}
+
+\textbf{Vai trò.} Hệ thống bên ngoài cung cấp \textbf{danh tính, ngữ cảnh khóa
+học và gradebook} cho hệ thống AI thông qua chuẩn tích hợp LTI 1.3. Trong phạm
+vi đồ án, LMS chính là \textbf{Canvas LMS}; thiết kế bám chuẩn LTI nên về mặt
+giao tiếp vẫn có thể chuyển sang LMS khác hỗ trợ chuẩn này như Moodle 4.x,
+Open edX hoặc Sakai nếu cần.
+
+\textbf{Trách nhiệm trong tương tác.}
+
+\begin{itemize}
+    \item \textbf{Xác thực và phân quyền.} Canvas chứng thực người dùng và
+          truyền danh tính, vai trò sang hệ thống AI. Hệ thống AI không tự quản
+          lý mật khẩu hay tài khoản.
+    \item \textbf{Cung cấp ngữ cảnh khóa học.} Canvas truyền ID khóa học, tên
+          khóa, mã môn để hệ thống AI biết tài liệu / quiz thuộc khóa nào.
+    \item \textbf{Deep Linking.} Canvas cho phép giảng viên chọn tài liệu /
+          quiz cụ thể từ giao diện Canvas để nhúng vào khóa học.
+    \item \textbf{Đồng bộ điểm.} Hệ thống AI đẩy điểm quiz về gradebook của
+          Canvas thông qua dịch vụ đẩy điểm chuẩn của LTI.
+    \item \textbf{Đồng bộ danh sách lớp} (tùy chọn). Hệ thống AI có thể lấy
+          danh sách học viên trong khóa để phục vụ analytics.
+\end{itemize}
+
+\textbf{Đặc tính.} Đây là tác nhân hệ thống, không phải con người, đóng vai trò
+nguồn dữ liệu định danh và đích nhận điểm. Hệ thống AI vừa là \textit{LTI Tool}
+với Canvas, vừa là \textit{client} khi gọi ngược các dịch vụ của Canvas. Chi
+tiết giao thức được trình bày ở chương thiết kế tích hợp.
+
+\subsection{LLM Provider}
+
+\textbf{Vai trò.} Dịch vụ AI bên ngoài cung cấp năng lực sinh nội dung và biểu
+diễn ngữ nghĩa. Trong phạm vi hệ thống đề xuất, thành phần này ưu tiên dùng
+\textbf{Google Gemini API}; thiết kế cho phép thay thế bằng các nhà cung cấp
+khác như OpenAI, Anthropic Claude hoặc mô hình tự host mà không phải sửa nghiệp
+vụ. Lý do lựa chọn và chi tiết kiến trúc được trình bày ở chương cơ sở lý
+thuyết và thiết kế.
+
+\textbf{Trách nhiệm trong tương tác.}
+
+\begin{itemize}
+    \item Sinh micro-content: Lesson Summary, Key Concept Card, Flashcard.
+    \item Sinh Quiz có cấu trúc, phân loại theo Bloom Taxonomy.
+    \item Sinh biểu diễn ngữ nghĩa của nội dung phục vụ tìm kiếm.
+    \item Trả lời câu hỏi của AI Tutor Chatbot.
+    \item Trả về thông tin chi phí sử dụng để hệ thống kiểm soát ngân sách.
+\end{itemize}
+
+\textbf{Đặc tính.} Đây là tác nhân hệ thống bên ngoài, có tính phí theo lượng
+sử dụng và có hành vi \textbf{không xác định}: cùng đầu vào có thể cho đầu ra
+khác nhau. Vì vậy, hệ thống cần có cơ chế kiểm soát chi phí, fallback và giới
+hạn tốc độ truy cập.
+
+\subsection{Quản trị viên hệ thống}
+
+\textbf{Vai trò.} Quản trị viên hệ thống là người vận hành phía hệ thống AI,
+không phải role của LMS. Admin LMS có phạm vi riêng do LMS quản lý.
+
+\textbf{Kênh truy cập.} Quản trị viên đăng nhập trực tiếp qua giao diện admin
+riêng của hệ thống AI, không thông qua Canvas.
+
+\textbf{Trách nhiệm chính.}
+
+\begin{itemize}
+    \item Đăng ký hệ thống AI như một LTI Tool với Canvas, bao gồm cấu hình ban
+          đầu và khai báo khóa.
+    \item Quản lý hạn mức sử dụng LLM theo khóa học / giảng viên, gồm số lượt
+          gọi và ngân sách chi phí.
+    \item Giám sát tình trạng vận hành hệ thống: log, metric, lỗi và chi phí
+          AI.
+    \item Cấu hình giới hạn tốc độ truy cập và cơ chế ngắt khẩn cấp khi sự cố
+          diễn ra liên tục.
+    \item Xử lý sự cố vận hành: chạy lại job lỗi, làm mới cache, luân chuyển
+          khóa truy cập API.
+\end{itemize}
+
+\textbf{Phạm vi.} Đây là tác nhân vận hành, không can thiệp nội dung học thuật
+của giảng viên.
+
+\section{User Stories}
+\label{sec:user-stories}
+
+Các user stories được mô tả theo cấu trúc Connextra: \textbf{Là \textless vai
+trò\textgreater, tôi muốn \textless mục tiêu\textgreater, để \textless giá
+trị\textgreater}, kèm tiêu chí chấp nhận (Acceptance Criteria --- AC) đo lường
+được. Các mã được đặt theo dạng \texttt{US-IN-xx} cho giảng viên,
+\texttt{US-LE-xx} cho học viên và \texttt{US-AD-xx} cho quản trị viên hệ
+thống.
+
+\subsection{User Stories của Giảng viên}
+
+\begingroup
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{|p{1.6cm}|p{5.6cm}|p{7cm}|}
+\caption{User stories của giảng viên}
+\label{tab:user-stories-giang-vien}\\
+\hline
+\textbf{ID} & \textbf{User Story} & \textbf{Tiêu chí chấp nhận} \\
+\hline
+\endfirsthead
+\hline
+\textbf{ID} & \textbf{User Story} & \textbf{Tiêu chí chấp nhận} \\
+\hline
+\endhead
+US-IN-01 & Là giảng viên, tôi muốn truy cập công cụ AI \textbf{từ trong giao diện Canvas quen thuộc}, để không phải nhớ thêm tài khoản / hệ thống mới. & Truy cập từ Canvas; không yêu cầu đăng nhập lại; danh tính được Canvas cung cấp tự động cho hệ thống AI. \\
+\hline
+US-IN-02 & Là giảng viên, tôi muốn upload tài liệu PDF/DOCX/PPTX để AI tự động sinh micro-content và quiz, để tiết kiệm thời gian soạn bài. & Kích thước file \(\leq 50\) MB; báo lỗi rõ nếu sai định dạng / quá hạn; hệ thống bắt đầu xử lý trong vòng \(\leq 5\) s sau upload và hiển thị trạng thái ``đang chờ'' tức thì; nếu dịch vụ AI sinh nội dung gặp lỗi hoặc quá thời gian phản hồi, hệ thống hiển thị thông báo thân thiện kèm hành động ``thử lại'' và giữ nguyên tài liệu đã upload. \\
+\hline
+US-IN-03 & Là giảng viên, tôi muốn upload đề cương môn học (DCMH) để hệ thống trích xuất Learning Outcome (LO) và gắn vào micro-content, để dạy theo chuẩn CDIO. & Hệ thống trích xuất được \(\geq 80\%\) LO từ DCMH; mỗi LO có mã, mô tả, mức Bloom; hiển thị danh sách LO cho giảng viên xác nhận trước khi lưu. \\
+\hline
+US-IN-04 & Là giảng viên, tôi muốn theo dõi tiến độ xử lý theo thời gian thực, để biết khi nào có thể bắt đầu review. & Hiển thị các trạng thái xử lý chính: chờ \(\rightarrow\) phân tích \(\rightarrow\) chia chunk \(\rightarrow\) sinh nội dung \(\rightarrow\) hoàn tất; cập nhật tự động, không cần refresh; báo lỗi và lý do nếu thất bại. \\
+\hline
+US-IN-05 & Là giảng viên, tôi muốn xem trước nội dung AI sinh ra (summary, card, flashcard, quiz) trên một màn hình, để review nhanh. & Hiển thị theo section; preview tối đa 3 cấp: lesson \(\rightarrow\) section \(\rightarrow\) card; panel sticky giúp scroll cùng review. \\
+\hline
+US-IN-06 & Là giảng viên, tôi muốn chỉnh sửa nội dung AI \textbf{inline} trước khi publish, để đảm bảo chính xác học thuật. & Sửa text trực tiếp tại chỗ; tự động lưu sau khi thay đổi; có lịch sử sửa đổi để rollback; ghi nhận trạng thái ``đã review'' cho từng card. \\
+\hline
+US-IN-07 & Là giảng viên, tôi muốn thêm câu hỏi quiz thủ công vào pool AI sinh, để bổ sung những điểm AI bỏ sót. & Form thêm câu hỏi hỗ trợ 4 loại: trắc nghiệm 1 đáp án, nhiều đáp án, đúng/sai, điền khuyết; câu hỏi thủ công được đánh dấu rõ nguồn gốc. \\
+\hline
+US-IN-08 & Là giảng viên, tôi muốn publish khóa học chỉ khi đã review xong, để học viên không gặp nội dung chưa kiểm duyệt. & Chỉ cho phép publish khi có \(\geq 1\) section đã review; cảnh báo nếu có section chưa review; sau publish, học viên thấy đúng phiên bản đã chốt. \\
+\hline
+US-IN-09 & Là giảng viên, tôi muốn xem dashboard tiến độ học tập của lớp, để biết phần nào học viên còn yếu. & Dashboard hiển thị: số học viên active, tỷ lệ hoàn thành, điểm quiz trung bình, top 5 LO yếu nhất; có thể lọc theo section. \\
+\hline
+US-IN-10 & Là giảng viên, tôi muốn điểm quiz tự động đẩy về gradebook của Canvas, để không phải nhập tay. & Sau khi học viên submit quiz, điểm xuất hiện trong gradebook Canvas trong \(\leq 5\) s với đúng thang điểm và nhãn hoạt động. \\
+\hline
+US-IN-11 & Là giảng viên, tôi muốn xóa tài liệu kèm toàn bộ micro-content / quiz đã sinh, khi cần dọn dẹp. & Xóa tài liệu thì các nội dung phái sinh như chunk, card, quiz, embedding cũng được xóa theo; có xác nhận hai bước; thao tác lặp lại không gây lỗi. \\
+\hline
+US-IN-12 & Là giảng viên, tôi muốn upload video bài giảng và hệ thống tự động chia chương kèm micro-content theo timestamp. & Hỗ trợ video MP4 với dung lượng \(\leq 2\) GB; mỗi chương dài \(\leq 5\) phút; card có thời điểm bắt đầu/kết thúc khớp với video. \\
+\hline
+\end{longtable}
+\endgroup
+
+\subsection{User Stories của Học viên}
+
+\begingroup
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{|p{1.6cm}|p{5.6cm}|p{7cm}|}
+\caption{User stories của học viên}
+\label{tab:user-stories-hoc-vien}\\
+\hline
+\textbf{ID} & \textbf{User Story} & \textbf{Tiêu chí chấp nhận} \\
+\hline
+\endfirsthead
+\hline
+\textbf{ID} & \textbf{User Story} & \textbf{Tiêu chí chấp nhận} \\
+\hline
+\endhead
+US-LE-01 & Là học viên, tôi muốn truy cập nội dung micro-learning \textbf{ngay trong khóa học Canvas}, không phải đăng nhập hệ thống AI riêng. & Truy cập từ Canvas; danh tính được Canvas cung cấp; không hỏi mật khẩu. \\
+\hline
+US-LE-02 & Là học viên, tôi muốn xem nội dung dạng card ngắn gọn để học mọi lúc trên điện thoại / laptop. & Mỗi card ngắn gọn, \(\leq 200\) từ; giao diện responsive; thao tác phù hợp với cả cảm ứng và bàn phím; tải card nhanh, không quá 1 giây trong điều kiện thông thường. \\
+\hline
+US-LE-03 & Là học viên, tôi muốn lật flashcard để tự kiểm tra trí nhớ trước khi làm quiz. & Flashcard có 2 mặt: câu hỏi / đáp án; có thao tác lật; có lựa chọn ``đã thuộc'' / ``ôn lại'' lưu lại trạng thái cá nhân. \\
+\hline
+US-LE-04 & Là học viên, tôi muốn làm quiz với phản hồi tức thì và giải thích, để biết mình hiểu đúng chưa. & Hiển thị đúng/sai và giải thích ngay sau khi chọn; không thể đổi đáp án sau khi xác nhận; tổng điểm hiển thị cuối quiz; điểm tự động đẩy về gradebook Canvas. \\
+\hline
+US-LE-05 & Là học viên, tôi muốn tìm kiếm nội dung bằng câu hỏi tự nhiên, để ôn tập đúng phần cần thiết. & Hỗ trợ tiếng Việt / tiếng Anh; trả về top-5 card liên quan \(\leq 2\) s; mỗi kết quả cho biết tài liệu nguồn và mức độ liên quan; nếu dịch vụ AI không phản hồi trong giới hạn thời gian, hệ thống thông báo rõ và đề xuất thử lại thay vì treo giao diện. \\
+\hline
+US-LE-06 & Là học viên, tôi muốn xem video bài giảng có gắn các card micro-content theo timestamp, để học chủ động. & Video player hiển thị mốc theo timestamp; click vào mốc nhảy đúng đoạn và làm nổi bật card tương ứng; có tùy chọn bật/tắt overlay. \\
+\hline
+US-LE-07 & Là học viên, tôi muốn hỏi AI Tutor về nội dung khóa học và nhận câu trả lời \textbf{có trích nguồn}, để không lo bị ``ảo giác'' AI. & Mỗi câu trả lời có \(\geq 1\) trích nguồn đến card / document gốc; nếu không tìm thấy nội dung phù hợp thì trả lời ``không có trong khóa học'' thay vì bịa; khi dịch vụ AI lỗi hoặc timeout, chatbot hiển thị thông báo thân thiện và cho phép gửi lại câu hỏi mà không mất ngữ cảnh hội thoại. \\
+\hline
+US-LE-08 & Là học viên, tôi muốn xem tiến độ học tập cá nhân và biết LO nào còn yếu, để biết cần ôn lại phần nào. & Dashboard cá nhân hiển thị: \% hoàn thành theo khóa, điểm quiz theo thời gian, top 3 LO yếu nhất dựa trên điểm quiz theo LO. \\
+\hline
+US-LE-09 & Là học viên, tôi muốn hệ thống lưu vị trí cuối tôi đã học, để lần sau quay lại đúng chỗ. & Tự động lưu vị trí cuối cùng đã học sau mỗi card; lần sau mở lại hiện ``Tiếp tục từ ...''; reset khi học xong section. \\
+\hline
+\end{longtable}
+\endgroup
+
+\subsection{User Stories của Quản trị viên hệ thống}
+
+Quản trị viên không can thiệp nội dung học thuật của giảng viên, nhưng chịu
+trách nhiệm setup và vận hành hệ thống AI: đăng ký tool tích hợp, quản lý chi
+phí và giám sát sự cố. Ba câu chuyện sau bám sát phạm vi trách nhiệm đã mô tả
+ở mục phân tích tác nhân.
+
+\begingroup
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{|p{1.6cm}|p{5.6cm}|p{7cm}|}
+\caption{User stories của quản trị viên hệ thống}
+\label{tab:user-stories-admin}\\
+\hline
+\textbf{ID} & \textbf{User Story} & \textbf{Tiêu chí chấp nhận} \\
+\hline
+\endfirsthead
+\hline
+\textbf{ID} & \textbf{User Story} & \textbf{Tiêu chí chấp nhận} \\
+\hline
+\endhead
+US-AD-01 & Là quản trị viên, tôi muốn đăng ký hệ thống AI làm công cụ tích hợp với Canvas, để giảng viên và học viên có thể truy cập trực tiếp từ khóa học. & Có hướng dẫn cấu hình từng bước; sau khi đăng ký thành công, thực hiện được lần LTI launch thử nghiệm và xác nhận hệ thống nhận đúng danh tính từ Canvas; lỗi cấu hình hiển thị rõ kèm gợi ý khắc phục. \\
+\hline
+US-AD-02 & Là quản trị viên, tôi muốn cấu hình hạn mức sử dụng dịch vụ AI theo khóa học hoặc giảng viên, để kiểm soát chi phí. & Cấu hình được hạn mức số lượt gọi và chi phí theo tháng cho mỗi khóa hoặc giảng viên; hệ thống cảnh báo khi đạt 80\% hạn mức và tạm dừng yêu cầu khi đạt 100\%; có thể điều chỉnh hạn mức bất kỳ lúc nào. \\
+\hline
+US-AD-03 & Là quản trị viên, tôi muốn giám sát tình trạng vận hành như lỗi, hiệu năng và chi phí AI trên một dashboard chung, để phát hiện sớm sự cố. & Dashboard hiển thị: số job đang xử lý, tỷ lệ lỗi trong 24h gần nhất, chi phí AI tích lũy, độ trễ trung bình của các dịch vụ chính; có cơ chế cảnh báo khi vượt ngưỡng đã định. \\
+\hline
+\end{longtable}
+\endgroup

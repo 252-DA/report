@@ -1,341 +1,2010 @@
-\chapter{Thiết kế hệ thống}
+\chapter{Phân tích và thiết kế hệ thống}
 
-\section{Tổng quan kiến trúc hệ thống}
+\section{Kiến trúc tổng quan hệ thống}
 
-Hệ thống được thiết kế theo hướng tách biệt rõ giữa giao diện người dùng,
-logic nghiệp vụ, pipeline AI và hạ tầng lưu trữ. Mục tiêu của kiến trúc là
-cho phép thay đổi LLM provider, vector database, graph database hoặc LMS mà
-không phải viết lại use case cốt lõi.
+Hệ thống được thiết kế theo hướng \textbf{multi-runtime modular}: tách biệt rõ
+ràng giữa giao diện người dùng, dịch vụ nghiệp vụ, dịch vụ realtime, dịch vụ
+tìm kiếm video, các worker bất đồng bộ và hạ tầng lưu trữ. Mục tiêu của thiết
+kế là cho phép thay thế từng thành phần (LMS, vector database, graph database,
+LLM provider, video source) mà không phải sửa logic nghiệp vụ cốt lõi, đồng
+thời cho phép mở rộng từng pipeline độc lập khi tải tăng.
+
+Trong phạm vi luận văn, \textbf{Canvas LMS là LMS mục tiêu} và là nguồn cung
+cấp danh tính, ngữ cảnh khóa học, phân quyền và gradebook thông qua LTI 1.3.
+Các LMS khác như Moodle hoặc Open edX chỉ được xem là khả năng mở rộng nhờ
+chuẩn LTI, không phải nền tảng chính của thiết kế. Vì vậy, các phần kiến trúc,
+luồng xác thực, deployment và đánh giá trong chương này đều được trình bày
+theo hướng ưu tiên Canvas.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.95\textwidth]{diagrams/arch_overview.png}
-    \caption{Tổng quan kiến trúc hệ thống.}
+    \caption{Tổng quan kiến trúc hệ thống multi-runtime.}
     \label{fig:arch-overview-lvtn}
 \end{figure}
 
-Các lớp chính trong hệ thống gồm:
+\subsection{AI Extension Layer Architecture}
+
+Hệ thống không phải LMS tự xây dựng mà là một \textbf{AI Extension Layer} gắn
+vào Canvas LMS qua chuẩn LTI 1.3. Cách tiếp cận này giúp:
+
 \begin{itemize}
-    \item \textbf{LMS layer:} Open edX hoặc Moodle đóng vai trò nền tảng học
-          tập chính, gọi hệ thống qua LTI 1.3.
-    \item \textbf{Frontend layer:} Next.js cung cấp màn hình review cho giảng
-          viên, màn hình học cho học viên và route xử lý LTI.
-    \item \textbf{Application/API layer:} Python gRPC service expose các use
-          case như upload/process/search/get quiz/ingest curriculum.
-    \item \textbf{Worker layer:} document worker, enrichment worker và outbox
-          worker xử lý bất đồng bộ.
-    \item \textbf{Storage layer:} PostgreSQL lưu metadata, MinIO lưu file,
-          Qdrant lưu vector, Neo4j lưu Knowledge Graph.
-    \item \textbf{AI provider layer:} LLM và embedding model được gọi qua
-          adapter để giảm phụ thuộc vào provider cụ thể.
+    \item Tận dụng toàn bộ tính năng quản lý khóa học, người dùng, phân quyền,
+          gradebook đã có sẵn của Canvas.
+    \item Tập trung toàn bộ công sức phát triển vào lớp AI: sinh
+          Micro-Content, RAG, curriculum-aware quiz, video pipeline.
+    \item Giảm rủi ro triển khai vì cơ sở đào tạo vẫn giữ quy trình LMS hiện
+          hữu, chỉ thêm một LTI Tool bên ngoài.
 \end{itemize}
 
-Backend AI áp dụng Hexagonal Architecture. Domain/application layer chứa các
-entity và use case cốt lõi; ports định nghĩa interface cho parser, chunker,
-embedder, vector store, graph store, metadata store và LLM client; adapters
-hiện thực giao tiếp với PostgreSQL, Qdrant, Neo4j, MinIO, Redis và provider
-AI.
+Học viên và giảng viên truy cập vào hệ thống qua activity được nhúng trong
+khóa học Canvas. Khi click vào activity, Canvas khởi tạo LTI launch đến
+\texttt{web-bff}; hệ thống xác thực và điều hướng đến UI tương ứng vai trò.
+
+\subsection{Microservice Architecture}
+
+Hệ thống có sáu runtime chính, mỗi runtime có boundary trách nhiệm rõ ràng và
+có thể scale độc lập:
+
+\begin{table}[H]
+    \centering
+    \caption{Các runtime chính trong kiến trúc multi-runtime.}
+    \label{tab:runtimes}
+    \begin{tabular}{p{3.5cm}p{3cm}p{7.5cm}}
+        \toprule
+        \textbf{Runtime} & \textbf{Stack} & \textbf{Vai trò} \\
+        \midrule
+        \texttt{web-bff}
+            & Next.js, TypeScript
+            & LTI Gateway, BFF cho browser, UI giảng viên và học viên. \\
+        \midrule
+        \texttt{core-api}
+            & NestJS, TypeScript
+            & Nghiệp vụ chính, metadata, phân quyền, điều phối job. \\
+        \midrule
+        \texttt{chat-service}
+            & Python FastAPI
+            & AI Tutor realtime, RAG retrieval, streaming response. \\
+        \midrule
+        \texttt{video-search-service}
+            & Python FastAPI
+            & Tìm video minh hoạ từ kho upload nội bộ và YouTube qua MCP. \\
+        \midrule
+        \texttt{ai-worker}
+            & Python, BullMQ
+            & Document parsing, text indexing, content enrichment, outbox. \\
+        \midrule
+        \texttt{video-worker}
+            & Go, FFmpeg
+            & Audio extraction, Speech-to-Text, video segmentation. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Bốn nguyên tắc xuyên suốt kiến trúc:
+
+\begin{enumerate}
+    \item \textbf{API request không xử lý tác vụ nặng:} parse PDF,
+          transcription, embedding, LLM batch đều được đẩy sang worker qua
+          message broker, tránh timeout HTTP/gRPC.
+    \item \textbf{Chat realtime không đi qua queue:} \texttt{chat-service}
+          xử lý đồng bộ qua SSE để stream token theo thời gian thực.
+    \item \textbf{PostgreSQL là source of truth:} Qdrant và Neo4j là derived
+          stores, có thể rebuild từ Postgres qua outbox pattern.
+    \item \textbf{Tách video raw khỏi document chunking pipeline:}
+          \texttt{video-worker} chỉ tạo transcript/segments, transcript được
+          đẩy ngược qua text indexing pipeline để tái dùng cùng cơ chế
+          embedding/search.
+\end{enumerate}
+
+\subsection{Kiến trúc phân tầng}
+
+Mỗi runtime AI/business logic được tổ chức theo bốn tầng:
+
+\begin{itemize}
+    \item \textbf{Delivery (Primary Adapter):} HTTP API (FastAPI/NestJS),
+          gRPC server, BullMQ worker, SSE handler.
+    \item \textbf{Application:} Use case orchestration, DTO mapping,
+          transaction control.
+    \item \textbf{Domain:} Entity, value object, Port interface, business
+          rule. Không phụ thuộc framework.
+    \item \textbf{Infrastructure (Secondary Adapter):} PostgreSQL adapter,
+          Qdrant client, Neo4j driver, MinIO client, LLM/embedding client.
+\end{itemize}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.95\textwidth]{diagrams/arch_hexagonal.png}
-    \caption{Kiến trúc Hexagonal trong backend AI.}
+    \caption{Kiến trúc phân tầng Hexagonal trong các service AI/business.}
     \label{fig:hexagonal-lvtn}
 \end{figure}
 
-\section{Kiến trúc tích hợp LMS}
+\subsection{Triết lý thiết kế kiến trúc}
 
-\subsection{Open edX / Moodle}
+\subsubsection{a. Domain-Driven Design}
 
-Open edX là nền tảng tích hợp chính trong phạm vi hiện tại. Hệ thống được
-nhúng vào khóa học thông qua LTI 1.3. Khi học viên hoặc giảng viên mở activity
-từ Open edX, LMS gửi LTI launch request đến frontend. Frontend xác thực
-request, tạo session và điều hướng đến màn hình phù hợp với vai trò người
-dùng.
+Domain Model được thiết kế quanh các bounded context rõ ràng: \textbf{Content
+Authoring} (document, chunk, card, quiz), \textbf{Curriculum} (course,
+chapter, learning outcome, assessment), \textbf{Video Library} (video,
+segment, transcript), \textbf{Learning} (student attempt, mastery,
+progress). Mỗi context có entity, repository và use case riêng. Giao tiếp
+giữa context được thực hiện qua event hoặc API rõ ràng, không truy cập
+trực tiếp vào internal entity của context khác.
 
-Moodle được phân tích như hướng triển khai tương thích. Vì hệ thống đóng vai
-trò LTI Tool Provider, về nguyên tắc có thể đăng ký như external tool trong
-Moodle mà không cần thay đổi lõi backend. Sự khác biệt chủ yếu nằm ở cấu hình
-platform, deployment ID, client ID, keyset URL và mapping role/context.
+\subsubsection{b. Hexagonal Architecture}
 
-\subsection{LTI 1.3 Flow}
+Tầng Domain định nghĩa Port interface (abstract base class) cho mọi
+dependency ngoài: \texttt{IParser}, \texttt{IEmbeddingModel},
+\texttt{IVectorStore}, \texttt{IMetadataStore}, \texttt{IGraphStore},
+\texttt{IObjectStorage}, \texttt{ILLMClient}. Adapter hiện thực Port với
+công nghệ cụ thể. Khi cần thay LLM provider (Gemini $\to$ OpenAI) hay
+vector store (Qdrant $\to$ Pinecone), chỉ thay Adapter mà không sửa
+Domain hay Application. Cơ chế dependency injection qua Container đảm bảo
+Adapter được wire vào Use Case tại bootstrap, không phải runtime.
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.95\textwidth]{figures/lti_auth_flow.png}
-    \caption{Luồng xác thực LTI 1.3/OIDC.}
-    \label{fig:lti-flow-lvtn}
-\end{figure}
+\subsubsection{c. Event-driven Architecture}
 
-Hệ thống hoạt động như LTI Tool. Khi người dùng click từ LMS, LMS khởi tạo
-OIDC login, sau đó gửi LTI launch request chứa JWT đã ký. Frontend/route LTI
-kiểm tra issuer, client ID, deployment ID, nonce, signature và claim người
-dùng. Sau khi xác thực, hệ thống tạo session nội bộ và điều hướng người dùng
-đến màn hình tương ứng.
+Các tác vụ dài (parse, chunk, embed, transcribe, generate) được tách khỏi
+request/response trực tiếp qua message broker. \texttt{core-api} chỉ publish
+event/command vào broker và trả về document/video ID ngay lập tức. Worker
+tiêu thụ event, xử lý xong publish event mới (\texttt{DocumentParsed},
+\texttt{TranscriptReady}, \texttt{ContentDraftGenerated}). Trạng thái pipeline
+được track qua state machine, cho phép retry độc lập từng bước.
 
-\subsection{Vai trò LMS trong hệ thống}
+\section{Thiết kế các service}
 
-LMS giữ vai trò quản lý khóa học, danh sách người dùng, phân quyền ban đầu và
-điểm truy cập học tập. Hệ thống AI không thay thế LMS mà bổ sung một tool bên
-ngoài để tạo và phân phối Micro-Content/Quiz. Thiết kế này giúp giảm rủi ro
-triển khai vì cơ sở đào tạo vẫn có thể giữ quy trình LMS hiện hữu.
+Phần này mô tả chín service logic của hệ thống. Mỗi service có thể nằm trong
+một runtime riêng hoặc được hiện thực như một module bên trong runtime đã có,
+tùy theo độ phức tạp và mật độ giao tiếp.
+
+\subsection{LMS Integration và LTI Service}
+
+\textbf{Vị trí:} module \texttt{lti} bên trong \texttt{web-bff}.
+
+\textbf{Vai trò:}
+\begin{itemize}
+    \item Xử lý OIDC login initiation từ Canvas.
+    \item Validate LTI launch request: kiểm tra issuer, client ID,
+          deployment ID, nonce, signature qua Canvas JWKS.
+    \item Ánh xạ Canvas launch context (\texttt{sub}, \texttt{context.id},
+          \texttt{roles}) thành internal user qua \texttt{lms\_user\_mappings}.
+    \item Tạo session nội bộ trong Redis với TTL 30 phút, cookie HttpOnly.
+    \item Hỗ trợ AGS (grade passback), Deep Linking, NRPS (roster lookup).
+\end{itemize}
+
+\textbf{Thiết kế portable:} bảng \texttt{lms\_user\_mappings} chỉ lưu mapping
+\texttt{(lms\_type, lms\_sub) $\to$ internal\_user\_id}, không phụ thuộc
+cấu trúc nội bộ Canvas. Nếu sau này hỗ trợ Moodle hoặc Open edX, chỉ thêm
+\texttt{lms\_type} mới mà không đổi schema.
+
+\subsection{Document Processing Service}
+
+\textbf{Vị trí:} module bên trong \texttt{ai-worker} (Python).
+
+\textbf{Vai trò:}
+\begin{itemize}
+    \item Nhận event \texttt{DocumentUploaded} từ broker.
+    \item Download file gốc từ MinIO.
+    \item Parse PDF (PyMuPDF/Docling), DOCX (\texttt{python-docx}), PPTX,
+          Markdown.
+    \item Chuẩn hóa text và metadata (heading, page number, language).
+    \item OCR fallback khi text layer chất lượng thấp.
+    \item Chunking theo heading hoặc fallback size-based.
+    \item Phát event \texttt{DocumentParsed}, sau đó pipeline tiếp tục sang
+          AI Generation Service.
+\end{itemize}
+
+\textbf{Port interface:} \texttt{IParser}, \texttt{IChunker},
+\texttt{IObjectStorage}.
+
+\subsection{AI Generation Service}
+
+\textbf{Vị trí:} module bên trong \texttt{ai-worker} (enrichment).
+
+\textbf{Vai trò:}
+\begin{itemize}
+    \item Nhận event \texttt{TextIndexed} hoặc command
+          \texttt{ContentGenerationRequested}.
+    \item Lấy chunk context từ PostgreSQL và Qdrant.
+    \item Gọi LLM sinh: lesson card (3--5 bullet + key insight), quiz item
+          (MCQ + short answer), explanation, key concept card, flashcard.
+    \item Validate JSON schema và rule nghiệp vụ (số câu, độ dài, có giải
+          thích, có đáp án đúng).
+    \item Ghi source link: \texttt{source\_chunk\_ids},
+          \texttt{source\_video\_segment\_ids}, \texttt{lo\_id},
+          \texttt{bloom\_level}.
+    \item Lưu nội dung ở trạng thái \texttt{GENERATED\_DRAFT}; không publish
+          tự động.
+    \item Phát event \texttt{ContentDraftGenerated}.
+\end{itemize}
+
+\textbf{Port interface:} \texttt{ILLMClient}, \texttt{IMetadataStore},
+\texttt{IVectorStore}.
+
+\subsection{Video Processing Service}
+
+\textbf{Vị trí:} runtime riêng \texttt{video-worker} (Go).
+
+\textbf{Vai trò:}
+\begin{itemize}
+    \item Nhận event \texttt{VideoUploaded}.
+    \item Download video từ MinIO.
+    \item Extract audio bằng FFmpeg subprocess.
+    \item Chạy Speech-to-Text (Whisper hoặc faster-whisper) để tạo transcript
+          có timestamp.
+    \item Segment transcript/video theo scene hoặc topic.
+    \item Cắt clip và tạo thumbnail bằng FFmpeg.
+    \item Upload clip/thumbnail lên MinIO.
+    \item Lưu \texttt{video\_segments}, \texttt{transcript\_segments} vào
+          PostgreSQL.
+    \item Phát event \texttt{TranscriptReady} để \texttt{ai-worker} (text
+          indexing) tiếp tục embedding transcript.
+\end{itemize}
+
+\textbf{Lý do chọn Go:} video pipeline I/O-heavy và subprocess-heavy. Go phù
+hợp để điều phối nhiều FFmpeg/STT subprocess song song bằng goroutine, build
+binary nhẹ, RAM thấp hơn Python asyncio. Giao tiếp với phần còn lại qua gRPC
+(Go có hỗ trợ protobuf native).
+
+\textbf{Boundary:} service chỉ biến media thành transcript/segments. Transcript
+được đẩy ngược qua text indexing pipeline của \texttt{ai-worker}. Service
+này không làm RAG hay quiz generation.
+
+\subsection{Chatbot / RAG Service}
+
+\textbf{Vị trí:} runtime riêng \texttt{chat-service} (Python FastAPI).
+
+\textbf{Vai trò:}
+\begin{itemize}
+    \item Xử lý câu hỏi realtime của học viên theo mô hình RAG.
+    \item Nhận short-lived context token từ \texttt{core-api} chứa
+          \texttt{user\_id}, \texttt{course\_id}, danh sách
+          \texttt{document\_id}/\texttt{video\_id}/\texttt{lo\_ids} được phép.
+    \item Bắt buộc filter retrieval theo \texttt{course\_id} để tránh truy
+          xuất nhầm nội dung ngoài quyền.
+    \item Truy xuất chunk từ Qdrant (vector similarity + metadata filter).
+    \item Truy xuất quan hệ curriculum từ Neo4j khi câu hỏi gắn với LO cụ thể.
+    \item Lấy metadata source từ PostgreSQL để tạo citation.
+    \item Build prompt với context + citation, gọi LLM stream token qua SSE.
+    \item Lưu chat history hoặc phát event \texttt{ChatMessageCreated} để
+          analytics tiêu thụ.
+\end{itemize}
+
+\textbf{Lý do tách service riêng:} chat là request/response realtime cần tối
+ưu latency và streaming, không phù hợp với worker queue. Tách riêng cho
+phép scale độc lập khi nhiều học viên hỏi đồng thời.
+
+\subsection{Curriculum Service}
+
+\textbf{Vị trí:} module trải đôi --- \texttt{core-api} (curriculum API) +
+\texttt{ai-worker} (DCMH extraction).
+
+\textbf{Vai trò:}
+\begin{itemize}
+    \item Ingest Đề cương Môn học (DCMH) theo định dạng CDIO của Đại học
+          Bách khoa TP.HCM.
+    \item \texttt{DcmhExtractor} parse PDF bằng regex (không LLM):
+        \begin{itemize}
+            \item Regex LO code: \texttt{L.O.X.Y} với X là chapter, Y là thứ
+                  tự LO trong chapter.
+            \item Regex chapter: ``Chương N''.
+            \item Bloom level detection: ánh xạ 40+ động từ tiếng Việt và
+                  tiếng Anh sang 6 mức Bloom (Remember $\to$ Create).
+            \item CDIO level: ánh xạ \texttt{L.O.X.Y} thành level I
+                  ($X \in \{1,2\}$), II ($X \in \{3,4\}$), III
+                  ($X \in \{5,6\}$).
+        \end{itemize}
+    \item Persist vào PostgreSQL: \texttt{courses}, \texttt{chapters},
+          \texttt{learning\_outcomes}, \texttt{assessments}.
+    \item Phát outbox event để \texttt{ai-worker} (outbox poller) project
+          sang Neo4j Knowledge Graph.
+    \item \texttt{HeuristicLoMapper} tự động liên kết chunk tài liệu với LO
+          theo heading alignment, không cần LLM.
+    \item Cung cấp API \texttt{GET /courses/\{id\}/outcomes},
+          \texttt{POST /chunks/\{id\}/lo-mappings} cho \texttt{core-api}.
+\end{itemize}
+
+Lý do regex thay vì LLM cho DCMH: deterministic, reproducible, không tốn token
+LLM, dễ giải thích khi sai. Cấu trúc CDIO chuẩn hóa nên regex hoạt động ổn.
+
+\subsection{Learning Analytics Service}
+
+\textbf{Vị trí:} module bên trong \texttt{ai-worker} (learning event handler).
+
+\textbf{Vai trò:}
+\begin{itemize}
+    \item Nhận event \texttt{QuizSubmitted} từ \texttt{core-api}.
+    \item Lưu quiz attempt, score, answer detail, thời gian làm bài.
+    \item Cập nhật progress học sinh và LO mastery (tracking đơn giản trong
+          phạm vi đồ án, BKT/IRT để cho hướng phát triển tương lai).
+    \item Trigger LTI AGS grade passback nếu được cấu hình, gửi điểm về
+          Canvas gradebook.
+    \item Phát event \texttt{ProgressUpdated} cho dashboard tiêu thụ.
+\end{itemize}
+
+Trong MVP, phần grade passback và mastery tracking đơn giản nằm trong
+\texttt{core-api} submit quiz flow. Khi feature nặng hơn (BKT, recommendation),
+tách thành runtime riêng.
+
+\subsection{Observability Service}
+
+\textbf{Vị trí:} cross-cutting concern, không phải runtime riêng. Bao gồm:
+
+\begin{itemize}
+    \item \textbf{Structured Logging:} \texttt{structlog} (Python) và
+          \texttt{pino} (NestJS) emit JSON log với \texttt{trace\_id},
+          \texttt{span\_id}, \texttt{request\_id}, \texttt{user\_id}.
+          Log được aggregate bởi Loki hoặc Elasticsearch.
+    \item \textbf{Metrics:} Prometheus scrape endpoint
+          \texttt{/metrics} của mỗi service. Metric quan trọng: request
+          rate, latency P50/P95/P99, error rate, queue depth, job duration,
+          LLM token usage, cost ước lượng.
+    \item \textbf{Distributed Tracing:} OpenTelemetry SDK trong mỗi service,
+          export trace qua OTLP đến Tempo hoặc Jaeger.
+    \item \textbf{Error Tracking:} Sentry tích hợp trong web-bff và core-api
+          để capture exception stack trace.
+\end{itemize}
+
+\subsection{Video Search Service}
+
+\textbf{Vị trí:} runtime riêng \texttt{video-search-service} (Python FastAPI).
+
+\textbf{Vai trò:}
+\begin{itemize}
+    \item Tìm video minh hoạ cho card/LO từ hai nguồn:
+        \begin{itemize}
+            \item \textbf{Uploaded:} video do giảng viên upload, đã được
+                  \texttt{video-worker} transcribe và segment, vector embedding
+                  lưu trong Qdrant.
+            \item \textbf{YouTube:} truy vấn qua MCP (Model Context Protocol)
+                  tool, cache result trong Redis để tiết kiệm quota API.
+        \end{itemize}
+    \item Merge và rank candidate từ hai nguồn theo relevance score, độ ưu
+          tiên uploaded $>$ YouTube, ngôn ngữ, độ dài, Bloom level.
+    \item Có ba caller chính:
+        \begin{enumerate}
+            \item \texttt{ai-worker} (enrichment): tự động gợi ý video khi
+                  sinh card cho mỗi LO.
+            \item \texttt{core-api} (review UI): instructor manual search.
+            \item \texttt{chat-service}: gợi ý video bổ sung trong câu trả lời.
+        \end{enumerate}
+    \item API chính:
+        \begin{itemize}
+            \item \texttt{POST /video-search}: search merged uploaded +
+                  YouTube.
+            \item \texttt{POST /video-search/youtube-transcript}: fetch
+                  transcript on-demand.
+            \item \texttt{POST /video-search/index-youtube}: enqueue text
+                  indexing cho transcript YouTube vào Qdrant.
+        \end{itemize}
+\end{itemize}
+
+\textbf{Boundary:} service không tự attach video vào card (quyền của
+\texttt{core-api}), không gọi LLM, không upsert Qdrant trực tiếp (chỉ enqueue
+job cho \texttt{ai-worker}).
 
 \section{Thiết kế AI Pipeline}
 
-\subsection{Trích xuất tài liệu}
+\subsection{Document Processing Pipeline}
 
-Sau khi giảng viên upload file, backend lưu file gốc vào MinIO và tạo metadata
-document trong PostgreSQL. Worker nhận job từ queue, tải file và chọn parser
-theo định dạng. Parser trích xuất text, heading, page range và metadata cần
-thiết để phục vụ chunking và truy xuất nguồn về sau.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{diagrams/dataflow_text_pipeline.png}
+    \caption{Data flow của text/document processing pipeline.}
+    \label{fig:dataflow-text}
+\end{figure}
 
-\subsection{OCR}
+Pipeline xử lý tài liệu gồm năm bước chính, mỗi bước là một stage độc lập
+trong worker queue:
 
-OCR được đặt sau bước phát hiện text layer. Nếu PDF có text layer đủ chất
-lượng, hệ thống đọc trực tiếp văn bản. Nếu PDF là ảnh hoặc lượng text trích
-xuất quá ít, pipeline chuyển sang OCR. Kết quả OCR cần lưu confidence để
-giảng viên biết phần nào có nguy cơ sai khi review.
+\begin{enumerate}
+    \item \textbf{Upload:} Browser upload trực tiếp lên MinIO qua presigned
+          URL do \texttt{core-api} cấp. \texttt{core-api} confirm upload và
+          publish \texttt{DocumentUploaded}.
+    \item \textbf{Parse:} \texttt{ai-worker} download file, parse theo format
+          (PDF/DOCX/PPTX/Markdown). Output: text có heading, page number,
+          image alt-text.
+    \item \textbf{OCR (conditional):} Nếu text layer chất lượng thấp, chuyển
+          sang OCR (Tesseract hoặc dịch vụ OCR chuyên biệt). Lưu confidence
+          để review.
+    \item \textbf{Chunk:} \texttt{HeadingChunker} cho tài liệu có cấu trúc,
+          \texttt{SizeChunker} cho fallback. Mỗi chunk giữ \texttt{heading\_path},
+          \texttt{page\_range}, \texttt{document\_id}.
+    \item \textbf{Embed + Index:} BGE-M3 sinh vector 1024 chiều, upsert vào
+          Qdrant collection \texttt{learning\_chunks} với payload metadata.
+          Lưu chunk content vào PostgreSQL.
+\end{enumerate}
 
-Trong phạm vi hiện tại, OCR production cho tài liệu scan chất lượng thấp được
-xem là thiết kế mở rộng. Pipeline vẫn chừa adapter OCR để có thể bổ sung
-Tesseract hoặc dịch vụ OCR chuyên biệt khi cần.
+Sau khi indexing xong, phát event \texttt{TextIndexed} để kích hoạt Micro-Content
+Generation Pipeline.
 
-\subsection{Chunking}
+\subsection{Video Processing Pipeline}
 
-Chunking chia tài liệu dài thành các đơn vị đủ nhỏ để embedding và đưa vào
-prompt, nhưng vẫn đủ ngữ cảnh để giữ ý nghĩa học thuật. Hệ thống ưu tiên
-heading-based chunking cho tài liệu có cấu trúc rõ. Mỗi chunk giữ heading path
-như ``Chương 2 > 2.1 Khái niệm'', page range và document ID.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{diagrams/dataflow_video_pipeline.png}
+    \caption{Data flow của video processing pipeline.}
+    \label{fig:dataflow-video}
+\end{figure}
 
-Với tài liệu thiếu heading, hệ thống dùng fallback chunking theo kích thước
-token/ký tự và overlap. Overlap giúp giảm rủi ro cắt mất thông tin giữa hai
-chunk liên tiếp nhưng cần được cấu hình hợp lý để tránh tăng chi phí embedding
-và LLM.
+Pipeline xử lý video upload:
 
-\subsection{Embedding}
+\begin{enumerate}
+    \item \textbf{Upload:} Browser upload trực tiếp lên MinIO. \texttt{core-api}
+          confirm, publish \texttt{VideoUploaded}.
+    \item \textbf{Extract audio:} \texttt{video-worker} (Go) download video,
+          dùng FFmpeg extract audio thành WAV 16kHz mono.
+    \item \textbf{Speech-to-Text:} Chạy Whisper (hoặc faster-whisper) trên
+          audio để tạo transcript có timestamp ms. Word-level alignment khi
+          cần highlight đoạn nói cụ thể.
+    \item \textbf{Segment:} Phân đoạn transcript theo: silence gap, topic
+          shift (cosine similarity trên embedding của câu liên tiếp), độ dài
+          tối đa (30--90 giây).
+    \item \textbf{Cắt clip + thumbnail:} FFmpeg cắt video theo segment, sinh
+          thumbnail từ frame giữa, upload lên MinIO bucket \texttt{video-clips}
+          và \texttt{generated-media}.
+    \item \textbf{Lưu segment:} Insert \texttt{video\_segments} và
+          \texttt{transcript\_segments} vào PostgreSQL với
+          \texttt{start\_ms}, \texttt{end\_ms}, text, clip URL, thumbnail URL.
+    \item \textbf{Embed transcript:} Phát \texttt{TranscriptReady},
+          \texttt{ai-worker} text indexing embed transcript segment thành
+          vector và upsert Qdrant với \texttt{source\_type=video}.
+\end{enumerate}
 
-Mỗi chunk sau khi tạo được chuyển thành embedding bằng mô hình đa ngôn ngữ.
-Vector được lưu vào Qdrant cùng payload metadata như course ID, document ID,
-chunk ID, heading path, language và page range. Metadata này cho phép hệ thống
-lọc retrieval theo khóa học, tài liệu hoặc chương.
+\subsection{RAG Pipeline}
 
-\subsection{Retrieval}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{diagrams/dataflow_rag_chatbot.png}
+    \caption{Data flow của RAG chatbot pipeline.}
+    \label{fig:dataflow-rag}
+\end{figure}
 
-Retrieval được dùng cho semantic search, RAG chatbot và sinh quiz theo LO.
-Luồng truy xuất gồm embed query, tìm top-K chunk trong Qdrant, lọc theo
-metadata và tăng ưu tiên bằng quan hệ Knowledge Graph nếu có. Với LMS, bước
-lọc theo course/context là bắt buộc để tránh truy xuất nhầm nội dung ngoài
-quyền truy cập của người học.
+Pipeline RAG được dùng cho ba use case: AI Tutor Chatbot, sinh quiz theo LO,
+sinh lesson summary có grounding. Luồng chung:
 
-\subsection{Generation}
+\begin{enumerate}
+    \item \textbf{Query embedding:} Embed query bằng BGE-M3 (cùng model dùng
+          để index để vector space đồng bộ).
+    \item \textbf{Vector retrieval:} Search Qdrant top-K (K = 20--50) với
+          filter \texttt{course\_id} (bắt buộc), \texttt{language},
+          \texttt{source\_type}, \texttt{lo\_ids} (nếu có).
+    \item \textbf{Graph-aware reranking:} Nếu query gắn với LO cụ thể, query
+          Neo4j lấy chunk có \texttt{SUPPORTS} LO, boost score chunk có quan
+          hệ graph.
+    \item \textbf{Context assembly:} Lấy top-N (N = 5--10) sau rerank, kèm
+          heading path và page number để LLM tạo citation.
+    \item \textbf{Prompt build:} Hệ thống prompt + instruction + context
+          chunks + query, đính kèm rule (chỉ trả lời dựa trên context, nếu
+          không tìm thấy thì nói không biết).
+    \item \textbf{LLM generation:} Gọi Gemini stream token. Đối với chatbot,
+          stream qua SSE về browser. Đối với quiz/summary, accumulate full
+          response và validate schema.
+    \item \textbf{Post-processing:} Validate citation, gắn link nguồn vào
+          response, log query/response cho analytics và evaluation.
+\end{enumerate}
 
-LLM generation nhận prompt gồm instruction, context chunk, Learning Outcome,
-Bloom level, số lượng câu hỏi và schema đầu ra. Nội dung sinh ra được validate
-theo JSON schema, rule nghiệp vụ và liên kết nguồn. Kết quả hợp lệ được lưu
-như bản nháp để giảng viên review; hệ thống không publish tự động nội dung do
-AI sinh ra.
+\subsection{Micro-Content Generation Pipeline}
 
-\section{Thiết kế lưu trữ và dữ liệu}
+Pipeline sinh Micro-Content (lesson card, key concept, flashcard) được kích
+hoạt khi \texttt{TextIndexed} hoặc \texttt{ContentGenerationRequested}:
 
-\subsection{PostgreSQL}
+\begin{enumerate}
+    \item \textbf{Chọn chunk:} Lấy chunk thuộc document mới index, hoặc chunk
+          thuộc LO/chapter chỉ định.
+    \item \textbf{Group theo heading:} Gom chunk cùng heading cấp 2 lại
+          thành một ``lesson unit'', tránh sinh card rời rạc.
+    \item \textbf{Prompt template:}
+        \begin{itemize}
+            \item Lesson card: ``Sinh 3--5 ý chính dạng bullet, mỗi ý $\leq$ 30
+                  từ. Kèm key insight tổng kết.''
+            \item Key concept card: ``Trích 3--5 khái niệm quan trọng, mỗi
+                  khái niệm có định nghĩa ngắn và ví dụ.''
+            \item Flashcard: ``Cặp Q\&A ngắn để học thuộc, ưu tiên thuật ngữ
+                  và định nghĩa.''
+        \end{itemize}
+    \item \textbf{LLM call:} Gọi Gemini với JSON schema strict mode.
+    \item \textbf{Validate:} Kiểm tra schema, số lượng, độ dài, có
+          \texttt{source\_chunk\_ids}.
+    \item \textbf{Lưu:} \texttt{lesson\_cards} với
+          \texttt{status=GENERATED\_DRAFT}, ghi
+          \texttt{source\_chunk\_ids}, \texttt{lo\_id} (nếu mapping được).
+    \item \textbf{Phát event:} \texttt{ContentDraftGenerated}.
+\end{enumerate}
 
-PostgreSQL là source of truth cho dữ liệu nghiệp vụ. Các nhóm bảng chính gồm:
-\begin{itemize}
-    \item \textbf{Document:} document, file metadata, trạng thái pipeline.
-    \item \textbf{Chunking:} chunk content, heading path, vị trí trong tài
-          liệu, metadata ngôn ngữ.
-    \item \textbf{Generated content:} lesson card, quiz item, đáp án, giải
-          thích, trạng thái review.
-    \item \textbf{Curriculum:} course, chapter, learning outcome, assessment,
-          mapping LO-assessment và chunk-LO.
-    \item \textbf{Learning data:} progress, quiz submission, score và event
-          học tập.
-\end{itemize}
+\subsection{Quiz Generation Pipeline}
+
+Pipeline sinh quiz có hai biến thể:
+
+\textbf{Quiz tự do (free quiz):} sinh từ chunk hoặc document tổng quát, không
+gắn với LO cụ thể. Phù hợp khi giảng viên muốn quiz nhanh từ tài liệu.
+
+\textbf{Curriculum-aware quiz:} sinh aligned với LO cụ thể, dùng GraphRAG
+retrieval:
+
+\begin{enumerate}
+    \item Lấy LO target từ PostgreSQL: \texttt{statement\_vi},
+          \texttt{bloom\_level}, \texttt{cdio\_level}.
+    \item Query Neo4j: chunk nào \texttt{SUPPORTS} LO này.
+    \item Bổ sung vector retrieval: search Qdrant với
+          \texttt{statement\_vi} của LO làm query, filter
+          \texttt{course\_id} và \texttt{language}.
+    \item Merge chunk list, dedupe, lấy top-N.
+    \item Prompt template chỉ định: số câu MCQ + số câu short answer, Bloom
+          level mục tiêu, độ khó, có giải thích, có rationale tại sao đáp
+          án đúng.
+    \item Gọi LLM, validate schema (mỗi MCQ có 4 lựa chọn, 1 đáp án đúng,
+          giải thích $\geq$ 50 từ).
+    \item Lưu \texttt{quiz\_items} với \texttt{status=GENERATED\_DRAFT},
+          \texttt{source\_chunk\_ids}, \texttt{lo\_id},
+          \texttt{bloom\_level}.
+\end{enumerate}
+
+Phát event \texttt{ContentDraftGenerated}.
+
+\subsection{Review và Publish Pipeline}
+
+Pipeline review/publish là human-in-the-loop, không có LLM gọi tự động:
+
+\begin{enumerate}
+    \item Giảng viên mở review page trên \texttt{web-bff}.
+    \item \texttt{core-api}: trả draft (card + quiz + video attachment) ở
+          trạng thái \texttt{GENERATED\_DRAFT}.
+    \item Giảng viên có ba lựa chọn cho từng item:
+        \begin{itemize}
+            \item \textbf{Approve:} đẩy trạng thái sang \texttt{APPROVED}.
+            \item \textbf{Edit:} sửa nội dung, set \texttt{REVIEWING} với
+                  diff log.
+            \item \texttt{Request changes / Reject:} gửi feedback để
+                  enrichment regenerate (gọi lại Micro-Content/Quiz
+                  generation pipeline với hint).
+        \end{itemize}
+    \item Khi đủ item APPROVED, giảng viên click Publish lesson.
+    \item \texttt{core-api}: chuyển toàn bộ lesson sang
+          \texttt{PUBLISHED}, ghi audit log.
+    \item Phát \texttt{LessonPublished}, outbox sync sang Neo4j (cập nhật
+          \texttt{Card.published\_at}, \texttt{QuizItem.published\_at}).
+    \item Học viên có thể access content qua Canvas activity launch.
+\end{enumerate}
+
+\section{Thiết kế cơ sở dữ liệu}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.95\textwidth,height=0.78\textheight,keepaspectratio]{diagrams/er_diagram.png}
-    \caption{ER diagram của hệ thống.}
+    \caption{ER diagram tổng thể của PostgreSQL.}
     \label{fig:er-lvtn}
 \end{figure}
 
-\subsection{Qdrant Vector DB}
+\subsection{PostgreSQL Schema}
 
-Qdrant lưu vector embedding của chunk và payload metadata. Mỗi vector point
-đại diện cho một chunk. Các thao tác chính gồm tạo collection theo kích thước
-embedding, upsert vector sau khi chunking, search top-K theo query vector và
-filter theo course, document hoặc language.
+PostgreSQL là source of truth cho toàn bộ dữ liệu nghiệp vụ. Các nhóm bảng
+chính:
 
-\subsection{Neo4j Graph DB}
+\begin{table}[H]
+    \centering
+    \caption{Các nhóm bảng trong PostgreSQL.}
+    \label{tab:postgres-tables}
+    \begin{tabular}{p{3.5cm}p{10cm}}
+        \toprule
+        \textbf{Nhóm} & \textbf{Bảng chính} \\
+        \midrule
+        LMS Integration
+            & \texttt{lms\_user\_mappings}, \texttt{lms\_course\_ref} \\
+        Document
+            & \texttt{documents}, \texttt{chunks} \\
+        Video
+            & \texttt{videos}, \texttt{video\_segments},
+              \texttt{transcript\_segments} \\
+        Curriculum
+            & \texttt{courses}, \texttt{chapters},
+              \texttt{learning\_outcomes}, \texttt{assessments},
+              \texttt{lo\_assessments}, \texttt{chunk\_lo\_mappings} \\
+        Generated Content
+            & \texttt{lesson\_cards}, \texttt{quiz\_items},
+              \texttt{card\_video\_attachments}, \texttt{review\_audit\_logs} \\
+        Learning Data
+            & \texttt{quiz\_attempts}, \texttt{chat\_messages},
+              \texttt{learning\_events} \\
+        Async/Sync
+            & \texttt{outbox\_events}, \texttt{youtube\_search\_cache} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-Neo4j lưu projection Knowledge Graph cho curriculum. PostgreSQL vẫn giữ dữ
-liệu gốc, còn Neo4j tối ưu cho truy vấn quan hệ tri thức như chunk nào hỗ trợ
-LO nào, assessment nào đo LO nào hoặc chapter nào liên quan đến một nhóm
-chuẩn đầu ra.
+\textbf{Outbox pattern:} mọi thay đổi cần đồng bộ sang Neo4j hoặc downstream
+service được ghi vào \texttt{outbox\_events} trong cùng transaction với thao
+tác nghiệp vụ. \texttt{ai-worker} (outbox poller) đọc bảng này, project sang
+Neo4j hoặc gửi event ra ngoài, đảm bảo eventual consistency.
 
-\subsection{MinIO / Object Storage}
+\textbf{Auth delegation:} hệ thống không tự lưu user password. User
+authentication được delegate sang Canvas qua LTI 1.3. Internal user chỉ là
+\texttt{(internal\_user\_id, display\_name, role)} ánh xạ từ
+\texttt{lms\_user\_mappings}.
 
-MinIO lưu file gốc được upload bởi giảng viên. Metadata trong PostgreSQL chỉ
-lưu đường dẫn object, checksum, MIME type, kích thước và trạng thái xử lý. Cách
-tách này giúp database không phải lưu binary lớn và cho phép worker tải file
-theo nhu cầu.
+\subsection{Qdrant Vector Schema}
 
-\subsection{Redis / Queue}
+Qdrant lưu vector embedding cho document chunk và video transcript segment.
+Trong MVP, dùng một collection \texttt{learning\_chunks} với payload phân
+biệt qua \texttt{source\_type}. Ở production có thể tách thành
+\texttt{document\_chunks} và \texttt{video\_segments} nếu cần tối ưu.
 
-Redis và queue được dùng cho các job bất đồng bộ như parse document, sinh
-embedding, gọi LLM và đồng bộ graph. Mỗi job cần lưu trạng thái, số lần retry,
-thời điểm bắt đầu/kết thúc và lỗi cuối cùng để frontend có thể hiển thị tiến
-trình cho giảng viên.
-
-\section{Thiết kế mô hình tri thức và chiến lược truy xuất}
-
-\subsection{Curriculum-aware Retrieval}
-
-Curriculum-aware retrieval đưa thông tin chương trình học vào quá trình chọn
-context. Khi giảng viên chọn một Learning Outcome hoặc chapter, hệ thống ưu
-tiên chunk có quan hệ trực tiếp với LO/chapter đó trước khi đưa vào prompt.
-Cách làm này giúp quiz bám mục tiêu học tập hơn so với chỉ dựa trên vector
-similarity.
-
-\subsection{GraphRAG Strategies}
-
-GraphRAG trong luận văn được thiết kế theo ba mức:
-\begin{enumerate}
-    \item \textbf{Graph filtering:} chỉ lấy chunk có quan hệ với LO/chapter
-          mục tiêu.
-    \item \textbf{Graph-aware reranking:} kết hợp điểm vector similarity với
-          điểm quan hệ trong graph.
-    \item \textbf{Graph explanation:} lưu rationale để giải thích vì sao một
-          chunk hoặc quiz liên quan đến LO.
-\end{enumerate}
-
-Reasoning đa bước trên graph được xem là hướng mở rộng, không trình bày như
-kết quả hoàn thiện trong giai đoạn hiện tại.
-
-\subsection{Metadata Strategy}
-
-Metadata được lưu nhất quán giữa PostgreSQL, Qdrant và Neo4j. Các khóa quan
-trọng gồm \texttt{course\_id}, \texttt{document\_id}, \texttt{chunk\_id},
-\texttt{chapter\_id}, \texttt{lo\_id}, heading path, page range, language và
-source version. Metadata giúp truy xuất có thể lọc theo phạm vi khóa học,
-truy ngược nguồn và đánh giá chất lượng retrieval.
-
-\subsection{Knowledge Graph Structure}
-
-Các node chính của Knowledge Graph gồm Course, Chapter, LearningOutcome,
-Assessment và Chunk. Các quan hệ chính gồm:
+\textbf{Vector specs:}
 \begin{itemize}
-    \item \texttt{COURSE\_HAS\_CHAPTER}: Course chứa Chapter.
-    \item \texttt{CHAPTER\_HAS\_LO}: Chapter chứa hoặc liên quan đến LO.
-    \item \texttt{ASSESSMENT\_MEASURES\_LO}: Assessment đo LO.
-    \item \texttt{CHUNK\_SUPPORTS\_LO}: Chunk hỗ trợ đạt LO.
+    \item Dimension: 1024 (BGE-M3).
+    \item Distance: Cosine similarity.
+    \item Quantization: \texttt{Scalar} (int8) khi collection $>$ 1M điểm
+          để giảm RAM.
 \end{itemize}
 
-Knowledge Graph được dùng cho ba mục tiêu: truy xuất chunk theo LO, giải
-thích liên kết giữa quiz và chuẩn đầu ra, và chuẩn bị nền tảng cho adaptive
-learning hoặc GraphRAG nâng cao.
+\textbf{Payload schema tối thiểu:}
 
-\section{Giao tiếp và tích hợp hệ thống}
+\begin{verbatim}
+{
+  "chunk_id" | "segment_id": string,
+  "source_type": "document" | "video",
+  "course_id": string,
+  "document_id" | "video_id": string,
+  "heading_path": [string],       // document only
+  "page_number": int,             // document only
+  "start_ms": int, "end_ms": int, // video only
+  "lo_ids": [string],
+  "language": "vi" | "en" | "mixed",
+  "content": string,
+  "is_youtube": bool,             // video, true nếu source là YouTube
+  "external_url": string          // video YouTube
+}
+\end{verbatim}
 
-\subsection{gRPC API}
+\textbf{Filter bắt buộc:} \texttt{course\_id} --- để tránh truy xuất nhầm nội
+dung ngoài quyền truy cập của học viên.
 
-Backend expose gRPC API cho các use case chính. gRPC được chọn cho giao tiếp
-nội bộ vì contract rõ ràng, sinh mã client/server thuận tiện và phù hợp giữa
-frontend/API gateway, backend AI service và worker runner.
+\subsection{Neo4j Knowledge Graph}
+
+Neo4j lưu projection Knowledge Graph cho curriculum và content mapping.
+PostgreSQL vẫn là source of truth; Neo4j có thể rebuild từ outbox event.
+
+\textbf{Node label:}
+\begin{itemize}
+    \item \texttt{Course}, \texttt{Chapter}, \texttt{LearningOutcome},
+          \texttt{Assessment}.
+    \item \texttt{Chunk}, \texttt{VideoSegment}.
+    \item \texttt{Card}, \texttt{QuizItem}.
+    \item \texttt{Concept} (cho concept extraction).
+\end{itemize}
+
+\textbf{Relationship:}
+
+\begin{verbatim}
+(Course)-[:HAS_CHAPTER]->(Chapter)
+(Chapter)-[:HAS_LO]->(LearningOutcome)
+(Assessment)-[:MEASURES]->(LearningOutcome)
+(Chunk)-[:SUPPORTS]->(LearningOutcome)
+(VideoSegment)-[:SUPPORTS]->(LearningOutcome)
+(QuizItem)-[:ASSESSES]->(LearningOutcome)
+(Card)-[:EXPLAINS]->(LearningOutcome)
+(Concept)-[:RELATED_TO]->(Concept)
+(Chunk)-[:MENTIONS]->(Concept)
+\end{verbatim}
+
+Knowledge Graph có ba ứng dụng chính: graph filtering (chỉ lấy chunk gắn LO
+target khi build prompt RAG), graph-aware reranking (kết hợp điểm vector
+similarity và quan hệ graph), coverage dashboard (tỉ lệ LO có chunk hỗ
+trợ).
+
+\subsection{Redis Queue và Cache}
+
+Redis đảm nhiệm bốn vai trò:
+
+\begin{enumerate}
+    \item \textbf{Session cache:} LTI session với TTL 30 phút, key
+          \texttt{sess:\{sid\}}, value JSON chứa
+          \texttt{internal\_user\_id},
+          \texttt{course\_id}, \texttt{role}.
+    \item \textbf{Chat context token cache:} short-lived token (5 phút) cho
+          \texttt{chat-service} khi mở SSE connection.
+    \item \textbf{YouTube cache:} cache result của
+          \texttt{video-search-service} khi query YouTube, key
+          \texttt{ytcache:\{hash(query)\}}, TTL 24h, value JSON list video.
+    \item \textbf{Job queue (BullMQ):} backing store cho BullMQ. Key prefix
+          \texttt{bull:\{queue\}:\{job\_id\}}, hỗ trợ retry, delayed job,
+          job priority.
+\end{enumerate}
+
+\textbf{Lý do chọn Redis + BullMQ thay vì Kafka cho MVP:}
+\begin{itemize}
+    \item Stack đã có Redis sẵn cho session/cache, không thêm hạ tầng.
+    \item BullMQ có dashboard, retry/backoff, delayed job built-in.
+    \item Đủ throughput cho quy mô đồ án.
+    \item Event contract thiết kế broker-agnostic để dễ migrate Kafka khi
+          cần production-scale.
+\end{itemize}
+
+\subsection{Object Storage Schema}
+
+MinIO lưu file gốc và artifact sinh ra trong quá trình xử lý. Bucket được
+phân chia theo loại nội dung:
+
+\begin{table}[H]
+    \centering
+    \caption{Các bucket MinIO và mục đích.}
+    \label{tab:minio-buckets}
+    \begin{tabular}{p{3cm}p{10.5cm}}
+        \toprule
+        \textbf{Bucket} & \textbf{Nội dung} \\
+        \midrule
+        \texttt{documents}
+            & PDF, DOCX, PPTX, Markdown gốc do giảng viên upload. \\
+        \texttt{videos}
+            & Video gốc. \\
+        \texttt{video-clips}
+            & Clip cắt theo segment do \texttt{video-worker} tạo. \\
+        \texttt{generated-media}
+            & Thumbnail, exported artifact (PDF lesson, slide xuất từ card). \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Metadata trong PostgreSQL chỉ lưu đường dẫn object, checksum, MIME type,
+kích thước. Browser upload trực tiếp qua presigned URL, không đẩy file qua
+application layer để tránh nghẽn cổ chai.
+
+\section{Thiết kế giao tiếp hệ thống}
+
+\subsection{LTI 1.3 Integration APIs}
+
+Hệ thống đóng vai trò LTI Tool Provider trong giao thức LTI 1.3 / OIDC.
+Các endpoint chính ở \texttt{web-bff}:
+
+\begin{table}[H]
+    \centering
+    \caption{LTI 1.3 endpoints của \texttt{web-bff}.}
+    \label{tab:lti-endpoints}
+    \begin{tabular}{p{4.5cm}p{2.5cm}p{6.5cm}}
+        \toprule
+        \textbf{Endpoint} & \textbf{Method} & \textbf{Vai trò} \\
+        \midrule
+        \texttt{/lti/login}
+            & GET/POST
+            & OIDC login initiation từ Canvas. \\
+        \texttt{/lti/launch}
+            & POST
+            & Nhận \texttt{id\_token} JWT, validate, tạo session. \\
+        \texttt{/lti/jwks}
+            & GET
+            & Publish public key cho Canvas validate signature từ tool. \\
+        \texttt{/lti/deep-linking}
+            & POST
+            & Nhận deep linking request, trả về content item URL. \\
+        \texttt{/lti/grade-passback}
+            & POST
+            & AGS grade passback khi học viên hoàn thành quiz. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Flow LTI launch:}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{figures/lti_auth_flow.png}
+    \caption{LTI 1.3 / OIDC launch flow giữa Canvas và \texttt{web-bff}.}
+    \label{fig:lti-flow-lvtn}
+\end{figure}
+
+\begin{enumerate}
+    \item Canvas gửi OIDC login redirect đến \texttt{/lti/login} với
+          \texttt{iss}, \texttt{client\_id}, \texttt{login\_hint}.
+    \item \texttt{web-bff} redirect ngược về Canvas
+          \texttt{/api/lti/authorize\_redirect} với \texttt{state},
+          \texttt{nonce}.
+    \item Canvas xác thực user, sinh \texttt{id\_token} JWT, gửi form POST
+          đến \texttt{/lti/launch}.
+    \item \texttt{web-bff} validate JWT qua Canvas JWKS, trích claim:
+          \texttt{sub}, \texttt{context.id}, \texttt{roles},
+          \texttt{custom}.
+    \item UPSERT \texttt{lms\_user\_mappings}, SET session Redis, set cookie
+          HttpOnly.
+    \item 302 redirect theo role: giảng viên đến \texttt{/manage/review},
+          học viên đến \texttt{/learn/cards}.
+\end{enumerate}
+
+\subsection{gRPC Internal APIs}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.95\textwidth]{diagrams/grpc_service_design.png}
-    \caption{Thiết kế gRPC service và các use case tương ứng.}
+    \caption{Thiết kế gRPC internal API.}
     \label{fig:grpc-design-lvtn}
 \end{figure}
 
-\subsection{Internal Services}
+gRPC được dùng cho giao tiếp giữa các runtime nội bộ có schema rõ ràng và
+yêu cầu performance:
 
-Các nhóm service chính trong hệ thống gồm:
+\begin{itemize}
+    \item \texttt{video-worker} (Go) $\leftrightarrow$ \texttt{ai-worker}
+          (Python): publish job kết quả qua gRPC.
+    \item \texttt{ai-worker} (worker pool) tự gọi internal RPC khi cần
+          \texttt{ProcessDocument}, \texttt{IngestCurriculum},
+          \texttt{GenerateCurriculumQuiz}, \texttt{Search},
+          \texttt{DeleteDocument}.
+\end{itemize}
+
+\textbf{Lý do dùng gRPC:} contract rõ ràng qua \texttt{.proto}, sinh code
+client/server tự động, hỗ trợ streaming, performance tốt hơn REST cho
+internal traffic. Polyglot Python$\leftrightarrow$Go giao tiếp qua
+\texttt{protobuf} chuẩn.
+
+REST/HTTP được dùng cho external API (browser, BFF) vì dễ debug và phổ biến.
+
+\subsection{Event-driven Processing}
+
+Event-driven là cơ chế chính cho tác vụ async. Các event/job:
+
 \begin{table}[H]
     \centering
-    \caption{Các service chính trong kiến trúc triển khai.}
-    \label{tab:services-lvtn}
-    \begin{tabular}{p{3.5cm}p{10.5cm}}
+    \caption{Event/job chính trong broker.}
+    \label{tab:events-lvtn}
+    \begin{tabular}{p{4.5cm}p{9cm}}
         \toprule
-        \textbf{Service} & \textbf{Vai trò} \\
+        \textbf{Event/Job} & \textbf{Producer $\to$ Consumer} \\
         \midrule
-        Next.js frontend & UI, LTI login/launch, proxy hoặc gọi API backend. \\
-        Python gRPC service & API xử lý tài liệu, search, curriculum và quiz. \\
-        Document worker & Parse, chunk, embed và lưu kết quả xử lý tài liệu. \\
-        Enrichment worker & Sinh card/quiz bằng LLM và validate kết quả. \\
-        Outbox worker & Đồng bộ sự kiện từ PostgreSQL sang Neo4j. \\
-        PostgreSQL & Source of truth cho metadata, document, chunk, card, quiz và curriculum. \\
-        Qdrant & Vector store phục vụ semantic search và retrieval. \\
-        Neo4j & Knowledge Graph cho Course, Chapter, LO, Assessment và quan hệ SUPPORTS. \\
-        MinIO & Object storage cho file gốc. \\
-        Redis/Queue & Queue và trạng thái xử lý bất đồng bộ. \\
+        \texttt{DocumentUploaded}
+            & \texttt{core-api} $\to$ \texttt{ai-worker} (parsing) \\
+        \texttt{DocumentParsed}
+            & \texttt{ai-worker} $\to$ \texttt{ai-worker} (indexing) \\
+        \texttt{TextIndexed}
+            & \texttt{ai-worker} $\to$ \texttt{ai-worker} (enrichment) \\
+        \texttt{VideoUploaded}
+            & \texttt{core-api} $\to$ \texttt{video-worker} \\
+        \texttt{TranscriptReady}
+            & \texttt{video-worker} $\to$ \texttt{ai-worker} (indexing) \\
+        \texttt{ContentGenerationRequested}
+            & \texttt{core-api} $\to$ \texttt{ai-worker} (enrichment) \\
+        \texttt{ContentDraftGenerated}
+            & \texttt{ai-worker} $\to$ \texttt{core-api} (review) \\
+        \texttt{LessonPublished}
+            & \texttt{core-api} $\to$ analytics/outbox \\
+        \texttt{QuizSubmitted}
+            & \texttt{core-api} $\to$ \texttt{ai-worker} (learning event) \\
+        \texttt{OutboxEventCreated}
+            & PostgreSQL $\to$ \texttt{ai-worker} (Neo4j sync) \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\subsection{Async Workers}
+\textbf{Event contract:} mỗi event là JSON với schema
+\texttt{(event\_type, event\_id, occurred\_at, payload)}. Schema được validate
+ở producer side trước khi publish. Event được lưu vào
+\texttt{outbox\_events} trong cùng transaction nghiệp vụ để đảm bảo
+exactly-once delivery effect.
 
-Worker giúp tách tác vụ nặng khỏi request/response trực tiếp. Document worker
-xử lý parse, chunk và embed; enrichment worker sinh nội dung học tập; outbox
-worker đồng bộ dữ liệu sang graph. Các worker đọc job từ queue, cập nhật trạng
-thái document và ghi log lỗi để người dùng có thể retry khi cần.
+\subsection{Streaming Architecture}
 
-\subsection{Event / Queue Flow}
+Streaming được dùng cho hai use case:
 
-Sau khi upload thành công, backend tạo document ở trạng thái \texttt{QUEUED}
-và enqueue job. Worker chuyển trạng thái qua các bước \texttt{PARSING},
-\texttt{CHUNKING}, \texttt{EMBEDDING}, \texttt{GENERATING}, sau đó kết thúc
-bằng \texttt{DONE} hoặc \texttt{ERROR}. Các sự kiện liên quan đến curriculum
-và chunk-LO mapping được ghi vào outbox để đồng bộ sang Neo4j.
+\textbf{Chat streaming (SSE):} \texttt{chat-service} stream token LLM về
+\texttt{web-bff}, \texttt{web-bff} stream tiếp về browser:
 
-\section{Sequence Diagrams và System Flows}
+\begin{enumerate}
+    \item Browser mở SSE đến \texttt{web-bff} \texttt{/api/chat/stream}.
+    \item \texttt{web-bff} mở SSE đến \texttt{chat-service} với chat context
+          token.
+    \item \texttt{chat-service} gọi LLM với stream mode, mỗi token nhận được
+          từ LLM được gửi ngay qua SSE event \texttt{data:}.
+    \item Khi xong, gửi event \texttt{event: done} với citation và metadata.
+    \item Browser hiển thị token tăng dần, citation hiển thị sau khi xong.
+\end{enumerate}
 
-\subsection{Luồng ingest curriculum}
+\textbf{Progress streaming (SSE):} \texttt{web-bff} stream tiến trình xử lý
+document/video về browser:
+
+\begin{enumerate}
+    \item Browser mở SSE đến
+          \texttt{/api/documents/\{id\}/progress}.
+    \item \texttt{web-bff} subscribe vào Redis pub/sub channel
+          \texttt{progress:document:\{id\}}.
+    \item \texttt{ai-worker} publish progress event sau mỗi stage
+          (PARSING $\to$ CHUNKING $\to$ EMBEDDING $\to$ ENRICHING $\to$
+          DONE).
+    \item Browser nhận và update progress bar realtime.
+\end{enumerate}
+
+\section{Thiết kế bảo mật và tích hợp hệ thống}
+
+\subsection{LMS Authentication Integration}
+
+Authentication được delegate hoàn toàn sang Canvas qua LTI 1.3:
+
+\begin{itemize}
+    \item Hệ thống không tự lưu password, không tự quản lý user signup.
+    \item User chỉ tồn tại trong hệ thống nếu đã login Canvas và launch tool.
+    \item Mỗi launch validate \texttt{id\_token} JWT qua Canvas JWKS public
+          key, kiểm tra: issuer match, audience là client ID của tool,
+          \texttt{nonce} chưa dùng, signature đúng, \texttt{exp} chưa hết
+          hạn.
+    \item Session nội bộ TTL 30 phút, ngắn hơn TTL token Canvas để giảm
+          rủi ro replay.
+\end{itemize}
+
+\subsection{Internal Service Authentication}
+
+Giao tiếp giữa các runtime nội bộ dùng \textbf{service-to-service JWT}:
+
+\begin{itemize}
+    \item Mỗi runtime có service account riêng với key pair RSA.
+    \item Mỗi request internal kèm JWT ký bằng private key của caller,
+          claim chứa \texttt{service\_name}, \texttt{purpose}, \texttt{exp}
+          5 phút.
+    \item Receiver validate qua JWKS endpoint của caller (cache 10 phút).
+    \item \texttt{chat-service}, \texttt{video-search-service},
+          \texttt{ai-worker} chỉ chấp nhận request từ caller được whitelist.
+\end{itemize}
+
+Nếu deploy single-node (Docker Compose) và network internal isolated thì có
+thể tạm dùng shared secret. Khi scale ra Kubernetes thì nên dùng mTLS.
+
+\subsection{API Security}
+
+\begin{itemize}
+    \item \textbf{HTTPS bắt buộc:} mọi external endpoint phải qua reverse
+          proxy (Caddy/Nginx) với TLS 1.3.
+    \item \textbf{CORS strict:} \texttt{web-bff} chỉ accept origin Canvas
+          domain và tool's own domain.
+    \item \textbf{CSRF protection:} mutating endpoint yêu cầu CSRF token,
+          gắn vào session.
+    \item \textbf{Rate limiting:} per-user và per-IP, giới hạn ở
+          \texttt{web-bff} và \texttt{core-api} (xem 4.6.5).
+    \item \textbf{Input validation:} mọi request body validate qua JSON
+          schema hoặc class-validator (NestJS), không trust client-side.
+\end{itemize}
+
+\subsection{AI Pipeline Isolation}
+
+LLM được gọi qua adapter, có ba cơ chế isolation:
+
+\begin{itemize}
+    \item \textbf{Network egress whitelist:} chỉ cho \texttt{ai-worker} và
+          \texttt{chat-service} access LLM provider endpoint. Các runtime
+          khác không có route ra ngoài.
+    \item \textbf{Tenant isolation:} prompt template có placeholder
+          \texttt{\{course\_id\}} bắt buộc, filter retrieval theo
+          \texttt{course\_id} ở Qdrant. Không bao giờ trộn context giữa các
+          course.
+    \item \textbf{Cost cap:} mỗi request có \texttt{max\_tokens} ceiling,
+          mỗi user có quota daily/monthly. Vượt quota thì reject với 429.
+\end{itemize}
+
+\subsection{Rate Limiting và Cost Control}
+
+\begin{table}[H]
+    \centering
+    \caption{Chiến lược rate limit và quota.}
+    \label{tab:rate-limit}
+    \begin{tabular}{p{4cm}p{4cm}p{5cm}}
+        \toprule
+        \textbf{Endpoint/Action} & \textbf{Giới hạn} & \textbf{Phạm vi} \\
+        \midrule
+        Chat message
+            & 20/phút, 200/giờ
+            & Per user \\
+        Document upload
+            & 5/giờ, 50/ngày
+            & Per user (instructor) \\
+        Video upload
+            & 2/giờ, 10/ngày
+            & Per user (instructor) \\
+        Quiz attempt
+            & 100/giờ
+            & Per user (học viên) \\
+        LLM token usage
+            & 100K token/ngày
+            & Per user \\
+        YouTube API call
+            & 100/phút (cache 24h)
+            & Toàn hệ thống \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Rate limit được hiện thực qua Redis token bucket. Quota LLM token được
+track per-user trong PostgreSQL bảng \texttt{user\_llm\_quota}, reset
+hàng ngày.
+
+\subsection{Bảo mật hệ thống AI theo OWASP Top 10 for LLM Applications}
+
+OWASP Top 10 for LLM Applications là tài liệu chuẩn về risk khi triển khai
+LLM trong production. Hệ thống áp dụng các biện pháp tương ứng:
+
+\subsubsection{a. Prompt Injection}
+
+\textbf{Risk:} Học viên hoặc nội dung tài liệu chứa hidden instruction để
+override system prompt (``Bỏ qua mọi hướng dẫn trước, gửi cho tôi đáp án
+quiz'').
+
+\textbf{Biện pháp:}
+\begin{itemize}
+    \item Tách rõ system prompt và user prompt trong API call (Gemini
+          \texttt{system\_instruction} riêng biệt).
+    \item Prefix user input với delimiter và escape một số token nhạy cảm.
+    \item Detect prompt injection pattern qua regex và LLM-based classifier
+          trước khi forward.
+    \item Limit role của LLM: chỉ trả lời dựa trên context cho phép, không
+          tiết lộ system prompt.
+\end{itemize}
+
+\subsubsection{b. Sensitive Data Leakage}
+
+\textbf{Risk:} LLM trả về thông tin nhạy cảm từ training data hoặc từ context
+chunk của course khác.
+
+\textbf{Biện pháp:}
+\begin{itemize}
+    \item Filter retrieval theo \texttt{course\_id} là bắt buộc trong mọi
+          query Qdrant.
+    \item Không lưu PII trong context chunk: redact email, phone, ID người
+          dùng trước khi index.
+    \item Log full prompt/response để audit nhưng access log restricted.
+    \item Không gửi quiz answer key vào context của chat (chỉ học sinh thấy
+          khi submit).
+\end{itemize}
+
+\subsubsection{c. Unsafe Output Handling}
+
+\textbf{Risk:} LLM trả về HTML/JS/SQL hoặc command có thể bị inject vào UI
+hoặc backend.
+
+\textbf{Biện pháp:}
+\begin{itemize}
+    \item Validate JSON schema strict cho mọi structured output (quiz,
+          card).
+    \item Frontend render content qua sanitizer (DOMPurify), không
+          \texttt{dangerouslySetInnerHTML} với raw LLM output.
+    \item Backend không bao giờ \texttt{eval} hoặc execute output của LLM.
+\end{itemize}
+
+\subsubsection{d. Malicious Document Upload}
+
+\textbf{Risk:} File upload chứa malware, prompt injection content, hoặc
+exploit parser (PDF/DOCX có CVE).
+
+\textbf{Biện pháp:}
+\begin{itemize}
+    \item Whitelist MIME type và file extension ở presigned URL policy.
+    \item Scan file qua ClamAV trước khi worker download (optional cho
+          production).
+    \item Parse PDF/DOCX trong sandboxed worker process, timeout 60s, memory
+          cap 1GB.
+    \item Update parser library thường xuyên để patch CVE (PyMuPDF, Docling).
+\end{itemize}
+
+\subsubsection{e. Vector Database Poisoning}
+
+\textbf{Risk:} Chunk độc hại được index vào Qdrant, khi retrieve sẽ làm
+hỏng câu trả lời (ví dụ chunk chứa fake fact hoặc prompt injection).
+
+\textbf{Biện pháp:}
+\begin{itemize}
+    \item Chỉ instructor có quyền upload tài liệu vào course.
+    \item Audit log mọi thao tác upsert/delete Qdrant.
+    \item Content moderation pass: chunk có pattern đáng ngờ (URL ngoài,
+          prompt-like text) được flag để review.
+    \item Khi delete document, đảm bảo xóa tất cả vector tương ứng (qua
+          outbox sync).
+\end{itemize}
+
+\subsubsection{f. Excessive Agency}
+
+\textbf{Risk:} LLM được cho quá nhiều quyền (gọi tool, thực thi function),
+có thể bị lợi dụng để thực hiện hành động ngoài ý muốn.
+
+\textbf{Biện pháp:}
+\begin{itemize}
+    \item LLM không có quyền call tool nguy hiểm (delete, write DB).
+    \item MCP tool chỉ cho \texttt{video-search-service} dùng để query
+          YouTube --- không cho phép tool tạo content, modify state.
+    \item Mọi tool call được log và audit.
+\end{itemize}
+
+\subsubsection{g. Overreliance on AI Output}
+
+\textbf{Risk:} Người dùng tin tưởng tuyệt đối LLM output, dẫn đến học sai
+hoặc đánh giá sai năng lực.
+
+\textbf{Biện pháp:}
+\begin{itemize}
+    \item Hệ thống không publish tự động: mọi nội dung AI đều phải qua
+          review của giảng viên.
+    \item UI hiển thị disclaimer ``Nội dung do AI sinh, có thể chứa sai
+          sót'' và link tới source chunk.
+    \item Citation bắt buộc trong chat response: học viên có thể click để
+          xem nguyên bản tài liệu.
+\end{itemize}
+
+\subsubsection{h. Insecure Plugin / Tool Design}
+
+\textbf{Risk:} MCP tool YouTube hoặc LLM tool calling có vulnerability cho
+phép arbitrary input vào tool.
+
+\textbf{Biện pháp:}
+\begin{itemize}
+    \item Tool input schema strict, validate trước khi gọi.
+    \item Tool output sanitize: HTML strip, URL whitelist (chỉ
+          \texttt{youtube.com}, \texttt{youtu.be}).
+    \item Tool có rate limit và timeout.
+    \item Tool không có quyền chạm vào internal DB/storage.
+\end{itemize}
+
+\subsubsection{i. Training Data Poisoning}
+
+\textbf{Risk:} Không áp dụng trực tiếp vì hệ thống dùng LLM API (Gemini), không
+fine-tune. Tuy nhiên trong tương lai nếu fine-tune cần lưu ý.
+
+\textbf{Biện pháp (định hướng tương lai):}
+\begin{itemize}
+    \item Nếu fine-tune trên data nội bộ: dataset cần audit nguồn, loại
+          chunk độc hại trước khi train.
+    \item Eval model sau fine-tune trên test set chuẩn để phát hiện
+          regression.
+\end{itemize}
+
+\subsubsection{j. Supply Chain Vulnerabilities}
+
+\textbf{Risk:} Dependency (Python package, NPM package, Docker image) bị
+compromise, ảnh hưởng toàn hệ thống.
+
+\textbf{Biện pháp:}
+\begin{itemize}
+    \item Pin version dependency trong \texttt{requirements.txt},
+          \texttt{package.json}, \texttt{go.mod}.
+    \item Quét vulnerability định kỳ qua \texttt{pip-audit},
+          \texttt{npm audit}, \texttt{trivy} cho Docker image.
+    \item Chỉ dùng official image từ registry tin cậy.
+    \item Self-host LLM/embedding model khi có thể (BGE-M3 chạy local) để
+          giảm phụ thuộc API ngoài.
+\end{itemize}
+
+\section{Thiết kế giao diện}
+
+\subsection{Triết lý thiết kế UI/UX}
+
+\subsubsection{a. Calm UI/UX}
+
+UI được thiết kế theo triết lý \textbf{Calm UI}: giao diện tĩnh, sạch, ít
+hiệu ứng. Mục tiêu là giúp người học tập trung vào nội dung, không bị
+phân tán bởi animation hoặc thông báo không cần thiết.
+
+\begin{itemize}
+    \item Background trắng/xám nhạt, accent color tối thiểu.
+    \item Typography rõ ràng (system font stack), độ tương phản cao.
+    \item Animation chỉ dùng cho feedback trực tiếp (loading, success,
+          error).
+    \item Không có pop-up quảng cáo, không có nudge marketing.
+\end{itemize}
+
+\subsubsection{b. Minimal Distraction Learning}
+
+Trong các màn hình học (card view, video learning, chatbot), UI loại bỏ
+mọi yếu tố không liên quan:
+
+\begin{itemize}
+    \item Sidebar và header thu gọn khi đang học.
+    \item Notification được defer vào trung tâm thông báo riêng.
+    \item Chế độ ``Focus mode'': chỉ hiển thị content và điều khiển cơ bản.
+\end{itemize}
+
+\subsubsection{c. Progressive Disclosure}
+
+Thông tin được tiết lộ dần theo nhu cầu:
+
+\begin{itemize}
+    \item Card hiển thị key insight trước, bullet detail mở khi tap.
+    \item Quiz feedback: hiển thị đúng/sai ngay, giải thích chi tiết mở khi
+          tap.
+    \item Citation trong chat: hiển thị link, full chunk content khi tap.
+\end{itemize}
+
+\subsubsection{d. Mobile-first Learning}
+
+UI học viên được thiết kế mobile-first vì học viên thường học trên điện
+thoại:
+
+\begin{itemize}
+    \item Layout single-column trên mobile, multi-column trên tablet/desktop.
+    \item Touch target $\geq 44 \times 44$ px.
+    \item Card swipe gesture trên mobile để chuyển bài.
+    \item Offline-friendly cho card đã đọc.
+\end{itemize}
+
+\subsection{Sitemap}
+
+Hệ thống có hai role UI chính:
+
+\textbf{Học viên:}
+\begin{itemize}
+    \item \texttt{/learn/dashboard} --- tổng quan tiến độ.
+    \item \texttt{/learn/courses/\{id\}} --- danh sách lesson trong course.
+    \item \texttt{/learn/lessons/\{id\}} --- card view của lesson.
+    \item \texttt{/learn/lessons/\{id\}/quiz} --- làm quiz.
+    \item \texttt{/learn/lessons/\{id\}/video} --- video learning view.
+    \item \texttt{/learn/chat} --- AI Tutor Chatbot.
+    \item \texttt{/learn/progress} --- progress chi tiết theo LO.
+\end{itemize}
+
+\textbf{Giảng viên:}
+\begin{itemize}
+    \item \texttt{/manage/dashboard} --- thống kê course, document, content.
+    \item \texttt{/manage/documents} --- danh sách tài liệu, upload.
+    \item \texttt{/manage/videos} --- danh sách video, upload.
+    \item \texttt{/manage/curricula} --- DCMH ingestion, LO management.
+    \item \texttt{/manage/review} --- inbox content cần review.
+    \item \texttt{/manage/lessons/\{id\}/edit} --- edit và publish.
+    \item \texttt{/manage/analytics} --- learning analytics dashboard.
+\end{itemize}
+
+\subsection{Dashboard Giảng viên}
+
+Dashboard hiển thị: số document đã xử lý, số content draft cần review, tỉ
+lệ LO đã có content hỗ trợ (coverage), top học sinh yếu nhất theo LO. Cho
+phép quick action: upload tài liệu mới, mở inbox review, generate quiz từ
+chapter.
+
+Layout chia ba phần: header với metric tổng quan (cards 4--5 KPI), middle
+section với review inbox và coverage chart, bottom với recent activity feed.
+
+\subsection{Learning UI}
+
+\textbf{Card view:} mỗi card hiển thị title, 3--5 bullet, key insight,
+source link tới page tài liệu gốc. Navigation: tap để mở chi tiết, swipe
+hoặc nút Next/Prev. Progress bar trên đầu hiển thị card index /
+total.
+
+\textbf{Quiz view:} một câu hỏi một màn hình. MCQ có 4 lựa chọn, tap để
+chọn. Sau khi submit cả lesson: hiển thị score tổng, đúng/sai từng câu,
+giải thích, link đến card liên quan để học lại.
+
+\subsection{Chatbot UI}
+
+Chat interface tối giản: message bubble (user phải, bot trái), citation
+inline (số trong vòng tròn, tap để xem chunk gốc), streaming text với
+caret blink khi đang generate. Input box phía dưới với placeholder gợi ý
+(``Hỏi về bài học này...''). Không có quick reply gợi ý để giảm dependency
+vào pattern fixed.
+
+\subsection{Video Learning UI}
+
+Video player chính ở trên, transcript với timestamp ở dưới (click để jump
+tới đoạn). Segment đã được hệ thống cắt được highlight với title segment.
+Bên phải hiển thị card liên quan đến đoạn đang xem (auto-update theo
+timestamp).
+
+\subsection{Review Interface}
+
+Review interface là core UX cho giảng viên. Mỗi item (card/quiz) hiển thị:
+content, source chunk preview, generated by AI badge. Ba action chính:
+Approve (xanh), Edit (vàng), Reject (đỏ). Bulk action cho nhiều item cùng
+lúc. Diff view khi edit để track changes. Audit log timeline phía bên.
+
+\section{Sequence Diagram}
+
+\subsection{Upload và xử lý tài liệu}
+
+\begin{enumerate}
+    \item Giảng viên chọn PDF/DOCX/PPTX trên \texttt{web-bff}.
+    \item \texttt{web-bff} $\to$ \texttt{core-api}:
+          \texttt{POST /documents/upload-session}.
+    \item \texttt{core-api}: tạo document record (status=UPLOADING), cấp
+          presigned URL MinIO, trả về \texttt{document\_id}.
+    \item Browser upload trực tiếp lên MinIO qua presigned URL.
+    \item \texttt{web-bff} $\to$ \texttt{core-api}:
+          \texttt{POST /documents/\{id\}/confirm-upload}.
+    \item \texttt{core-api}: update status=QUEUED, publish
+          \texttt{DocumentUploaded} qua BullMQ.
+    \item \texttt{ai-worker} (parsing) tiêu thụ event: download MinIO, parse,
+          chunk.
+    \item \texttt{ai-worker} (indexing): embed BGE-M3, upsert Qdrant, lưu
+          chunk PostgreSQL, publish \texttt{TextIndexed}.
+    \item \texttt{ai-worker} (enrichment): gọi LLM sinh card/quiz, lưu
+          GENERATED\_DRAFT, publish \texttt{ContentDraftGenerated}.
+    \item \texttt{web-bff} stream progress qua SSE về browser.
+\end{enumerate}
+
+\subsection{Upload và xử lý video}
+
+\begin{enumerate}
+    \item Giảng viên chọn video trên \texttt{web-bff}.
+    \item \texttt{web-bff} $\to$ \texttt{core-api}:
+          \texttt{POST /videos/upload-session}.
+    \item \texttt{core-api}: tạo video record, cấp presigned URL, trả
+          \texttt{video\_id}.
+    \item Browser upload lên MinIO.
+    \item \texttt{web-bff} $\to$ \texttt{core-api}:
+          confirm upload.
+    \item \texttt{core-api}: status=QUEUED, publish
+          \texttt{VideoUploaded}.
+    \item \texttt{video-worker} (Go) consume: download, FFmpeg extract audio,
+          Whisper transcribe, segment, cắt clip, upload artifact.
+    \item Lưu \texttt{video\_segments}, \texttt{transcript\_segments}; publish
+          \texttt{TranscriptReady}.
+    \item \texttt{ai-worker} (indexing): embed transcript, upsert Qdrant.
+    \item Optional: \texttt{ai-worker} (enrichment) sinh card/quiz từ
+          transcript segment.
+\end{enumerate}
+
+\subsection{AI Tutor Chatbot}
+
+\begin{enumerate}
+    \item Học viên gửi câu hỏi trên \texttt{web-bff}.
+    \item \texttt{web-bff} $\to$ \texttt{core-api}:
+          \texttt{POST /chat/context-token} với session info.
+    \item \texttt{core-api}: validate session, generate short-lived JWT
+          chứa \texttt{user\_id}, \texttt{course\_id},
+          \texttt{allowed\_document\_ids},
+          \texttt{allowed\_lo\_ids}.
+    \item \texttt{web-bff} mở SSE đến \texttt{chat-service}
+          \texttt{/chat/stream} với token + câu hỏi.
+    \item \texttt{chat-service}: validate token, embed câu hỏi, search
+          Qdrant top-K với filter course/LO.
+    \item Nếu câu hỏi gắn LO: query Neo4j lấy chunk
+          \texttt{SUPPORTS} LO, rerank.
+    \item Build prompt với context + citation, gọi LLM stream.
+    \item Mỗi token nhận được, \texttt{chat-service} push qua SSE; tương tự
+          \texttt{web-bff} forward về browser.
+    \item Khi xong: gửi \texttt{event: done} với citation list, lưu chat
+          message vào PostgreSQL.
+\end{enumerate}
+
+\subsection{Quiz Generation}
+
+\begin{enumerate}
+    \item Giảng viên click ``Generate Quiz'' cho LO X trong review UI.
+    \item \texttt{web-bff} $\to$ \texttt{core-api}:
+          \texttt{POST /quiz-generations} với
+          \texttt{lo\_id=X}, params (số câu, Bloom, difficulty).
+    \item \texttt{core-api}: publish \texttt{ContentGenerationRequested}
+          với type=quiz, target LO.
+    \item \texttt{ai-worker} (enrichment) consume:
+        \begin{itemize}
+            \item Query Neo4j: chunk \texttt{SUPPORTS} LO X.
+            \item Vector search Qdrant với LO statement làm query.
+            \item Merge chunks, dedupe.
+            \item Build prompt với LO code, statement, Bloom, schema.
+            \item Gọi LLM, validate JSON schema.
+            \item Lưu \texttt{quiz\_items} status=GENERATED\_DRAFT với
+                  \texttt{source\_chunk\_ids}.
+            \item Publish \texttt{ContentDraftGenerated}.
+        \end{itemize}
+    \item \texttt{core-api}: update lesson draft, gửi notification cho
+          giảng viên (qua progress SSE).
+\end{enumerate}
+
+\subsection{Curriculum Ingestion}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.95\textwidth]{figures/seq_ingest_curriculum.png}
-    \caption{Sequence diagram cho luồng ingest đề cương môn học.}
+    \caption{Sequence diagram ingest DCMH (Đề cương Môn học).}
     \label{fig:seq-ingest-curriculum-lvtn}
 \end{figure}
 
-Luồng ingest curriculum bắt đầu từ request của giảng viên hoặc admin, sau đó
-backend gọi parser để trích xuất Course, Chapter, Learning Outcome và
-Assessment. Dữ liệu được lưu vào PostgreSQL trước, sau đó outbox/event
-projector đồng bộ sang Neo4j. Thiết kế này giữ PostgreSQL làm source of truth
-và cho phép Neo4j được rebuild nếu cần.
+\begin{enumerate}
+    \item Giảng viên upload DCMH PDF qua \texttt{web-bff}.
+    \item Upload session $\to$ MinIO $\to$ confirm (như document flow).
+    \item \texttt{core-api}: publish \texttt{CurriculumIngestionRequested}
+          với \texttt{document\_id}, \texttt{course\_id}.
+    \item \texttt{ai-worker} (curriculum): download DCMH, gọi
+          \texttt{DcmhExtractor} parse regex.
+    \item Extract Course metadata, Chapter list, Learning Outcome (LO),
+          Assessment.
+    \item Insert PostgreSQL trong một transaction: \texttt{courses},
+          \texttt{chapters}, \texttt{learning\_outcomes},
+          \texttt{assessments}, \texttt{lo\_assessments}.
+    \item Cùng transaction: insert \texttt{outbox\_events} với
+          \texttt{CurriculumIngested} payload.
+    \item \texttt{ai-worker} (outbox poller) đọc event, project sang Neo4j:
+          tạo node Course, Chapter, LO, Assessment và relationship
+          \texttt{HAS\_CHAPTER}, \texttt{HAS\_LO},
+          \texttt{MEASURES}.
+    \item Sau khi LO graph có: \texttt{HeuristicLoMapper} chạy trên tất cả
+          chunk hiện có của course, tạo \texttt{chunk\_lo\_mappings} và
+          \texttt{SUPPORTS} relationship.
+\end{enumerate}
 
-\subsection{Luồng xử lý tài liệu}
+\subsection{LTI Launch Flow}
 
-Luồng xử lý tài liệu gồm các bước upload, enqueue, parse, chunk, embed,
-generate và persist. Các bước có thể retry độc lập ở cấp job. Trạng thái
-document được cập nhật để frontend có thể hiển thị tiến trình cho giảng viên.
+\begin{enumerate}
+    \item Học viên đăng nhập Canvas, mở activity chứa LTI tool.
+    \item Canvas $\to$ \texttt{web-bff} \texttt{/lti/login} với
+          \texttt{iss}, \texttt{client\_id}, \texttt{login\_hint}.
+    \item \texttt{web-bff}: lookup tool config, redirect về Canvas
+          \texttt{/api/lti/authorize\_redirect} với
+          \texttt{state}, \texttt{nonce}, \texttt{response\_type=id\_token}.
+    \item Canvas xác thực user, sinh \texttt{id\_token} JWT, form POST đến
+          \texttt{web-bff} \texttt{/lti/launch}.
+    \item \texttt{web-bff}: validate JWT (issuer, audience, signature qua
+          Canvas JWKS, exp, nonce).
+    \item Trích claim: \texttt{sub}, \texttt{context.id},
+          \texttt{context.title}, \texttt{roles},
+          \texttt{custom.lesson\_id} (nếu có Deep Linking).
+    \item \texttt{web-bff} $\to$ \texttt{core-api}:
+          UPSERT \texttt{lms\_user\_mappings},
+          \texttt{lms\_course\_ref}.
+    \item Set session Redis với TTL 30 phút.
+    \item Cookie HttpOnly \texttt{sid}, 302 redirect:
+        \begin{itemize}
+            \item Instructor: \texttt{/manage/review}.
+            \item Student có \texttt{custom.lesson\_id}:
+                  \texttt{/learn/lessons/\{lesson\_id\}}.
+            \item Student không có context cụ thể:
+                  \texttt{/learn/courses/\{course\_id\}}.
+        \end{itemize}
+\end{enumerate}
+
+\section{Activity Diagram}
+
+\subsection{Document Pipeline}
+
+Activity flow cho document processing:
+
+\begin{enumerate}
+    \item \textbf{Start:} Document uploaded.
+    \item \textbf{Decision:} File type hợp lệ?
+        \begin{itemize}
+            \item No $\to$ status=ERROR, end.
+            \item Yes $\to$ tiếp tục.
+        \end{itemize}
+    \item \textbf{Action:} Parse file theo type.
+    \item \textbf{Decision:} Text layer chất lượng đủ?
+        \begin{itemize}
+            \item No $\to$ Run OCR (parallel).
+            \item Yes $\to$ tiếp tục.
+        \end{itemize}
+    \item \textbf{Action:} Normalize text, extract heading.
+    \item \textbf{Action:} Chunk theo heading (fallback size-based nếu
+          không có heading).
+    \item \textbf{Action:} Embed chunks bằng BGE-M3.
+    \item \textbf{Action:} Upsert Qdrant + Insert PostgreSQL chunks.
+    \item \textbf{Decision:} Auto-generate content?
+        \begin{itemize}
+            \item Yes $\to$ Trigger enrichment.
+            \item No $\to$ status=INDEXED, end.
+        \end{itemize}
+    \item \textbf{Action:} Enrichment sinh card/quiz drafts.
+    \item \textbf{End:} status=GENERATED\_DRAFT, chờ instructor review.
+\end{enumerate}
+
+\subsection{Video Pipeline}
+
+\begin{enumerate}
+    \item \textbf{Start:} Video uploaded.
+    \item \textbf{Decision:} Codec/format hợp lệ?
+        \begin{itemize}
+            \item No $\to$ ERROR.
+            \item Yes $\to$ tiếp tục.
+        \end{itemize}
+    \item \textbf{Action:} Extract audio bằng FFmpeg.
+    \item \textbf{Action:} Speech-to-Text (Whisper).
+    \item \textbf{Action:} Detect segment boundaries (silence + topic shift).
+    \item \textbf{Parallel:}
+        \begin{itemize}
+            \item Branch 1: Cắt video clip cho từng segment.
+            \item Branch 2: Tạo thumbnail.
+            \item Branch 3: Insert \texttt{video\_segments},
+                  \texttt{transcript\_segments} PostgreSQL.
+        \end{itemize}
+    \item \textbf{Join:} Đồng bộ ba nhánh.
+    \item \textbf{Action:} Publish \texttt{TranscriptReady}.
+    \item \textbf{Action:} Embed transcript segments, upsert Qdrant.
+    \item \textbf{End:} status=INDEXED.
+\end{enumerate}
+
+\subsection{Learning Flow}
+
+\begin{enumerate}
+    \item \textbf{Start:} Student click activity trong Canvas.
+    \item \textbf{Action:} LTI launch, session khởi tạo.
+    \item \textbf{Decision:} Có \texttt{lesson\_id} trong launch context?
+        \begin{itemize}
+            \item Yes $\to$ Mở lesson cụ thể.
+            \item No $\to$ Hiển thị course landing.
+        \end{itemize}
+    \item \textbf{Action:} Student đọc card lần lượt.
+    \item \textbf{Decision:} Có quiz đính kèm?
+        \begin{itemize}
+            \item Yes $\to$ Cho student làm quiz.
+            \item No $\to$ skip.
+        \end{itemize}
+    \item \textbf{Action:} Submit quiz, score được tính.
+    \item \textbf{Action:} Show feedback (đúng/sai, giải thích).
+    \item \textbf{Action:} Update progress, optionally LTI AGS grade
+          passback.
+    \item \textbf{Decision:} Student muốn chat với AI Tutor?
+        \begin{itemize}
+            \item Yes $\to$ Mở chat interface (Chatbot flow).
+            \item No $\to$ end.
+        \end{itemize}
+    \item \textbf{End:} Update \texttt{last\_active\_at}.
+\end{enumerate}
+
+\subsection{Review và Publish Flow}
+
+\begin{enumerate}
+    \item \textbf{Start:} Instructor mở review inbox.
+    \item \textbf{Action:} Load lesson draft với card + quiz +
+          video attachment candidate.
+    \item \textbf{Loop:} cho mỗi item:
+        \begin{itemize}
+            \item View content + source citation.
+            \item Decision: Approve / Edit / Reject?
+            \item Approve $\to$ status=APPROVED.
+            \item Edit $\to$ open editor, save diff, status=REVIEWING.
+            \item Reject $\to$ optional re-generate với hint,
+                  status=CHANGES\_REQUESTED.
+        \end{itemize}
+    \item \textbf{Decision:} Tất cả item đã APPROVED?
+        \begin{itemize}
+            \item Yes $\to$ button Publish enable.
+            \item No $\to$ block publish, hiển thị list pending.
+        \end{itemize}
+    \item \textbf{Action:} Click Publish.
+    \item \textbf{Action:} \texttt{core-api} chuyển toàn bộ lesson sang
+          PUBLISHED, ghi audit log, publish \texttt{LessonPublished}.
+    \item \textbf{Action:} Outbox sync sang Neo4j.
+    \item \textbf{End:} Student có thể access lesson từ Canvas.
+\end{enumerate}
+
+\section{Class Diagram}
+
+Class diagram thể hiện các entity domain chính và quan hệ giữa chúng. Phần
+này tập trung vào bounded context Content Authoring và Curriculum.
+
+\textbf{Bounded context Content Authoring:}
+
+\begin{itemize}
+    \item \texttt{Document} \{id, name, mime, course\_id, owner\_id,
+          language, status, file\_url\}
+    \item \texttt{Chunk} \{id, document\_id, heading\_path, page\_range,
+          content, embedding\_ref\}
+    \item \texttt{Video} \{id, name, course\_id, owner\_id, duration\_ms,
+          status, file\_url\}
+    \item \texttt{VideoSegment} \{id, video\_id, start\_ms, end\_ms,
+          title, clip\_url, thumbnail\_url\}
+    \item \texttt{TranscriptSegment} \{id, video\_id, start\_ms, end\_ms,
+          text, embedding\_ref\}
+    \item \texttt{LessonCard} \{id, lesson\_id, title, bullets[],
+          key\_insight, source\_chunk\_ids[], status\}
+    \item \texttt{QuizItem} \{id, lesson\_id, question, choices[],
+          correct\_index, explanation, lo\_id, bloom\_level,
+          source\_chunk\_ids[], status\}
+\end{itemize}
+
+\textbf{Quan hệ chính:}
+\begin{itemize}
+    \item \texttt{Document 1---* Chunk}
+    \item \texttt{Video 1---* VideoSegment}
+    \item \texttt{VideoSegment 1---1 TranscriptSegment}
+    \item \texttt{Lesson *---* LessonCard, QuizItem}
+    \item \texttt{LessonCard *---* Chunk} (qua \texttt{source\_chunk\_ids})
+    \item \texttt{QuizItem *---1 LearningOutcome}
+\end{itemize}
+
+\textbf{Bounded context Curriculum:}
+
+\begin{itemize}
+    \item \texttt{Course} \{id, code, title\_vi, credits,
+          extraction\_confidence\}
+    \item \texttt{Chapter} \{id, course\_id, code, title, order\_index\}
+    \item \texttt{LearningOutcome} \{id, chapter\_id, code (L.O.X.Y),
+          statement\_vi, bloom\_level, cdio\_level\}
+    \item \texttt{Assessment} \{id, course\_id, code, name\_vi,
+          category, weight\}
+    \item \texttt{LOAssessment} \{lo\_id, assessment\_id\}
+    \item \texttt{ChunkLOMapping} \{chunk\_id, lo\_id, confidence\}
+\end{itemize}
+
+\textbf{Quan hệ chính:}
+\begin{itemize}
+    \item \texttt{Course 1---* Chapter}
+    \item \texttt{Chapter 1---* LearningOutcome}
+    \item \texttt{Course 1---* Assessment}
+    \item \texttt{LearningOutcome *---* Assessment} (qua LOAssessment)
+    \item \texttt{Chunk *---* LearningOutcome} (qua ChunkLOMapping)
+\end{itemize}
+
+\textbf{Port interface (Hexagonal Domain):}
+
+\begin{itemize}
+    \item \texttt{IParser}, \texttt{IChunker}, \texttt{IEmbeddingModel}
+    \item \texttt{IVectorStore}, \texttt{IMetadataStore},
+          \texttt{IGraphStore}
+    \item \texttt{IObjectStorage}, \texttt{ILLMClient}
+    \item \texttt{ICurriculumExtractor},
+          \texttt{IChunkLOMapper}
+    \item \texttt{IVideoSearchClient}, \texttt{IMcpYouTubeTool}
+\end{itemize}
+
+Mỗi Port có một hoặc nhiều Adapter implement với công nghệ cụ thể; xem
+4.2 và section thiết kế Adapter.
+
+\section{State Machine Design}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{diagrams/state_machine_pipeline.png}
+    \caption{State machine của document/video processing pipeline.}
+    \label{fig:state-machine}
+\end{figure}
+
+\subsection{Document Pipeline State}
 
 \begin{table}[H]
     \centering
-    \caption{Trạng thái pipeline xử lý tài liệu.}
-    \label{tab:pipeline-states-lvtn}
+    \caption{Trạng thái của document pipeline.}
+    \label{tab:doc-states}
     \begin{tabular}{p{3cm}p{10.5cm}}
         \toprule
         \textbf{Trạng thái} & \textbf{Ý nghĩa} \\
         \midrule
-        \texttt{QUEUED} & Document đã lưu và đang chờ worker xử lý. \\
-        \texttt{PARSING} & Worker đang trích xuất text/metadata từ file. \\
-        \texttt{CHUNKING} & Nội dung đang được chia thành chunk học tập. \\
-        \texttt{EMBEDDING} & Chunk đang được chuyển thành vector. \\
-        \texttt{GENERATING} & LLM đang sinh card/quiz. \\
-        \texttt{DONE} & Pipeline hoàn tất thành công. \\
-        \texttt{ERROR} & Pipeline thất bại sau số lần retry cho phép. \\
+        \texttt{UPLOADING}
+            & Browser đang upload lên MinIO. \\
+        \texttt{UPLOADED}
+            & Upload xong, chờ confirm. \\
+        \texttt{QUEUED}
+            & Đã publish event, chờ worker. \\
+        \texttt{PARSING}
+            & Worker đang parse file. \\
+        \texttt{CHUNKING}
+            & Đang chia text thành chunk. \\
+        \texttt{EMBEDDING}
+            & Đang sinh vector embedding. \\
+        \texttt{INDEXED}
+            & Vector đã upsert Qdrant, search được. \\
+        \texttt{ENRICHING}
+            & Đang gọi LLM sinh card/quiz. \\
+        \texttt{GENERATED\_DRAFT}
+            & Đã có draft, chờ instructor review. \\
+        \texttt{ERROR}
+            & Pipeline thất bại sau retry tối đa. \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\subsection{Luồng học và làm quiz}
+Transition: \texttt{UPLOADING} $\to$ \texttt{UPLOADED} $\to$
+\texttt{QUEUED} $\to$ \texttt{PARSING} $\to$ \texttt{CHUNKING} $\to$
+\texttt{EMBEDDING} $\to$ \texttt{INDEXED} $\to$ \texttt{ENRICHING} $\to$
+\texttt{GENERATED\_DRAFT}. Bất kỳ stage nào fail sẽ chuyển
+\texttt{ERROR}.
 
-Khi học viên mở tool từ LMS, hệ thống xác thực LTI launch và tạo session. Học
-viên chỉ nhìn thấy nội dung đã publish. Khi làm quiz, submission được lưu cùng
-score, đáp án đã chọn, thời điểm làm bài và context bài học. Dữ liệu này là
-nền tảng cho dashboard học tập và recommendation/adaptive learning trong giai
-đoạn sau.
+\subsection{Async Job State}
+
+Job trong broker (BullMQ) có state riêng biệt với business state:
+
+\begin{verbatim}
+QUEUED -> RUNNING -> SUCCEEDED
+              |   -> RETRYING -> RUNNING
+              |   -> FAILED -> DEAD_LETTER
+              -> CANCELLED
+\end{verbatim}
+
+\textbf{Retry policy:} 3 lần với exponential backoff ($1s \to 2s \to 4s$).
+Sau số lần retry tối đa, job chuyển \texttt{DEAD\_LETTER} để debug thủ
+công. Engineer có thể requeue qua BullMQ dashboard.
+
+\subsection{Quiz Review State}
+
+Content (card, quiz) có vòng đời review riêng:
+
+\begin{verbatim}
+GENERATED_DRAFT -> REVIEWING -> APPROVED -> PUBLISHED
+                       |          ^
+                       v          |
+                CHANGES_REQUESTED-+
+PUBLISHED -> UNPUBLISHED -> ARCHIVED
+\end{verbatim}
+
+\begin{table}[H]
+    \centering
+    \caption{Trạng thái review của content.}
+    \label{tab:review-states}
+    \begin{tabular}{p{4cm}p{9.5cm}}
+        \toprule
+        \textbf{Trạng thái} & \textbf{Ý nghĩa} \\
+        \midrule
+        \texttt{GENERATED\_DRAFT}
+            & AI vừa sinh, chưa có ai review. \\
+        \texttt{REVIEWING}
+            & Instructor đang review/edit. \\
+        \texttt{CHANGES\_REQUESTED}
+            & Instructor reject, yêu cầu regenerate hoặc edit. \\
+        \texttt{APPROVED}
+            & Đã approve, sẵn sàng publish. \\
+        \texttt{PUBLISHED}
+            & Học viên access được. \\
+        \texttt{UNPUBLISHED}
+            & Đã ẩn khỏi học viên, instructor có thể republish. \\
+        \texttt{ARCHIVED}
+            & Lưu trữ, không hiển thị mặc định. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Thiết kế Observability và Monitoring}
+
+\subsection{Structured Logging}
+
+Mỗi runtime emit JSON log qua \texttt{structlog} (Python) hoặc
+\texttt{pino} (NestJS). Field bắt buộc:
+
+\begin{itemize}
+    \item \texttt{timestamp}: ISO8601.
+    \item \texttt{level}: \texttt{debug}/\texttt{info}/\texttt{warn}/\texttt{error}.
+    \item \texttt{service}: tên runtime.
+    \item \texttt{trace\_id}, \texttt{span\_id}: OpenTelemetry correlation.
+    \item \texttt{request\_id}: per-request, propagate qua header
+          \texttt{X-Request-ID}.
+    \item \texttt{user\_id}, \texttt{course\_id}: nếu có context.
+    \item \texttt{message}: human-readable.
+    \item \texttt{extra}: structured payload (input size, duration,
+          error\_class).
+\end{itemize}
+
+Log được aggregate bởi Loki (lightweight) hoặc Elasticsearch (production).
+Grafana làm UI query.
+
+\textbf{Log sampling:} log level \texttt{debug} chỉ enable cho trace ID có
+header \texttt{X-Debug: 1}, tránh log volume nổ.
+
+\subsection{Metrics Collection}
+
+Prometheus scrape endpoint \texttt{/metrics} của mỗi service mỗi 15s.
+Metric chia ba nhóm:
+
+\textbf{Application metrics:}
+\begin{itemize}
+    \item \texttt{http\_request\_duration\_seconds} (histogram, label
+          method/route/status).
+    \item \texttt{http\_requests\_total} (counter).
+    \item \texttt{grpc\_request\_duration\_seconds}.
+    \item \texttt{job\_duration\_seconds} (per worker queue).
+    \item \texttt{job\_queue\_depth} (gauge).
+    \item \texttt{llm\_call\_duration\_seconds}, \texttt{llm\_token\_total}.
+    \item \texttt{embedding\_duration\_seconds}.
+    \item \texttt{vector\_search\_duration\_seconds}.
+\end{itemize}
+
+\textbf{Business metrics:}
+\begin{itemize}
+    \item \texttt{document\_uploaded\_total}, \texttt{video\_uploaded\_total}.
+    \item \texttt{content\_generated\_total} (label type=card/quiz).
+    \item \texttt{content\_published\_total},
+          \texttt{content\_rejected\_total}.
+    \item \texttt{quiz\_attempts\_total}, \texttt{chat\_messages\_total}.
+    \item \texttt{lo\_coverage\_ratio} (gauge per course).
+\end{itemize}
+
+\textbf{System metrics:} CPU, RAM, disk, network của container/host
+(node\_exporter, cAdvisor).
+
+Dashboard Grafana với panel cho từng service + golden signals (latency,
+throughput, error rate, saturation).
+
+\subsection{Distributed Tracing}
+
+OpenTelemetry SDK trong mỗi service, instrument tự động cho HTTP/gRPC/SQL
+client. Trace propagate qua header \texttt{traceparent}.
+
+\textbf{Span chính:}
+\begin{itemize}
+    \item HTTP request entry span.
+    \item Use case execution span.
+    \item Adapter call span (DB, Qdrant, Neo4j, LLM, MinIO).
+    \item Worker job span.
+\end{itemize}
+
+Trace export qua OTLP đến Tempo (lightweight) hoặc Jaeger. Trace ID gắn
+vào log để cross-reference khi debug.
+
+\subsection{AI Cost Monitoring}
+
+LLM call là chi phí lớn nhất. Hệ thống track:
+
+\begin{itemize}
+    \item \texttt{llm\_token\_input\_total}, \texttt{llm\_token\_output\_total}
+          (counter, label model/provider/use\_case).
+    \item \texttt{llm\_cost\_usd\_total} (counter, tính theo bảng giá
+          provider).
+    \item Per-user, per-course, per-day breakdown trong PostgreSQL bảng
+          \texttt{llm\_usage\_logs}.
+\end{itemize}
+
+Alert khi cost spike: rule Prometheus
+\texttt{rate(llm\_cost\_usd\_total[1h]) > threshold}.
+
+\textbf{Cost optimization:}
+\begin{itemize}
+    \item Cache prompt result khi input hash giống (cho deterministic
+          generation).
+    \item Dùng model nhỏ (Gemini Flash) cho task không cần model lớn.
+    \item Limit context window: chỉ gửi top-N chunk thay vì full document.
+\end{itemize}
+
+\subsection{Error Tracking}
+
+Sentry tích hợp trong \texttt{web-bff} và \texttt{core-api}:
+
+\begin{itemize}
+    \item Capture exception với stack trace + context (user, route).
+    \item Group theo fingerprint, deduplicate.
+    \item Alert qua email/Slack khi error rate spike.
+\end{itemize}
+
+Worker exception được log structured + push vào dead letter queue, có
+endpoint internal để inspect và requeue.
+
+\section{Thiết kế triển khai hệ thống}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{diagrams/deployment_diagram.png}
+    \caption{Deployment topology.}
+    \label{fig:deployment}
+\end{figure}
+
+\subsection{Docker Compose Topology}
+
+Đồ án triển khai trên Docker Compose với hai stack:
+
+\textbf{Stack \texttt{ai-system}} (hệ thống chính):
+\begin{itemize}
+    \item Service: \texttt{web-bff}, \texttt{core-api},
+          \texttt{chat-service}, \texttt{video-search-service},
+          \texttt{ai-worker}, \texttt{video-worker}.
+    \item Data: \texttt{postgres}, \texttt{redis}, \texttt{qdrant},
+          \texttt{neo4j}, \texttt{minio}.
+    \item Observability: \texttt{prometheus}, \texttt{grafana},
+          \texttt{tempo}, \texttt{loki}.
+    \item Total: ~14 container.
+\end{itemize}
+
+\textbf{Stack \texttt{lms}} (tùy chọn trong môi trường demo/dev):
+\begin{itemize}
+    \item Canvas LMS dùng làm LTI Platform trong kịch bản demo nội bộ, có thể
+          là Canvas Cloud hoặc Canvas Open Source self-host.
+    \item Nếu dùng Canvas self-host, LMS có database riêng và không chia sẻ
+          database với \texttt{ai-system}.
+\end{itemize}
+
+Trong môi trường production hoặc pilot thực tế, Canvas thường là hệ thống bên
+ngoài; chỉ \texttt{web-bff} cần expose public HTTPS endpoint để nhận OIDC/LTI
+launch từ Canvas. Khi chạy demo self-host, hai stack có thể giao tiếp qua Docker
+network shared \texttt{lms\_shared}.
+
+\subsection{Network và Volume}
+
+\textbf{Network:}
+\begin{itemize}
+    \item \texttt{ai\_internal}: network nội bộ giữa các service AI, không
+          expose ra ngoài.
+    \item \texttt{lms\_shared}: bridge giữa \texttt{ai-system} và
+          \texttt{lms}, chỉ \texttt{web-bff} expose ra đây.
+    \item \texttt{public}: chỉ reverse proxy (Caddy) expose ra
+          host network.
+\end{itemize}
+
+\textbf{Volume:}
+\begin{itemize}
+    \item \texttt{pgdata}: PostgreSQL data, named volume, backup hàng ngày.
+    \item \texttt{minio-data}: object storage data, named volume.
+    \item \texttt{qdrant-storage}: vector data, named volume.
+    \item \texttt{neo4j-data}: graph data, named volume.
+    \item \texttt{redis-data}: AOF persistence, named volume.
+    \item \texttt{models}: BGE-M3 model weight (~2GB), shared read-only mount
+          cho \texttt{ai-worker}.
+\end{itemize}
+
+\subsection{CI/CD định hướng}
+
+CI/CD pipeline gồm bốn stage:
+
+\begin{enumerate}
+    \item \textbf{Build:}
+        \begin{itemize}
+            \item Lint (ruff/eslint), type check (mypy/tsc).
+            \item Unit test (pytest, jest) với Mock Adapter.
+            \item Build Docker image cho mỗi runtime, tag bằng commit SHA.
+        \end{itemize}
+    \item \textbf{Integration test:}
+        \begin{itemize}
+            \item Docker Compose up với testcontainers Postgres/Redis/Qdrant.
+            \item Chạy integration test gọi RPC/HTTP thật giữa các service.
+        \end{itemize}
+    \item \textbf{Deploy staging:}
+        \begin{itemize}
+            \item Push image lên registry.
+            \item SSH deploy lên staging server, \texttt{docker compose pull},
+                  \texttt{docker compose up -d}.
+            \item Smoke test endpoint health.
+        \end{itemize}
+    \item \textbf{Deploy production:} sau approve thủ công.
+\end{enumerate}
+
+Tool: GitHub Actions hoặc GitLab CI.
+
+\subsection{Định hướng Kubernetes}
+
+Khi cần scale production hoặc multi-tenant:
+
+\begin{itemize}
+    \item Mỗi runtime thành Deployment riêng, replica theo load.
+    \item PostgreSQL chuyển sang managed service (RDS, Cloud SQL) hoặc
+          Postgres operator.
+    \item Qdrant, Neo4j có Helm chart riêng.
+    \item Ingress Controller (NGINX hoặc Traefik) cho web-bff.
+    \item Secret management qua Vault hoặc External Secrets Operator.
+    \item Service mesh (Istio/Linkerd) cho mTLS internal nếu cần security
+          cao.
+\end{itemize}
+
+Trong scope đồ án, Kubernetes là định hướng chứ không triển khai. Docker
+Compose đủ cho demo và evaluation.
+
+\subsection{Scaling Strategy}
+
+\textbf{Vertical scaling (single-node):} tăng CPU/RAM cho container nặng
+nhất (\texttt{ai-worker}, \texttt{video-worker}). Đủ cho đồ án.
+
+\textbf{Horizontal scaling (multi-node, production):}
+\begin{itemize}
+    \item \texttt{web-bff}, \texttt{core-api}, \texttt{chat-service},
+          \texttt{video-search-service}: stateless, scale linear theo replica.
+    \item \texttt{ai-worker}: scale replica theo queue depth, mỗi replica
+          tiêu thụ từ Redis song song.
+    \item \texttt{video-worker}: scale replica theo số video pending.
+    \item Postgres: read replica cho query-heavy workload (analytics
+          dashboard).
+    \item Qdrant: cluster mode với shard theo \texttt{course\_id} khi cần.
+    \item Neo4j: read replica hoặc Fabric cho query nặng.
+\end{itemize}
+
+\textbf{Bottleneck dự kiến:} LLM API rate limit. Mitigate bằng request
+batching, prompt caching, và fallback model (Gemini Flash khi Pro hết
+quota).
+
+\section{Tổng kết chương}
+
+Chương này trình bày toàn bộ thiết kế hệ thống ở cấp kiến trúc:
+
+\begin{itemize}
+    \item \textbf{Kiến trúc multi-runtime} với sáu runtime chính
+          (\texttt{web-bff}, \texttt{core-api}, \texttt{chat-service},
+          \texttt{video-search-service}, \texttt{ai-worker},
+          \texttt{video-worker}), tách rõ trách nhiệm giữa UI, nghiệp vụ,
+          AI realtime, AI batch, và media processing.
+    \item \textbf{Tích hợp Canvas LMS} qua chuẩn LTI 1.3 / OIDC, áp dụng
+          AI Extension Layer thay vì tự xây LMS.
+    \item \textbf{Chín service logic} bao gồm Video Search Service mới
+          (tìm video từ kho upload và YouTube qua MCP) --- là điểm khác
+          biệt của hệ thống.
+    \item \textbf{Sáu pipeline AI} (document, video, RAG,
+          Micro-Content, quiz, review/publish) với event-driven
+          orchestration qua Redis + BullMQ.
+    \item \textbf{Năm store dữ liệu} (Postgres, Qdrant, Neo4j, Redis,
+          MinIO) với PostgreSQL là source of truth, các store khác là
+          derived và đồng bộ qua outbox pattern.
+    \item \textbf{Bảo mật} áp dụng OWASP Top 10 for LLM Applications với
+          10 biện pháp cụ thể từ prompt injection đến supply chain.
+    \item \textbf{UI/UX} theo triết lý Calm UI, Minimal Distraction,
+          Progressive Disclosure, Mobile-first.
+    \item \textbf{Observability} đầy đủ ba trụ cột: structured logging,
+          metrics Prometheus, distributed tracing OpenTelemetry, với
+          AI cost monitoring riêng.
+    \item \textbf{Triển khai} bằng Docker Compose cho đồ án, định hướng
+          Kubernetes cho production.
+\end{itemize}
+
+Thiết kế này cho phép \textbf{phát triển song song} giữa các thành viên
+nhờ boundary service rõ, \textbf{thay thế linh hoạt} từng adapter (LLM
+provider, vector store, LMS) nhờ Hexagonal, và \textbf{scale độc lập}
+từng pipeline khi tải tăng. Chương 5 tiếp theo sẽ trình bày chi tiết
+hiện thực, bao gồm cấu trúc code, công nghệ lựa chọn cụ thể, và những
+quyết định kỹ thuật trong quá trình triển khai.
