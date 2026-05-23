@@ -1,0 +1,62 @@
+@startuml dataflow_quiz_generation_pipeline
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+
+title Data Flow: Quiz Generation Pipeline\n(GraphRAG -> Quiz Item Drafts)
+
+actor "Instructor" as Instructor
+participant "web-bff\n(Next.js)" as Web
+participant "core-api" as Core
+database "PostgreSQL\nquiz_items" as PG
+participant "Outbox Poller\n(in core-api)" as Outbox
+queue "Redis\nBullMQ" as Redis
+participant "enrichment-worker" as Enrich
+database "Neo4j\nKnowledge Graph" as Neo4j
+database "Qdrant\nlearning_chunks" as Qdrant
+participant "LLM\nGemini" as LLM
+
+== 1. Request quiz generation (Outbox-driven) ==
+Instructor -> Web : Generate Quiz\n(target LO / chapter)
+Web -> Core : POST /quiz-generations\n{lo_id, bloom, difficulty, count}
+Core -> PG : BEGIN\nINSERT content_generation_requests\nINSERT outbox_events (ContentGenerationRequested)\nCOMMIT
+Core --> Web : {request_id, status=QUEUED}
+
+== 2. Outbox Poller dispatches job ==
+Outbox -> PG : SELECT pending outbox_events
+Outbox -> Redis : enqueue ContentGenerationRequested\n{type=quiz, target_lo}
+Outbox -> PG : UPDATE outbox_events status=PROCESSED
+
+== 3. LO targeting ==
+Enrich -> Redis : consume ContentGenerationRequested
+Enrich -> Neo4j : MATCH target LO,\nchapter, prerequisites
+Neo4j --> Enrich : target_LO + prerequisite concepts
+
+== 3. Grounding retrieval ==
+Enrich -> Qdrant : vector search\nquery=LO statement\nfilter={course_id, lo_ids}
+Qdrant --> Enrich : supporting chunks + video segments
+Enrich -> Neo4j : graph expansion\nLO -> Chapter -> Concept
+Neo4j --> Enrich : graph_context
+Enrich -> Enrich : merge + dedupe\nbuild grounded context
+
+== 4. Generate quiz items ==
+Enrich -> LLM : generate_quiz_items\n(context, Bloom, schema)
+LLM --> Enrich : quiz_items[]\n(MCQ_SINGLE / MCQ_MULTI / TRUE_FALSE / FILL_BLANK)
+
+== 5. Quality gate ==
+Enrich -> Enrich : validate JSON schema
+Enrich -> Enrich : check MCQ has 4 options\nanswer in options\nno vague options
+Enrich -> Enrich : verify explanation\ngrounded in source chunks
+
+alt Passed
+    Enrich -> PG : INSERT quiz_items\nstatus=GENERATED_DRAFT\nsource_chunk_ids
+    Enrich -> Redis : publish ContentDraftGenerated\n{type=quiz}
+    Redis --> Web : progress + draft ready
+    Web --> Instructor : show quiz in Review Inbox
+else Failed
+    Enrich -> Redis : retry with backoff\nor mark FAILED
+    Redis --> Web : generation failed\nwith reason
+end
+
+@enduml

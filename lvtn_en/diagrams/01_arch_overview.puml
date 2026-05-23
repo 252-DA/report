@@ -1,0 +1,90 @@
+@startuml arch_overview
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam ArrowColor #333333
+skinparam ComponentBorderColor #555555
+skinparam PackageBorderColor #888888
+skinparam DatabaseBorderColor #888855
+skinparam DatabaseBackgroundColor #FFF8DC
+
+title Overall Architecture (Multi-Runtime AI Extension Layer for Canvas LMS)
+
+' ===== LMS =====
+package "Canvas LMS" #D5F5E3 {
+    actor "Instructor" as Instructor
+    actor "Learner" as Learner
+    component [Canvas Platform\nLTI 1.3 / OIDC / AGS] as Canvas
+    database [Gradebook] as Gradebook
+}
+
+' ===== Edge =====
+package "AI Extension Layer" #FEF9E7 {
+
+    package "Edge / BFF" #FDEBD0 {
+        component [web-bff\nNext.js 14\nLTI gateway + UI] as Web
+    }
+
+    package "Business" #FEF9E7 {
+        component [core-api\nNestJS\nUse cases + Outbox Poller] as Core
+        component [chat-service\nFastAPI\nRAG + SSE streaming] as Chat
+    }
+
+    package "Async Workers" #E8F5E9 {
+        component [document-worker\nPython / BullMQ\nParse + Chunk + Embed] as Doc
+        component [enrichment-worker\nPython / BullMQ\nLLM card + quiz gen] as Enrich
+        component [video-worker\nGo / BullMQ\nFFmpeg + Whisper + segment] as Video
+    }
+}
+
+' ===== Infrastructure =====
+package "Stateful Infrastructure" #FDEDEC {
+    database "PostgreSQL\nsource of truth" as PG
+    database "Qdrant\nvector store (dense + sparse)" as Qdrant
+    database "Neo4j\nknowledge graph" as Neo4j
+    storage "MinIO\nobject storage" as MinIO
+    queue "Redis\nBullMQ + Pub/Sub + sessions" as Redis
+}
+
+' ===== External =====
+package "External APIs" #F5EEF8 {
+    component [Gemini\n(Pro / Flash)] as Gemini
+    component [Whisper API\nfallback] as WhisperAPI
+    component [YouTube\nMCP adapter] as YouTube
+}
+
+' ===== Flows =====
+Instructor --> Canvas
+Learner --> Canvas
+Canvas --> Web : LTI 1.3 launch\n(id_token via OIDC)
+Web --> Core : internal JWT (60s)\nbusiness APIs
+Web --> Chat : SSE handshake\n(single-use ticket)
+
+Core --> PG : metadata + outbox
+Core --> Redis : enqueue jobs / poll outbox
+Core --> Gradebook : LTI AGS\nscore passback
+
+Doc --> Redis : consume DocumentUploaded\nVectorIndexRequested\nTranscriptReady
+Doc --> MinIO : GET raw files
+Doc --> PG : chunks + status
+Doc --> Qdrant : upsert dense + sparse vectors
+
+Enrich --> Redis : consume\nContentGenerationRequested
+Enrich --> PG : draft cards / quizzes
+Enrich --> Qdrant : grounding retrieval
+Enrich --> Neo4j : LO / chapter context
+Enrich --> Gemini : generate (strict JSON)
+
+Video --> Redis : consume VideoUploaded
+Video --> MinIO : video + clips
+Video --> PG : video_segments + transcript_segments
+Video --> WhisperAPI : STT fallback
+
+Chat --> Qdrant : hybrid retrieval (RRF)
+Chat --> Neo4j : graph-aware rerank
+Chat --> Gemini : streaming generation
+Chat --> PG : chat history + citations
+Chat --> YouTube : Video Search (MCP)
+Chat --> Core : gRPC permission check
+
+@enduml

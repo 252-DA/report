@@ -1,0 +1,103 @@
+% !TeX root = ../main.tex
+\chapter*{Appendix}
+\addcontentsline{toc}{chapter}{Appendix}
+
+\section*{Important Links}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|p{4.3cm}|p{8.7cm}|}
+        \hline
+        \textbf{Resource} & \textbf{Link} \\
+        \hline
+        System repository          & \texttt{https://github.com/...} \\
+        \hline
+        LaTeX report               & \texttt{https://github.com/...} \\
+        \hline
+        Demo video                 & \texttt{https://...} \\
+        \hline
+        Pilot evaluation dataset   & \texttt{TODO: update after pilot} \\
+        \hline
+    \end{tabular}
+    \caption*{Important links.}
+\end{table}
+
+\section*{Use Case Summary}
+
+\begin{table}[H]
+    \centering
+    \caption*{System use case summary.}
+    \begin{tabular}{|p{1.3cm}|p{3.8cm}|p{2.8cm}|p{5.3cm}|}
+        \hline
+        \textbf{ID} & \textbf{Name} & \textbf{Primary actor} & \textbf{Main result} \\
+        \hline
+        UC-01 & Upload documents & Instructor & The file is stored in MinIO and the document enters the pending-processing state. \\
+        \hline
+        UC-02 & Automatic document processing & AI Pipeline & Chunks, embeddings, cards, and quizzes are generated from the document. \\
+        \hline
+        UC-03 & Review AI content & Instructor & Cards/quizzes are edited and marked as approved. \\
+        \hline
+        UC-04 & Publish course content & Instructor & Content is published to learners. \\
+        \hline
+        UC-05 & Learn with cards & Learner & Learning progress is updated. \\
+        \hline
+        UC-06 & Take quizzes & Learner & Scores and immediate feedback are stored. \\
+        \hline
+        UC-07 & Semantic search & Learner & The top-K relevant content items are returned. \\
+        \hline
+        UC-08 & Manage accounts & Administrator & User accounts, roles, and statuses are managed. \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\section*{Database DDL Specification}
+\addcontentsline{toc}{section}{Database DDL Specification}
+\label{appendix:db-schema}
+
+The complete PostgreSQL initialization DDL for the system is separated into
+the file \texttt{report/lvtn/appendix/db\_schema.sql} to make deployment and
+Git-based version management easier. This file includes:
+
+\begin{itemize}
+    \item \textbf{31 tables for Phase 1:} identity and LMS integration
+          (lms\_user\_mappings, courses, lms\_course\_ref,
+          lti\_resource\_links, lti\_line\_items, course\_memberships),
+          curriculum (chapters, learning\_outcomes with academic-year
+          versioning, assessments, lo\_assessments), document
+          ingestion (documents, chunks, chunk\_lo\_mappings), video
+          pipeline (videos, video\_segments, transcript\_segments),
+          generated content (lessons, lesson\_cards,
+          card\_video\_attachments, quiz\_items, flashcard\_reviews),
+          analytics and audit (quiz\_attempts, chat\_messages,
+          learning\_events, review\_audit\_logs, llm\_usage\_logs,
+          user\_llm\_quota, scope\_llm\_quota), async outbox, content
+          generation requests, and engine cache
+          (content\_generation\_requests, outbox\_events,
+          youtube\_search\_cache).
+    \item \textbf{03 Phase-2 extension tables (adaptive learning):}
+          \texttt{lo\_mastery\_states} stores the four BKT parameters
+          ($p_{\text{known}}, p_{\text{learn}}, p_{\text{guess}},
+          p_{\text{slip}}$) per (user, LO);
+          \texttt{recommendation\_logs} records bandit-generated
+          recommendations (Thompson sampling or LinUCB) together with the
+          posterior distribution; \texttt{learning\_paths} persists the LO
+          sequence selected by beam search as the personalized path.
+    \item \textbf{CHECK constraints for state enums:} seven values that match
+          the State Machine in Section~4.11.
+    \item \textbf{Partial index:} \texttt{idx\_outbox\_pending\_poller}
+          \texttt{WHERE status = 'PENDING'} for the sequential polling daemon;
+          \texttt{idx\_lesson\_cards\_review} \texttt{WHERE status IN
+          ('GENERATED\_DRAFT','REVIEWING','CHANGES\_REQUESTED')} for the
+          instructor review inbox.
+    \item \textbf{Views:} \texttt{v\_current\_learning\_outcomes} filters the
+          current LO version; \texttt{v\_lo\_mastery\_summary} aggregates
+          mastery data for the instructor dashboard (Phase 2).
+\end{itemize}
+
+The Qdrant collection configuration (named dense + sparse vectors, payload
+hard-filter indexes by \texttt{course\_id}/\texttt{source\_type}/
+\texttt{lo\_ids}/\texttt{language}) and sample upsert templates are described
+in detail in the same deployment directory as JSON/REST API contracts. The
+Neo4j Cypher configuration (unique constraints by node label and a Range Index
+on \texttt{course\_id} for property-based multi-tenancy) is presented in
+Section~4.4.3 of the report.

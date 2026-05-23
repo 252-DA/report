@@ -1,0 +1,89 @@
+@startuml activity_document_pipeline
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ActivityBackgroundColor #F8FBFF
+skinparam ActivityDiamondBackgroundColor #FFF7E6
+
+title Activity: Document Pipeline\n(Upload -> Parse -> Chunk -> Vector Index)
+
+|Instructor / Browser|
+start
+:Choose PDF / DOCX / PPTX;
+
+|web-bff|
+:Request upload session;
+
+|core-api|
+:Validate metadata\n(course_id, mime type, size);
+if (File type valid?) then (No)
+  :Reject upload request;
+  |web-bff|
+  :Show upload error;
+  stop
+else (Yes)
+endif
+
+|Stores & Events|
+:Create document record\nstatus = UPLOADING;
+:Create presigned MinIO URL;
+
+|web-bff|
+:Return upload_url to browser;
+
+|Instructor / Browser|
+:PUT file directly to MinIO;
+
+|web-bff|
+:Confirm upload;
+
+|core-api|
+:Mark document QUEUED;
+
+|Stores & Events|
+:Publish DocumentUploaded;
+
+|document-worker|
+:Consume DocumentUploaded;
+:Download raw file from MinIO;
+:Set status = PARSING;
+:Parse file by type;
+if (Text layer good enough?) then (No)
+  :Run OCR fallback;
+else (Yes)
+  :Use extracted text layer;
+endif
+
+:Normalize text;
+:Extract heading structure\nand metadata;
+if (Reliable headings?) then (Yes)
+  :Chunk by heading path;
+else (No)
+  :Fallback size-based chunking;
+endif
+
+:Map chunks to LO\nif heading / context matches;
+
+|Stores & Events|
+:Persist chunks in PostgreSQL\n+ outbox events (single transaction);
+
+|document-worker|
+:Embed chunks with BGE-M3;
+
+|Stores & Events|
+:Upsert vectors to Qdrant\npayload = course / document / chunk / LO;
+:Set document status = INDEXED;
+:Publish TextIndexed;
+
+note right
+  TextIndexed is the readiness event
+  for Micro-Content and Quiz pipelines.
+end note
+
+|web-bff|
+:Stream progress via SSE;
+
+|Instructor / Browser|
+:Show INDEXED status;
+stop
+@enduml

@@ -1,0 +1,94 @@
+@startuml grpc_service_design
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ClassBackgroundColor #F0F8FF
+skinparam PackageBorderColor #888888
+skinparam ranksep 24
+skinparam nodesep 18
+
+title Internal gRPC API Design\n(Backend-to-Backend Synchronous Contracts)
+
+' ===== Clients (top row) =====
+class "web-bff\n(Next.js)" as Web <<gRPC Client>> #FEF9E7
+class "core-api\n(NestJS)" as Core <<gRPC Client + Server>> #EBF5FB
+class "chat-service\n(FastAPI)" as Chat <<gRPC Client + Server>> #FDEBD0
+
+' ===== Service 1: CoreApiService =====
+package "**core_api.proto**  (served by core-api)" #EBF5FB {
+    class CoreApiService <<service>> {
+        -- Identity and access --
+        + GetUserContext(req) : UserContextResp
+        + CheckCourseAccess(req) : AccessResp
+        -- Curriculum --
+        + ListLOByCourse(req) : LOListResp
+        + GetChunkMetadata(req) : ChunkMetaResp
+        -- Resources (web-bff) --
+        + CreateUploadSession(req) : UploadResp
+        + ConfirmUpload(req) : DocResp
+        + ListDocuments(req) : DocListResp
+        + PublishContent(req) : PublishResp
+        + GetClassAnalytics(req) : AnalyticsResp
+    }
+    class UserContextResp {
+        user_id, course_id : string
+        role : Role
+        allowed_lo_ids : repeated string
+        allowed_document_ids : repeated string
+    }
+}
+
+' ===== Service 2: ChatService =====
+package "**chat.proto**  (served by chat-service)" #FDEBD0 {
+    class ChatService <<service>> {
+        -- Sync queries only (no streaming) --
+        + GetChatHistory(req) : ChatHistoryResp
+        + ListChatSessions(req) : SessionListResp
+        + SearchVideos(req) : VideoSearchResp
+    }
+    class ChatHistoryResp {
+        messages : repeated ChatMessage
+        next_cursor : optional string
+    }
+}
+
+' ===== Shared types =====
+package "**shared.proto**  (common types)" #EAFAF1 {
+    class Citation {
+        chunk_id : string
+        document_id, video_segment_id : optional string
+        heading_path : repeated string
+        page : optional int32
+        start_ms : optional int64
+    }
+    enum Role {
+        INSTRUCTOR
+        LEARNER
+        ADMIN
+    }
+    enum PipelineStatus {
+        UPLOADING / QUEUED / PARSING /
+        CHUNKING / TRANSCRIBING /
+        SEGMENTING / EMBEDDING /
+        INDEXED / ERROR
+    }
+}
+
+' ===== Call relationships =====
+Web --> CoreApiService : business APIs\n(internal JWT in metadata)
+Chat --> CoreApiService : permission + context\n(at SSE handshake)
+Core --> ChatService : analytics queries
+CoreApiService ..> UserContextResp
+CoreApiService ..> Role
+ChatService ..> ChatHistoryResp
+ChatHistoryResp ..> Citation
+
+note bottom
+  **What is NOT gRPC** (out of scope):
+   - Browser <-> web-bff: HTTP (REST + SSE)
+   - Chat token stream: SSE via web-bff proxy (HTTP Chunked Transfer)
+   - Pipeline progress: Redis Pub/Sub -> web-bff -> SSE to browser
+   - Worker -> Worker: BullMQ events on Redis (async, no direct calls)
+end note
+
+@enduml

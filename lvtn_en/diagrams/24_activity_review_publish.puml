@@ -1,0 +1,74 @@
+@startuml activity_review_publish
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ActivityBackgroundColor #F8FBFF
+skinparam ActivityDiamondBackgroundColor #FFF7E6
+
+title Activity: Review and Publish Flow\n(Draft Review -> Approval -> Published Lesson)
+
+|Instructor|
+start
+:Open Review Inbox;
+
+|web-bff|
+:Request review inbox;
+
+|core-api|
+:Load lesson drafts\n(cards + quizzes + video candidates);
+
+|web-bff|
+:Render draft item list;
+
+repeat
+  |Instructor|
+  :Select draft item;
+  |web-bff|
+  :View content and source citation;
+
+  |Instructor|
+  if (Review action?) then (Approve)
+    |core-api|
+    :Set item status = APPROVED;
+  elseif (Edit)
+    |web-bff|
+    :Open editor;
+    |Instructor|
+    :Edit content;
+    |core-api|
+    :Save edited content;
+    :Write audit diff;
+    :Set item status = REVIEWING;
+  else (Reject)
+    |web-bff|
+    :Capture reject reason\nor regeneration hint;
+    |core-api|
+    :Set item status = CHANGES_REQUESTED;
+  endif
+
+repeat while (More items to review?) is (Yes) not (No)
+
+|core-api|
+if (All items APPROVED?) then (No)
+  |web-bff|
+  :Disable Publish button;
+  :Show pending / changes-requested list;
+  stop
+else (Yes)
+endif
+
+|Instructor|
+:Click Publish;
+
+|core-api|
+:Set lesson status = PUBLISHED;
+:Write audit log;
+:Publish LessonPublished;
+
+|Outbox / Neo4j|
+:Outbox sync to Neo4j;
+
+|Learner|
+:Access lesson from Canvas;
+stop
+@enduml

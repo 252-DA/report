@@ -1,0 +1,83 @@
+@startuml activity_learning_flow
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ActivityBackgroundColor #F8FBFF
+skinparam ActivityDiamondBackgroundColor #FFF7E6
+
+title Activity: Learning Flow\n(Canvas Launch -> Lesson -> Quiz -> AI Tutor)
+
+|Learner|
+start
+:Open LTI activity from Canvas;
+
+|Canvas LMS|
+:Initiate LTI launch;
+
+|web-bff|
+:Validate LTI launch;
+
+|core-api|
+:Create local session;
+
+|web-bff|
+if (Launch has lesson_id?) then (Yes)
+  :Open target lesson;
+else (No)
+  :Open course landing;
+  |Learner|
+  :Select lesson;
+  |web-bff|
+endif
+
+|core-api|
+:Load published lesson;
+
+|Learner|
+:Read lesson cards;
+
+|web-bff|
+:Track card progress;
+
+|Learner|
+if (Lesson has quiz?) then (Yes)
+  :Answer quiz items;
+  :Submit quiz;
+  |core-api|
+  :Calculate score;
+  |web-bff|
+  :Show feedback\n(correct / wrong + explanation);
+  if (Grade passback enabled?) then (Yes)
+    |Canvas LMS|
+    :Send LTI AGS score;
+  else (No)
+    |web-bff|
+    :Skip grade passback;
+  endif
+else (No)
+  |web-bff|
+  :Skip quiz step;
+endif
+
+|core-api|
+:Update lesson progress;
+
+|Learner|
+if (Ask AI Tutor?) then (Yes)
+  :Open chat interface;
+  :Ask question;
+  |chat-service|
+  :Run RAG retrieval\nand LLM streaming;
+  |web-bff|
+  :Receive streaming answer\nwith citations;
+  |chat-service|
+  :Store chat history;
+else (No)
+  |Learner|
+  :Continue self-paced learning;
+endif
+
+|core-api|
+:Update last_active_at;
+stop
+@enduml

@@ -1,0 +1,51 @@
+@startuml state_machine_content_review
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam StateBackgroundColor #EBF5FB
+
+title State Machine: Content Review Lifecycle\n(LessonCard / QuizItem)
+
+[*] --> GENERATED_DRAFT : AI generated draft
+
+state GENERATED_DRAFT : AI just generated content\nno instructor review yet
+GENERATED_DRAFT --> REVIEWING : instructor opens item
+GENERATED_DRAFT --> CHANGES_REQUESTED : auto validation failed\nor instructor rejects
+
+state REVIEWING : instructor reading,\ncomparing citations or editing
+REVIEWING --> APPROVED : approve
+REVIEWING --> CHANGES_REQUESTED : reject / request changes
+REVIEWING --> GENERATED_DRAFT : save as draft\nwithout approval
+
+state CHANGES_REQUESTED : needs edit or regenerate\nwith reject reason / hint
+CHANGES_REQUESTED --> REVIEWING : manual edit
+CHANGES_REQUESTED --> GENERATED_DRAFT : regenerate with hint
+
+state APPROVED : ready for publish\nbut not visible to learners
+APPROVED --> PUBLISHED : publish lesson / content
+APPROVED --> REVIEWING : reopen review
+
+state PUBLISHED : learners can access\nvia lesson from Canvas / LMS
+PUBLISHED --> UNPUBLISHED : hide from learners
+PUBLISHED --> ARCHIVED : archive published item
+
+state UNPUBLISHED : temporarily hidden\ncan be republished
+UNPUBLISHED --> PUBLISHED : republish
+UNPUBLISHED --> REVIEWING : edit before republish
+UNPUBLISHED --> ARCHIVED : archive
+
+state ARCHIVED : retained, hidden by default\nnot part of active lessons
+ARCHIVED --> [*]
+
+note right of GENERATED_DRAFT
+  This lifecycle is for card / quiz items,
+  not for document / video processing.
+end note
+
+note right of APPROVED
+  Publishing usually happens at lesson level:
+  all items should be APPROVED before
+  the lesson transitions to PUBLISHED.
+end note
+
+@enduml

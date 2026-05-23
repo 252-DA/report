@@ -1,0 +1,616 @@
+% !TeX root = ../main.tex
+\chapter{System Evaluation Framework}
+\label{chap:system-evaluation}
+
+\section{Purpose and Evaluation Scope}
+
+At the current stage of the project, the implementation has not yet reached
+a complete production-ready state. Therefore, this chapter does not present
+empirical performance numbers or final experimental results. Instead, it
+defines an evaluation framework that can be used once the implementation is
+complete enough for pilot testing. The goal is to make the later evaluation
+measurable, reproducible, and aligned with the requirements defined in
+Chapter~\ref{chap:khao-sat-phan-tich-he-thong}.
+
+The evaluation framework answers five questions:
+
+\begin{enumerate}
+    \item Does the system satisfy the core functional requirements for
+          instructors, learners, administrators, and Canvas LMS integration?
+    \item Does the architecture preserve correct authorization, data
+          isolation, and consistency across PostgreSQL, Qdrant, Neo4j, Redis,
+          and MinIO?
+    \item Does retrieval return relevant and properly scoped learning
+          materials for search, quiz generation, and AI Tutor answers?
+    \item Are generated lesson cards, flashcards, quiz items, and chatbot
+          responses pedagogically useful, factually grounded, and aligned with
+          Learning Outcomes?
+    \item Can the system meet practical non-functional expectations for
+          latency, throughput, reliability, observability, and cost control in
+          a demo or pilot deployment?
+\end{enumerate}
+
+Because the thesis is currently design-oriented, all criteria in this chapter
+are expressed as \textbf{planned evaluation criteria}. A later implementation
+phase should replace the planned protocol with measured results, datasets,
+tool versions, and experiment logs.
+
+\section{Evaluation Principles}
+
+The evaluation is designed around four principles:
+
+\begin{itemize}
+    \item \textbf{Traceability.} Each evaluation item must map back to a user
+          story, functional requirement, or non-functional requirement from
+          Chapter~\ref{chap:khao-sat-phan-tich-he-thong}.
+    \item \textbf{Reproducibility.} Each experiment must record dataset
+          version, prompt version, model version, retrieval configuration,
+          database schema version, and deployment configuration.
+    \item \textbf{Separation of concerns.} Functional correctness, retrieval
+          quality, generated-content quality, security, and performance are
+          evaluated separately before being considered together.
+    \item \textbf{No fabricated results.} When the system is not yet fully
+          implemented, the thesis only states evaluation methods and expected
+          acceptance criteria, not unmeasured success numbers.
+\end{itemize}
+
+\section{Evaluation Dimensions}
+
+The system should be evaluated across seven dimensions, shown in
+Table~\ref{tab:evaluation-dimensions}.
+
+\begin{longtable}{|p{3.0cm}|p{5.4cm}|p{5.3cm}|}
+    \caption{Evaluation dimensions for the proposed system.}
+    \label{tab:evaluation-dimensions} \\
+    \hline
+    \textbf{Dimension} & \textbf{Main question} & \textbf{Typical evidence} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{Dimension} & \textbf{Main question} & \textbf{Typical evidence} \\
+    \hline
+    \endhead
+
+    Functional correctness
+        & Do the main instructor, learner, administrator, and LMS workflows
+          behave as specified?
+        & Test cases, API responses, database state, screenshots, and event
+          logs. \\
+    \hline
+
+    Integration correctness
+        & Do LTI, Deep Linking, AGS, queues, and worker interactions preserve
+          the intended contracts?
+        & Launch traces, JWT claims, BullMQ job logs, outbox records, and
+          Canvas sandbox observations. \\
+    \hline
+
+    Retrieval quality
+        & Does the system retrieve the right chunks, cards, and transcript
+          segments under course, role, and publish-status filters?
+        & Ground-truth query set, Recall@K, MRR, nDCG@K, and latency logs. \\
+    \hline
+
+    Generated-content quality
+        & Are AI-generated learning artifacts correct, clear, useful, and
+          aligned with Learning Outcomes?
+        & Instructor rubric scores, source-grounding checks, schema validation,
+          and rejection reasons. \\
+    \hline
+
+    Security and privacy
+        & Are authentication, authorization, tenant isolation, prompt-injection
+          controls, and audit logs adequate?
+        & Security checklist, access-control tests, negative tests, and audit
+          samples. \\
+    \hline
+
+    Performance and scalability
+        & Are user-facing APIs and background pipelines fast enough for a
+          demo/pilot class?
+        & P50/P95 latency, queue time, processing time, throughput, and resource
+          usage. \\
+    \hline
+
+    Operations and cost control
+        & Can administrators monitor failures, retries, LLM usage, and quota
+          limits?
+        & Grafana dashboards, LLM usage logs, quota events, alert records, and
+          incident runbooks. \\
+    \hline
+\end{longtable}
+
+\section{Functional Evaluation}
+
+Functional evaluation verifies whether the implemented system satisfies the
+main workflows. The tests should be executed as black-box scenarios through
+the user interface or public API, while also checking the database and event
+state after each scenario.
+
+\begin{longtable}{|p{1.8cm}|p{4.8cm}|p{4.0cm}|p{3.1cm}|}
+    \caption{Functional evaluation scenarios.}
+    \label{tab:functional-evaluation-scenarios} \\
+    \hline
+    \textbf{ID} & \textbf{Scenario} & \textbf{Evaluation method} & \textbf{Acceptance criterion} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{ID} & \textbf{Scenario} & \textbf{Evaluation method} & \textbf{Acceptance criterion} \\
+    \hline
+    \endhead
+
+    FE-01
+        & Upload a PDF/DOCX/PPTX learning resource.
+        & Use an instructor account, upload a valid file, and inspect the
+          document record, MinIO object, and queued job.
+        & The resource is stored, linked to the course, and enters the
+          processing pipeline. \\
+    \hline
+
+    FE-02
+        & Reject invalid or unsafe uploads.
+        & Upload unsupported file types, oversized files, and duplicate files.
+        & The system rejects invalid input with a user-friendly error and does
+          not create inconsistent storage objects. \\
+    \hline
+
+    FE-03
+        & Process a document into chunks, vectors, and graph nodes.
+        & Run the document pipeline and inspect PostgreSQL, Qdrant, Neo4j, and
+          outbox events.
+        & Chunks are persisted, vectors are indexed, and graph projection is
+          eventually synchronized. \\
+    \hline
+
+    FE-04
+        & Process a lecture video into transcript segments and indexed video
+          content.
+        & Upload a short video and inspect video segments, transcript segments,
+          generated clips, and vector payloads.
+        & The video reaches the \texttt{INDEXED} state and can be retrieved
+          through course-scoped search. \\
+    \hline
+
+    FE-05
+        & Generate lesson cards, flashcards, and quiz items.
+        & Trigger content generation for a selected lesson or LO, then inspect
+          generated artifacts and schema validation results.
+        & Generated artifacts match the required JSON schema and enter the
+          review workflow as drafts. \\
+    \hline
+
+    FE-06
+        & Review, edit, approve, publish, unpublish, and archive generated
+          content.
+        & Use the instructor review UI and inspect audit logs.
+        & Learners only see published content; all state transitions are logged
+          and reversible where required. \\
+    \hline
+
+    FE-07
+        & Learn through lesson cards and flashcards.
+        & Use a learner account, open a published lesson, flip cards, and mark
+          review state.
+        & Card progress and flashcard review state are persisted per learner. \\
+    \hline
+
+    FE-08
+        & Take a quiz and receive immediate feedback.
+        & Submit quiz answers and inspect quiz attempts, score, explanation,
+          and optional AGS status.
+        & The attempt is stored, feedback is shown, and AGS passback is
+          scheduled or marked as not required. \\
+    \hline
+
+    FE-09
+        & Ask the AI Tutor a course-scoped question.
+        & Send questions with and without relevant source material.
+        & Answers cite retrieved sources; out-of-scope questions are refused or
+          answered as unavailable in the course. \\
+    \hline
+
+    FE-10
+        & Configure quota and observe usage.
+        & Set user, course, and instructor limits, send LLM requests, and inspect
+          usage logs.
+        & Requests are allowed before quota and rejected or degraded after the
+          configured threshold. \\
+    \hline
+\end{longtable}
+
+\section{LMS and Integration Evaluation}
+
+Canvas LMS integration is evaluated separately because it is a critical
+system boundary. The evaluation should use a Canvas sandbox or a controlled
+self-hosted Canvas instance.
+
+\subsection{LTI 1.3 Launch}
+
+The LTI launch test verifies the OIDC login flow, JWT verification, role
+mapping, and session creation. The evaluator should record:
+
+\begin{itemize}
+    \item issuer, client ID, deployment ID, audience, nonce, and expiration
+          validation result;
+    \item mapped internal user ID and course ID;
+    \item course-scoped role from \texttt{course\_memberships};
+    \item generated server-side session and short-lived BFF-to-Core JWT;
+    \item final redirect path for Instructor, Learner, and Administrator
+          contexts.
+\end{itemize}
+
+The launch is accepted if the tool rejects invalid signatures, expired tokens,
+wrong audiences, replayed nonces, and users without required course roles.
+
+\subsection{Deep Linking}
+
+Deep Linking is evaluated by asking an instructor to select a lesson or
+activity from the tool and return it to Canvas. The expected evidence is:
+
+\begin{itemize}
+    \item the tool receives a valid Deep Linking request from Canvas;
+    \item the selected item is stored in \texttt{lti\_resource\_links};
+    \item Canvas creates an activity containing the expected custom claim, for
+          example \texttt{custom.lesson\_id};
+    \item a learner launch from that activity opens the correct lesson.
+\end{itemize}
+
+\subsection{Assignment and Grade Services}
+
+AGS evaluation verifies that a quiz attempt can be mapped to the correct LTI
+line item. The test should inspect \texttt{quiz\_attempts},
+\texttt{lti\_resource\_links}, and \texttt{lti\_line\_items}. The passback is
+accepted if the posted score uses the correct learner ID, score scale, line
+item URL, activity progress, and grading progress.
+
+\section{Retrieval Quality Evaluation}
+
+Retrieval quality determines whether RAG and GraphRAG receive the correct
+context. It should be evaluated before judging chatbot or quiz-generation
+quality, because weak retrieval can make downstream generation fail even when
+the prompt is well designed.
+
+\subsection{Ground-Truth Dataset}
+
+The retrieval dataset should contain:
+
+\begin{itemize}
+    \item course documents with known chapter and LO structure;
+    \item lecture videos with timestamped transcript segments;
+    \item 50--100 search queries written by instructors or teaching
+          assistants;
+    \item ground-truth relevant chunks, lesson cards, or transcript segments
+          for each query;
+    \item negative queries whose answers should not be available in the course.
+\end{itemize}
+
+Each query should be tagged by query type: keyword search, natural-language
+paraphrase, LO-based query, video timestamp query, or out-of-scope query.
+
+\subsection{Retrieval Strategies}
+
+The planned evaluation compares four strategies:
+
+\begin{enumerate}
+    \item \textbf{Vector-only retrieval:} dense or hybrid Qdrant search without
+          graph expansion.
+    \item \textbf{Vector + metadata filter:} retrieval with hard filters on
+          \texttt{course\_id}, source type, publish visibility, and allowed
+          LOs.
+    \item \textbf{Graph-aware reranking:} vector retrieval combined with
+          Neo4j LO/chapter relationships.
+    \item \textbf{GraphRAG for generation:} retrieval constrained by the target
+          LO and expanded through prerequisite or related concepts.
+\end{enumerate}
+
+\subsection{Retrieval Metrics}
+
+\begin{table}[H]
+    \centering
+    \caption{Retrieval evaluation metrics.}
+    \label{tab:retrieval-evaluation-metrics}
+    \begin{tabular}{|p{3.0cm}|p{10.5cm}|}
+        \hline
+        \textbf{Metric} & \textbf{Meaning} \\
+        \hline
+        Recall@K
+            & Percentage of queries for which at least one relevant item
+              appears in the top-K results. \\
+        \hline
+        Precision@K
+            & Percentage of top-K retrieved items that are relevant. \\
+        \hline
+        MRR
+            & Mean Reciprocal Rank of the first relevant item. \\
+        \hline
+        nDCG@K
+            & Ranking quality when relevance is graded as high, medium, low,
+              or irrelevant. \\
+        \hline
+        Refusal accuracy
+            & Percentage of out-of-scope queries where the system correctly
+              refuses to answer from unsupported context. \\
+        \hline
+        Retrieval latency P95
+            & 95th percentile retrieval time, including embedding and vector
+              search. \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\section{Generated Content Quality Evaluation}
+
+Generated content should not be evaluated only by automatic schema validation.
+Because the system is used in an educational context, instructor or teaching
+assistant review is required.
+
+\subsection{Lesson Card and Flashcard Rubric}
+
+Lesson cards and flashcards are evaluated with the rubric in
+Table~\ref{tab:card-rubric}. Each criterion is scored from 1 to 5.
+
+\begin{longtable}{|p{3.7cm}|p{6.7cm}|p{3.1cm}|}
+    \caption{Rubric for lesson card and flashcard quality.}
+    \label{tab:card-rubric} \\
+    \hline
+    \textbf{Criterion} & \textbf{Question for reviewer} & \textbf{Pass condition} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{Criterion} & \textbf{Question for reviewer} & \textbf{Pass condition} \\
+    \hline
+    \endhead
+
+    Factual correctness
+        & Is the card consistent with the source document or transcript?
+        & No serious factual error. \\
+    \hline
+
+    Source grounding
+        & Can the card be traced to one or more source chunks or transcript
+          segments?
+        & At least one valid source. \\
+    \hline
+
+    Conciseness
+        & Is the content short enough for micro-learning while still complete?
+        & Average score $\geq 3.5$. \\
+    \hline
+
+    Learning usefulness
+        & Does the card help the learner understand or remember the target
+          concept?
+        & Average score $\geq 3.5$. \\
+    \hline
+
+    LO alignment
+        & Does the card support the intended Learning Outcome?
+        & Reviewer agrees or marks minor adjustment only. \\
+    \hline
+\end{longtable}
+
+\subsection{Quiz Item Rubric}
+
+Quiz items are evaluated on correctness, clarity, Bloom level, distractor
+quality, and explanation quality. The review should cover all supported
+question types: \texttt{MCQ\_SINGLE}, \texttt{MCQ\_MULTI},
+\texttt{TRUE\_FALSE}, and \texttt{FILL\_BLANK}.
+
+\begin{longtable}{|p{3.8cm}|p{6.6cm}|p{3.1cm}|}
+    \caption{Rubric for quiz item quality.}
+    \label{tab:quiz-rubric} \\
+    \hline
+    \textbf{Criterion} & \textbf{Question for reviewer} & \textbf{Pass condition} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{Criterion} & \textbf{Question for reviewer} & \textbf{Pass condition} \\
+    \hline
+    \endhead
+
+    Correct answer
+        & Is the marked answer correct according to the source?
+        & No wrong answer accepted. \\
+    \hline
+
+    Question clarity
+        & Is the wording clear and not misleading?
+        & Average score $\geq 3.5$. \\
+    \hline
+
+    Distractor quality
+        & For MCQs, are wrong options plausible but clearly incorrect?
+        & No obviously absurd distractors. \\
+    \hline
+
+    Bloom alignment
+        & Does the item match its intended Bloom level?
+        & Reviewer agrees or marks one-level adjustment. \\
+    \hline
+
+    Explanation quality
+        & Does the explanation help learners understand the answer?
+        & Average score $\geq 3.5$. \\
+    \hline
+
+    Source grounding
+        & Is the item supported by source chunks, transcripts, or LOs?
+        & At least one valid source. \\
+    \hline
+\end{longtable}
+
+\subsection{AI Tutor Answer Rubric}
+
+Chatbot answers are evaluated separately from generated cards and quizzes.
+For each test question, the reviewer checks:
+
+\begin{itemize}
+    \item whether the answer is grounded in retrieved course content;
+    \item whether the citations point to the correct document, card, or video
+          segment;
+    \item whether the answer avoids unsupported claims;
+    \item whether the answer is useful for learning rather than merely giving a
+          final answer;
+    \item whether the system refuses out-of-scope questions correctly.
+\end{itemize}
+
+An answer is acceptable if it has no serious factual error, includes at least
+one relevant citation when source material exists, and refuses to invent an
+answer when no suitable context is found.
+
+\section{Security and Privacy Evaluation}
+
+Security evaluation focuses on the risks introduced by LMS integration,
+multi-user course access, generated content, and LLM usage. The planned tests
+are listed in Table~\ref{tab:security-tests}.
+
+\begin{longtable}{|p{3.2cm}|p{5.5cm}|p{4.8cm}|}
+    \caption{Security and privacy evaluation checklist.}
+    \label{tab:security-tests} \\
+    \hline
+    \textbf{Area} & \textbf{Evaluation method} & \textbf{Acceptance criterion} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{Area} & \textbf{Evaluation method} & \textbf{Acceptance criterion} \\
+    \hline
+    \endhead
+
+    LTI token validation
+        & Send expired, replayed, wrong-audience, and wrong-signature launch
+          tokens.
+        & All invalid launches are rejected. \\
+    \hline
+
+    Course isolation
+        & Attempt to access another course's documents, lessons, vectors, and
+          chatbot context.
+        & Cross-course access is denied by both API authorization and retrieval
+          filters. \\
+    \hline
+
+    Role authorization
+        & Execute instructor/admin actions with learner credentials.
+        & Unauthorized actions return an error and do not change state. \\
+    \hline
+
+    CSRF protection
+        & Submit state-changing browser requests without the required CSRF
+          token.
+        & Requests are rejected except verified LTI launch POSTs. \\
+    \hline
+
+    Prompt injection
+        & Insert malicious instructions into documents or learner questions.
+        & Retrieval and prompts preserve source boundaries; the model is not
+          allowed to change system behavior. \\
+    \hline
+
+    Audit logging
+        & Perform review, publish, delete, quota, and admin actions.
+        & Security-relevant actions are recorded with actor, timestamp, entity,
+          and change details. \\
+    \hline
+\end{longtable}
+
+\section{Performance and Reliability Evaluation}
+
+Performance evaluation should be conducted only after the main workflows are
+implemented and stable. The purpose is not to optimize prematurely, but to
+ensure that the architecture can support a small pilot class and identify
+bottlenecks.
+
+\subsection{User-Facing API Metrics}
+
+The following API metrics should be collected under normal pilot load:
+
+\begin{itemize}
+    \item P50, P95, and P99 latency for reading lessons, listing cards,
+          fetching quizzes, submitting quiz attempts, and opening dashboards;
+    \item error rate grouped by endpoint and status code;
+    \item response size and pagination behavior for large courses;
+    \item chat first-token latency and full-answer latency.
+\end{itemize}
+
+\subsection{Pipeline Metrics}
+
+Background pipeline evaluation should record:
+
+\begin{itemize}
+    \item document parsing time, chunking time, embedding time, and graph-sync
+          time;
+    \item video transcription time, segmentation time, clip-generation time,
+          and transcript-indexing time;
+    \item queue waiting time, retry count, failed-job count, and dead-letter
+          count;
+    \item LLM provider latency, rate-limit errors, token usage, and cost.
+\end{itemize}
+
+\subsection{Reliability Tests}
+
+Reliability tests intentionally inject failures:
+
+\begin{itemize}
+    \item stop a worker during document processing and verify retry behavior;
+    \item fail a Qdrant or Neo4j operation and verify idempotent recovery;
+    \item replay an outbox event and verify that duplicate graph nodes or
+          vectors are not created;
+    \item simulate LLM provider timeout or HTTP 429 and verify fallback,
+          backoff, and user-facing error behavior;
+    \item run document deletion twice and verify that the delete saga remains
+          idempotent.
+\end{itemize}
+
+\section{Planned Test Dataset}
+
+The evaluation dataset should be small enough for manual review but diverse
+enough to cover the main system behavior. A recommended pilot dataset is:
+
+\begin{itemize}
+    \item 3--5 course documents in PDF/DOCX/PPTX format;
+    \item 1 syllabus containing chapters, Learning Outcomes, and assessments;
+    \item 2--3 lecture videos with clear audio and timestamped segments;
+    \item 50 retrieval queries, including at least 10 out-of-scope queries;
+    \item 100 generated quiz items across all supported question types;
+    \item 50 generated lesson cards or flashcards;
+    \item 20 chatbot questions with expected source references;
+    \item at least three Canvas roles: Instructor, Learner, and Administrator.
+\end{itemize}
+
+For each dataset version, the team should store the source files, expected
+ground-truth annotations, prompt version, retrieval configuration, and model
+version. This makes later comparisons meaningful when prompts, models, or
+chunking strategies change.
+
+\section{Evaluation Reporting Template}
+
+When the implementation is ready, the final evaluation report should include:
+
+\begin{enumerate}
+    \item environment: hardware, Docker Compose configuration, database
+          versions, model versions, and test date;
+    \item dataset: number of documents, videos, chunks, LOs, generated cards,
+          generated quiz items, and test queries;
+    \item functional test summary: passed, failed, blocked, and deferred
+          scenarios;
+    \item retrieval metrics: Recall@K, Precision@K, MRR, nDCG@K, refusal
+          accuracy, and latency;
+    \item generated-content rubric: average score, pass rate, rejection
+          reasons, and representative examples;
+    \item performance metrics: API latency, queue time, processing time,
+          worker throughput, and resource usage;
+    \item security results: passed controls, remaining risks, and mitigation
+          plan;
+    \item limitations: incomplete features, dataset bias, reviewer bias, and
+          external-service constraints.
+\end{enumerate}
+
+\section{Chapter Summary}
+
+This chapter defined the evaluation framework for the proposed system. Since
+the complete implementation is not yet available, the chapter intentionally
+does not claim final measured results. Instead, it specifies the criteria,
+datasets, rubrics, metrics, and test procedures needed to evaluate the system
+once the implementation reaches pilot readiness. This approach keeps the thesis
+honest while still making the expected evaluation process concrete and
+actionable.

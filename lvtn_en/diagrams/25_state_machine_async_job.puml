@@ -1,0 +1,52 @@
+@startuml state_machine_async_job
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam StateBackgroundColor #EBF5FB
+
+title State Machine: Async Job (BullMQ / Broker State)
+
+[*] --> QUEUED : enqueue job
+
+state QUEUED : job persisted in queue\nwaiting for a worker
+QUEUED --> RUNNING : worker acquired job
+QUEUED --> CANCELLED : cancelled before start
+
+state RUNNING : worker processing\nwith heartbeat / progress
+RUNNING --> SUCCEEDED : completed successfully
+RUNNING --> RETRYING : failed but retryable
+RUNNING --> FAILED : non-retryable failure\nor retry budget exhausted
+RUNNING --> CANCELLED : cancel requested
+
+state RETRYING : awaiting retry with\nexponential backoff
+RETRYING --> RUNNING : retry attempt
+RETRYING --> DEAD_LETTER : max retry exceeded
+RETRYING --> CANCELLED : cancel retry
+
+state SUCCEEDED : business side-effects complete\nor event published
+SUCCEEDED --> [*]
+
+state FAILED : terminal failure\npersist error detail
+FAILED --> DEAD_LETTER : move to debug queue
+FAILED --> QUEUED : manual requeue
+
+state DEAD_LETTER : retain payload / error for debug\nnot auto-retried
+DEAD_LETTER --> QUEUED : engineer requeue
+DEAD_LETTER --> [*] : archive / discard
+
+state CANCELLED : intentionally cancelled\nno auto retry
+CANCELLED --> [*]
+
+note right of RETRYING
+  Default retry policy:
+  3 attempts, exponential backoff
+  1s -> 2s -> 4s.
+end note
+
+note right of DEAD_LETTER
+  DEAD_LETTER is decoupled from business state.
+  Document / video still keeps last_error
+  so instructor or engineer can act on it.
+end note
+
+@enduml

@@ -1,0 +1,704 @@
+% !TeX root = ../main.tex
+\chapter{Conclusion and Future Development}
+\label{chap:ket-luan-huong-phat-trien}
+
+\section{Achieved Results}
+
+This thesis has proposed and built the foundation for an LMS-integrated
+Generative AI system that automatically creates Micro-Content and Quizzes
+from academic materials. The system does not stop at calling an LLM to
+generate content; it also designs a knowledge-processing pipeline that
+includes document extraction, chunking, embedding, retrieval, Knowledge
+Graph, and Human-in-the-Loop review.
+
+The main results are:
+\begin{itemize}
+    \item Designed the overall architecture including frontend, gRPC
+          backend, workers, queues, and storage systems PostgreSQL,
+          MinIO, Qdrant, and Neo4j.
+    \item Applied Hexagonal Architecture/DDD to separate use cases from
+          infrastructure adapters.
+    \item Built the document-processing pipeline: parse, chunk, embed,
+          store vectors, and generate AI content.
+    \item Designed a Curriculum-Aware Layer to extract Learning Outcomes
+          and map chunks to LOs.
+    \item Oriented the LTI 1.3/OIDC integration so the system can operate
+          as an external tool for an LMS.
+    \item Built an evaluation framework for functionality, integration,
+          retrieval, generated-content quality, and performance, with the
+          principle that no metric is reported before it has actually
+          been measured.
+\end{itemize}
+
+\section{System Limitations}
+
+Although the system already has a relatively complete technical
+foundation, several limitations still need to be addressed before
+real-world deployment at classroom scale:
+\begin{itemize}
+    \item There has not yet been a large enough empirical evaluation
+          across multiple courses and multiple instructors.
+    \item Quiz quality depends on the LLM, prompts, and the quality of
+          input chunks.
+    \item OCR for scanned documents and documents containing many
+          formulas has not yet reached production quality.
+    \item GraphRAG is currently at the design/MVP curriculum-aware
+          retrieval level and does not yet have a complete benchmark
+          against pure RAG.
+    \item Learning analytics dashboards, recommendation, and adaptive
+          learning have not yet been completed as full product modules.
+    \item Production deployment still requires additional monitoring,
+          backup, secret management, and autoscaling.
+\end{itemize}
+
+\section{15-Week Phase-2 Implementation Plan (Graduation Thesis)}
+\label{sec:plan-gd2}
+
+Phase 2 of the project lasts 15 weeks with 4 members. Following the
+supervisor's direction, the team is \textbf{not required to complete the
+entire list} below. The minimum goal is to stabilize the end-to-end flow
+and run a pilot with at least 10 students in one course, together with
+empirical evaluation data for retrieval and quiz quality. Extension
+items (advanced GraphRAG benchmark, advanced dashboard, multimodal
+ingestion) are classified as \textbf{NICE-TO-HAVE}; if time is limited,
+they may remain at design or prototype level without affecting the
+conditions for defense.
+
+\subsection{Four-Member Role Assignment}
+\label{subsec:roles-gd2}
+
+Roles are assigned according to the main \textit{runtime} each member is
+responsible for, directly mapped to the 6 physical runtimes in
+Table~\ref{tab:runtimes}. Each member acts as DRI (Directly Responsible
+Individual) for their own scope while still cross-reviewing code from
+other members to share knowledge.
+
+\begin{longtable}{|p{1.2cm}|p{3.4cm}|p{9.5cm}|}
+    \caption{Role and responsibility assignment for four members.}
+    \label{tab:roles-gd2} \\
+    \hline
+    \textbf{ID} & \textbf{Main role} & \textbf{Responsibility scope} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{ID} & \textbf{Main role} & \textbf{Responsibility scope} \\
+    \hline
+    \endhead
+
+    M1 & Backend AI (Python)
+       & \texttt{document-worker}, \texttt{enrichment-worker},
+         \texttt{chat-service}. Responsible for the parse $\to$ chunk
+         $\to$ embed pipeline, Micro-Content/Quiz generation, RAG hybrid
+         retrieval, and SSE streaming. Owner of Hexagonal ports
+         \texttt{IParser}, \texttt{IEmbeddingModel},
+         \texttt{ILLMClient}, \texttt{IVectorStore}. \\
+    \hline
+    M2 & Backend Core (NestJS) + Media (Go)
+       & \texttt{core-api} (metadata, RBAC, Outbox poller),
+         \texttt{video-worker} (FFmpeg, Whisper, segmentation), Neo4j
+         sync, Curriculum ingestion, LTI AGS grade passback. Owner of
+         the gRPC interface between runtimes. \\
+    \hline
+    M3 & Frontend / BFF (Next.js)
+       & \texttt{web-bff}, instructor UI (review, dashboard,
+         curriculum), learner UI (cards, quizzes, chatbot, video
+         learning), LTI launch flow, mobile responsiveness. Owner of
+         user experience and accessibility. \\
+    \hline
+    M4 & Data \& DevOps
+       & Infrastructure (Docker Compose, secret management, backup),
+         CI/CD, OpenTelemetry stack (Tempo, Loki, Grafana, Prometheus),
+         schema migration, evaluation pipeline (Recall@K, MRR, quiz
+         rubric), cost monitoring. Owner of runtime environments and
+         evaluation. \\
+    \hline
+\end{longtable}
+
+Two cross-cutting roles rotate weekly:
+\begin{itemize}
+    \item \textbf{Scrum Master:} coordinates daily standups, removes
+          blockers, and updates the burndown chart. Rotates among
+          M1--M4.
+    \item \textbf{On-call pilot support:} supports instructors/students
+          during the pilot period (Weeks 7--14). Rotates every 24h on a
+          4-day cycle.
+\end{itemize}
+
+\subsection{Priority Classification and Minimum Success Criteria}
+\label{subsec:priority-gd2}
+
+Three priority levels are applied throughout the roadmap:
+\begin{itemize}
+    \item \textbf{[M] MUST:} mandatory for defense readiness -- stable
+          end-to-end flow, minimum pilot, basic evaluation.
+    \item \textbf{[S] SHOULD:} should be completed for a fuller report
+          -- retrieval/quiz evaluation, basic instructor dashboard, cost
+          monitoring.
+    \item \textbf{[N] NICE-TO-HAVE:} implemented if time remains --
+          advanced GraphRAG benchmark, advanced instructor dashboard,
+          multimodal ingestion, Kubernetes manifests.
+\end{itemize}
+
+\textbf{Minimum success criteria (Definition of Done for the thesis):}
+\begin{enumerate}
+    \item LTI launch from Canvas into the system works for both
+          \texttt{Instructor} and \texttt{Learner} roles.
+    \item Upload PDF $\to$ parse $\to$ chunk $\to$ embed $\to$ Qdrant
+          search returns relevant top-K results, with Recall@5 measured
+          on a ground-truth set of $\geq 50$ queries.
+    \item Micro-Content cards and Quiz items are generated from chunks,
+          and instructors can review and publish them.
+    \item The chatbot answers questions with citations to original
+          chunks, and SSE streaming works inside the Canvas iframe.
+    \item Video upload $\to$ STT $\to$ segment $\to$ Qdrant index, and
+          students can watch video with timestamped transcripts.
+    \item Pilot with $\geq 10$ students in at least 1 course, collecting
+          $\geq 30$ quiz attempts and $\geq 50$ chat sessions.
+    \item Report updates C5 (detailed implementation) and C6 (real
+          pilot metrics, no remaining \texttt{TODO: measure empirically}).
+\end{enumerate}
+
+\subsection{15-Week Overview and 8 Sprints}
+\label{subsec:overview-gd2}
+
+\begin{longtable}{|p{1.4cm}|p{1.5cm}|p{4cm}|p{5.8cm}|}
+    \caption{15-week Phase-2 overview divided into 8 sprints.}
+    \label{tab:overview-gd2} \\
+    \hline
+    \textbf{Sprint} & \textbf{Weeks} & \textbf{Theme} & \textbf{Sprint
+    starting milestone} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{Sprint} & \textbf{Weeks} & \textbf{Theme} & \textbf{Sprint
+    starting milestone} \\
+    \hline
+    \endhead
+
+    1 & 1--2 & Foundation, infra, LTI launch
+      & Docker Compose can run the full stack; LTI launch demo works in
+        Canvas sandbox. \\
+    \hline
+    2 & 3--4 & Document Pipeline + Micro-Content + Quiz
+      & Upload PDF $\to$ chunk $\to$ Qdrant; draft card/quiz generation. \\
+    \hline
+    3 & 5--6 & Video Pipeline + RAG Chatbot + Video Search
+      & Upload video $\to$ transcript; chatbot streams SSE with
+        citations; Video Search returns YouTube + internal results. \\
+    \hline
+    4 & 7 & Hardening + Pilot kick-off
+      & E2E stable for 48h; recruit pilot $\geq 10$ students; train the
+        instructor. \\
+    \hline
+    5 & 8--9 & Pilot iteration + prompt tuning
+      & Daily feedback-driven bug fixes; prompt iteration; performance
+        profiling. \\
+    \hline
+    6 & 10--12 & Evaluation, security, polish
+      & Recall@K/MRR have measured numbers; OWASP scan passes; UI
+        polish. \\
+    \hline
+    7 & 13--14 & Pilot wrap-up + Data analysis
+      & Export dataset; instructor/student survey; analyze quiz/chat
+        quality. \\
+    \hline
+    8 & 15 & Final report + Demo
+      & C5/C6 updated; demo video; defense rehearsal. \\
+    \hline
+\end{longtable}
+
+\subsection{Overall Gantt Chart}
+\label{subsec:gantt-gd2}
+
+Figure~\ref{fig:gantt-sprints-gd2} shows the timeline of 8 sprints over
+15 weeks with three main milestones (Pilot start -- week 7, Pilot end --
+week 14, Submit + Defense -- week 15). Figure~\ref{fig:gantt-workstream-gd2}
+details the plan by workstream and maps the main owner (M1--M4) for each
+task, making each member's load and the cross-collaboration phases clear.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{ganttchart}[
+    hgrid,
+    vgrid={*{1}{draw=black!15}},
+    x unit=0.95cm,
+    y unit chart=0.55cm,
+    y unit title=0.65cm,
+    bar height=0.65,
+    bar/.style={fill=blue!55, draw=blue!70},
+    bar label font=\footnotesize,
+    group/.style={fill=blue!80, draw=blue!90},
+    group label font=\footnotesize\bfseries,
+    milestone/.style={fill=red!80, draw=red!90},
+    milestone label font=\footnotesize\itshape,
+    title label font=\small\bfseries,
+    title/.style={fill=gray!25, draw=gray!50},
+    canvas/.style={draw=black!40}
+]{1}{15}
+\gantttitle{Phase-2 Week}{15} \\
+\gantttitlelist{1,...,15}{1} \\
+\ganttgroup{S1 Foundation + LTI}{1}{2} \\
+\ganttgroup{S2 Document + Micro-Content}{3}{4} \\
+\ganttgroup{S3 Video + RAG Chatbot}{5}{6} \\
+\ganttgroup{S4 Hardening + Pilot kick-off}{7}{7} \\
+\ganttgroup{S5 Pilot iter + Prompt tuning}{8}{9} \\
+\ganttgroup{S6 Evaluation + Polish}{10}{12} \\
+\ganttgroup{S7 Pilot wrap-up}{13}{14} \\
+\ganttgroup{S8 Report + Demo}{15}{15} \\
+\ganttmilestone{Pilot starts ($\geq$10 students)}{7} \\
+\ganttmilestone{Pilot ends + freeze}{14} \\
+\ganttmilestone{Submit + Defense}{15}
+\end{ganttchart}%
+}
+\caption{Sprint-level Gantt chart for the 15-week Phase 2 with three
+main milestones.}
+\label{fig:gantt-sprints-gd2}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{ganttchart}[
+    hgrid,
+    vgrid={*{1}{draw=black!15}},
+    x unit=0.85cm,
+    y unit chart=0.48cm,
+    y unit title=0.6cm,
+    bar height=0.65,
+    bar/.style={fill=teal!55, draw=teal!70},
+    bar label font=\scriptsize,
+    group/.style={fill=teal!80, draw=teal!90},
+    group label font=\scriptsize\bfseries,
+    milestone/.style={fill=red!80, draw=red!90},
+    milestone label font=\scriptsize\itshape,
+    title label font=\small\bfseries,
+    title/.style={fill=gray!25, draw=gray!50},
+    canvas/.style={draw=black!40},
+    progress label text={}
+]{1}{15}
+\gantttitle{Week}{15} \\
+\gantttitlelist{1,...,15}{1} \\
+% ===== M1: Backend AI (Python) =====
+\ganttgroup{M1 Backend AI}{1}{15} \\
+\ganttbar{Skeleton workers + Hexagonal Port}{1}{2} \\
+\ganttbar{Parse + chunk + embed BGE-M3}{3}{4} \\
+\ganttbar{Micro-Content + Quiz prompts}{3}{4} \\
+\ganttbar{chat-service + RAG hybrid + RRF}{5}{6} \\
+\ganttbar{Video Search MCP module}{5}{6} \\
+\ganttbar{E2E smoke + bug fix}{7}{7} \\
+\ganttbar{Prompt iteration from pilot}{8}{9} \\
+\ganttbar{Retrieval eval (Recall@K, MRR)}{10}{12} \\
+\ganttbar{Quiz/chat quality analysis}{13}{14} \\
+\ganttbar{Update C5/C6 AI sections}{15}{15} \\
+% ===== M2: Backend Core + Media =====
+\ganttgroup{M2 Backend Core + Media}{1}{15} \\
+\ganttbar{core-api NestJS + JWT verify}{1}{2} \\
+\ganttbar{Outbox + Poller daemon}{3}{4} \\
+\ganttbar{Neo4j sync + Curriculum extract}{3}{4} \\
+\ganttbar{video-worker Go + FFmpeg + Whisper}{5}{6} \\
+\ganttbar{LTI AGS + Rate limit}{7}{7} \\
+\ganttbar{Curriculum versioning + LO migrate}{8}{9} \\
+\ganttbar{Bug fix + hardening}{10}{12} \\
+\ganttbar{Class diagram + C5 Core section}{13}{15} \\
+% ===== M3: Frontend / BFF =====
+\ganttgroup{M3 Frontend / BFF}{1}{15} \\
+\ganttbar{web-bff + LTI login/launch + Canvas key}{1}{2} \\
+\ganttbar{Upload UI + progress SSE + Review UI v1}{3}{4} \\
+\ganttbar{Chat UI + Video learning + Card/Quiz}{5}{6} \\
+\ganttbar{Onboarding flow + mobile QA}{7}{7} \\
+\ganttbar{Instructor dashboard v1}{8}{9} \\
+\ganttbar{UI polish + accessibility WCAG}{10}{12} \\
+\ganttbar{Survey + final UI polish}{13}{14} \\
+\ganttbar{Demo video + defense slides}{15}{15} \\
+% ===== M4: Data \& DevOps =====
+\ganttgroup{M4 Data + DevOps}{1}{15} \\
+\ganttbar{Docker Compose + CI + Schema migrate}{1}{2} \\
+\ganttbar{OpenTelemetry stack + integration test}{1}{4} \\
+\ganttbar{Backup + Cost monitoring + Production env}{7}{7} \\
+\ganttbar{Performance profiling}{8}{9} \\
+\ganttbar{OWASP scan + Load test + Cost report}{10}{12} \\
+\ganttbar{Export dataset + Cost aggregation}{13}{14} \\
+\ganttbar{Appendix + RUNBOOK + release tag}{15}{15} \\
+% ===== Cross-cutting =====
+\ganttgroup{Cross-cutting}{1}{15} \\
+\ganttbar{Daily standup + sprint review}{1}{15} \\
+\ganttbar{Pilot operations (on-call rotation)}{7}{14} \\
+\ganttbar{Incremental documentation}{2}{15} \\
+\ganttmilestone{Pilot start}{7} \\
+\ganttmilestone{Pilot stop}{14}
+\end{ganttchart}%
+}
+\caption{Detailed Gantt chart by workstream and owner (M1--M4). Each
+group corresponds to one member; the \emph{Cross-cutting} group contains
+work shared by the whole team.}
+\label{fig:gantt-workstream-gd2}
+\end{figure}
+
+Observations from the Gantt chart:
+\begin{itemize}
+    \item Weeks 1--2 have \textbf{uniformly high load} for all 4 members
+          because scaffolding must be built in parallel. Pair programming
+          in week 1 is recommended to share Hexagonal Port context
+          between M1--M2.
+    \item In weeks 5--6, M1 and M2 both carry heavy load (RAG +
+          video-worker). M3 must finish base UI by week 4 so it does not
+          create blockers.
+    \item Week 7 is the \textbf{bottleneck}: hardening, pilot kick-off,
+          and instructor/student training all happen together. It is the
+          highest-risk week and should not include new feature work.
+    \item In weeks 8--9, \textbf{M4 has lighter load} and can assist
+          M1/M2 with curriculum versioning or run the evaluation pipeline
+          early.
+    \item Weeks 10--12 are the longest sprint, with \textbf{load
+          concentrated on M1 and M4} for evaluation. M2 moves to
+          hardening, while M3 polishes the UI.
+    \item In weeks 13--15, the whole team shifts focus to
+          \textbf{report + demo}; there are no new features.
+\end{itemize}
+
+\subsection{Sprint 1 (Weeks 1--2) --- Foundation and LTI Launch}
+\label{subsec:sprint1-gd2}
+
+Goal: build enough scaffolding so that all members can work in parallel
+from Sprint 2. By the end of the sprint, the team must demonstrate LTI
+launch from Canvas sandbox into \texttt{/manage/review} (instructor) or
+\texttt{/learn/courses} (learner).
+
+\begin{longtable}{|p{0.85cm}|p{5.35cm}|p{1.5cm}|p{0.9cm}|p{3.7cm}|}
+    \caption{Sprint 1 --- Weeks 1--2.}
+    \label{tab:sprint1-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    1.1 & Setup monorepo + Docker Compose (15 containers) & M4 & M & \texttt{docker compose up} passes health checks. \\ \hline
+    1.2 & Migrate PostgreSQL schema (24 + 3 tables from appendix) & M4 & M & \texttt{migrate up} runs cleanly on an empty DB. \\ \hline
+    1.3 & CI workflow (GitHub Actions): lint + unit test & M4 & M & Opened PR passes CI under 10 minutes. \\ \hline
+    1.4 & OpenTelemetry collector + Tempo + Loki + Grafana & M4 & S & Trace from \texttt{web-bff} to worker appears end-to-end in Grafana. \\ \hline
+    1.5 & \texttt{core-api} skeleton (NestJS) + auth middleware (JWT verify) & M2 & M & \texttt{GET /health} and \texttt{GET /me} work after LTI launch. \\ \hline
+    1.6 & \texttt{web-bff} skeleton + Next.js App Router & M3 & M & Homepage renders; routes \texttt{/lti/login}, \texttt{/lti/launch} reachable. \\ \hline
+    1.7 & Canvas Developer Key + Cloud sandbox account & M3 & M & Tool can be registered in Canvas and launch test passes. \\ \hline
+    1.8 & LTI 1.3 OIDC login + launch verification (JWKS) & M3 & M & Clicking an activity in Canvas $\to$ enters the system with correct role/context. \\ \hline
+    1.9 & UPSERT \texttt{lms\_user\_mappings} + \texttt{lms\_course\_ref} after launch & M2 & M & Tables contain records after the first launch. \\ \hline
+    1.10 & BFF-to-Core JWT signing (Ed25519 keypair) & M3, M2 & M & \texttt{core-api} rejects requests without a valid JWT. \\ \hline
+    1.11 & \texttt{document-worker} skeleton + BGE-M3 model loading & M1 & M & Container starts and loads the model under 30s. \\ \hline
+    1.12 & \texttt{enrichment-worker} skeleton + Gemini SDK adapter & M1 & M & Calls a sample prompt and parses strict JSON schema. \\ \hline
+    1.13 & MinIO presigned URL upload flow (sample PDF) & M2, M3 & M & Browser uploads file $\to$ MinIO directly and passes. \\ \hline
+    1.14 & Define Hexagonal Ports: \texttt{IParser}, \texttt{IEmbeddingModel}, \texttt{ILLMClient}, \texttt{IVectorStore}, \texttt{IGraphStore}, \texttt{IObjectStorage} & M1, M2 & M & ABC classes exist in codebase, with 2 adapters (real + mock). \\ \hline
+\end{longtable}
+
+\subsection{Sprint 2 (Weeks 3--4) --- Document Pipeline and Micro-Content}
+\label{subsec:sprint2-gd2}
+
+Goal: complete the document flow from upload to draft card/quiz
+generation. By the end of the sprint, instructors can upload one sample
+PDF, view its chunks in Qdrant, and review generated cards/quizzes
+(publishing is not yet required).
+
+\begin{longtable}{|p{0.85cm}|p{5.35cm}|p{1.5cm}|p{0.9cm}|p{3.7cm}|}
+    \caption{Sprint 2 --- Weeks 3--4.}
+    \label{tab:sprint2-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    2.1 & PDF parser adapter (PyMuPDF) + OCR fallback (Tesseract/Docling) & M1 & M & Text-layer PDF parses; scanned PDF triggers OCR. \\ \hline
+    2.2 & Heading-based chunker + size fallback (max 1500 tokens) & M1 & M & Chunks have correct \texttt{heading\_path} and \texttt{page\_range}. \\ \hline
+    2.3 & BGE-M3 dense + sparse embedding + Qdrant upsert (Named Vectors) & M1 & M & Qdrant search returns top-K with both vectors. \\ \hline
+    2.4 & Hybrid retrieval + RRF (preparation for Sprint 3) & M1 & S & RRF unit test merges 2 rankings correctly. \\ \hline
+    2.5 & Document upload UI + progress SSE & M3 & M & Upload PDF $\to$ realtime progress bar visible. \\ \hline
+    2.6 & Outbox table + Outbox Poller daemon in \texttt{core-api} & M2 & M & Insert outbox event $\to$ poll $\to$ enqueue BullMQ. \\ \hline
+    2.7 & Neo4j sync worker: create \texttt{Chunk}, \texttt{SUPPORTS} & M2 & S & After ingesting 1 document, Neo4j has \texttt{Chunk} nodes. \\ \hline
+    2.8 & Curriculum ingestion (syllabus PDF $\to$ Course, Chapter, LO, Assessment) using Gemini Flash JSON schema & M1, M2 & S & Ingesting a sample syllabus returns correct structure and inserts PostgreSQL rows. \\ \hline
+    2.9 & \texttt{HeuristicLoMapper}: map chunk $\to$ LO by embedding similarity & M1 & S & One chunk is linked to $\geq 1$ \texttt{lo\_id} with confidence. \\ \hline
+    2.10 & Micro-Content generation prompt + strict JSON schema & M1 & M & Card has \texttt{title}, \texttt{bullets}, \texttt{key\_insight}, \texttt{source\_chunk\_ids}. \\ \hline
+    2.11 & Quiz generation prompt (Bloom level, mix of MCQ\_SINGLE / MCQ\_MULTI / TRUE\_FALSE / FILL\_BLANK) + validator & M1 & M & Quiz passes schema and does not contain ``All of the above''. \\ \hline
+    2.12 & Review UI v1: list draft, view detail, approve/reject & M3 & M & Instructor can review 10 draft cards/quizzes. \\ \hline
+    2.13 & State machine \texttt{GENERATED\_DRAFT} $\to$ \texttt{REVIEWING} $\to$ \texttt{APPROVED} & M2, M3 & M & Transitions are correct and audit log records them. \\ \hline
+    2.14 & Integration test setup (testcontainers Postgres + Qdrant + Redis) & M4 & S & Document-pipeline test runs in CI under 5 minutes. \\ \hline
+\end{longtable}
+
+\subsection{Sprint 3 (Weeks 5--6) --- Video Pipeline and RAG Chatbot}
+\label{subsec:sprint3-gd2}
+
+Goal: complete the remaining two major AI subsystems -- video processing
+and chatbot. By the end of the sprint, students can upload one lecture
+video and ask questions through the AI Tutor chatbot with citations to
+both documents and video segments.
+
+\begin{longtable}{|p{0.85cm}|p{5.35cm}|p{1.5cm}|p{0.9cm}|p{3.7cm}|}
+    \caption{Sprint 3 --- Weeks 5--6.}
+    \label{tab:sprint3-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    3.1 & \texttt{video-worker} (Go) skeleton + BullMQ Go client & M2 & M & Container can consume \texttt{VideoUploaded} events. \\ \hline
+    3.2 & FFmpeg audio extraction subprocess + progress reporting & M2 & M & Extract 16kHz WAV from MP4/MOV. \\ \hline
+    3.3 & Whisper STT integration (local CUDA + API fallback adapter) & M2 & M & Transcript has correct timestamps for a 5-minute video. \\ \hline
+    3.4 & Silence + topic-shift segmentation, cut 30--90s clips & M2 & S & A 60-minute video creates $\geq 30$ segments. \\ \hline
+    3.5 & Insert \texttt{video\_segments}, \texttt{transcript\_segments} + publish \texttt{TranscriptReady} & M2 & M & Event is received by \texttt{document-worker}. \\ \hline
+    3.6 & Embed transcript segments into the same Qdrant collection \texttt{learning\_chunks} & M1 & M & Qdrant search returns both document chunks and video segments. \\ \hline
+    3.7 & \texttt{chat-service} (FastAPI) skeleton + SSE endpoint & M1 & M & \texttt{/chat/stream} receives a query and returns token stream. \\ \hline
+    3.8 & RAG hybrid retrieval (dense+sparse + RRF) + hard \texttt{course\_id} filter & M1 & M & Question for course A does not return chunks from course B. \\ \hline
+    3.9 & Graph-aware reranking (boost chunks that \texttt{SUPPORTS} target LO) & M1 & S & Ablation exists: graph off $\to$ graph on, difference recorded. \\ \hline
+    3.10 & Single-Use Ticket for SSE handshake & M2, M1 & M & Token is valid once and expires after 60s. \\ \hline
+    3.11 & Citation extraction + response format \texttt{[1]}, \texttt{[2]} & M1 & M & Clicking citation opens the original chunk. \\ \hline
+    3.12 & Store \texttt{chat\_messages} (UUIDv7) with citation metadata & M1 & M & Chat history reloads in correct order. \\ \hline
+    3.13 & Video Search module: YouTube MCP + internal Qdrant transcript & M1 & S & Query ``Explain B-tree by video'' $\to$ returns 3 videos. \\ \hline
+    3.14 & Chat UI: bubbles + citations + streaming caret & M3 & M & Token stream is smooth, without lag. \\ \hline
+    3.15 & Video learning UI: player + transcript click-to-jump + related card panel & M3 & S & Clicking a transcript timestamp jumps the player correctly. \\ \hline
+    3.16 & Card view + Quiz view (mobile-first) & M3 & M & Swipe gesture works; touch target $\geq 44$px. \\ \hline
+\end{longtable}
+
+\subsection{Sprint 4 (Week 7) --- Hardening and Pilot Kick-off}
+\label{subsec:sprint4-gd2}
+
+Goal: stabilize the system for 48 continuous hours and start the pilot
+with a real class. This is a short sprint (1 week) but high risk, so
+features should be frozen and only bug fixes should be accepted.
+
+\begin{longtable}{|p{0.85cm}|p{5.35cm}|p{1.5cm}|p{0.9cm}|p{3.7cm}|}
+    \caption{Sprint 4 --- Week 7.}
+    \label{tab:sprint4-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    4.1 & E2E smoke test: upload doc + video + generate card/quiz + chat + take quiz & All & M & One end-to-end flow passes within 30 minutes. \\ \hline
+    4.2 & Backup scripts for PostgreSQL + Qdrant + Neo4j + MinIO & M4 & M & Restore drill: drop DB $\to$ restore $\to$ pass smoke test. \\ \hline
+    4.3 & Cost monitoring dashboard (Prometheus rule + Grafana panel) & M4 & S & Token consumption is shown in real time by provider/use case. \\ \hline
+    4.4 & Rate limit + quota enforcement (\texttt{user\_llm\_quota}) & M2 & M & User exceeding 100K tokens/day is rejected with 429. \\ \hline
+    4.5 & LTI AGS grade passback (quiz score $\to$ Canvas Gradebook) & M2 & M & Student submits quiz $\to$ Canvas shows score. \\ \hline
+    4.6 & Instructor onboarding flow (3 steps: connect Canvas, upload doc, review card) & M3 & M & New instructor completes setup under 15 minutes. \\ \hline
+    4.7 & Mobile responsive QA pass (Android + iOS) & M3 & S & Card, quiz, chat usable on screens $\leq 375$px. \\ \hline
+    4.8 & Recruit pilot: 1 course, 1 instructor, $\geq 10$ students & All & M & List and signed commitment exist. \\ \hline
+    4.9 & Pilot user training session (1h, recorded video) & M3, M1 & M & Instructor + students know how to upload, review, learn, and chat. \\ \hline
+    4.10 & Production env (VPS or small cloud) with HTTPS Caddy & M4 & M & Valid HTTPS domain, Canvas can launch. \\ \hline
+    4.11 & Basic alert rules (error rate, queue depth, disk usage) & M4 & S & Discord/Email alert fires when rule triggers. \\ \hline
+    4.12 & On-call rotation schedule (4 days/person) & All & M & Schedule shared with the supervisor. \\ \hline
+\end{longtable}
+
+\subsection{Sprint 5 (Weeks 8--9) --- Pilot Iteration and Prompt Tuning}
+\label{subsec:sprint5-gd2}
+
+Goal: keep the pilot stable for 2 weeks and collect enough data for the
+evaluation in Sprint 6. The focus is feedback-driven bug fixing and
+prompt refinement to improve card/quiz quality.
+
+\begin{longtable}{|p{0.85cm}|p{5.35cm}|p{1.5cm}|p{0.9cm}|p{3.7cm}|}
+    \caption{Sprint 5 --- Weeks 8--9.}
+    \label{tab:sprint5-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    5.1 & Daily standup + bug triage (15 minutes every morning) & All & M & 24h bug-free SLA for blocker errors. \\ \hline
+    5.2 & Pilot bug fixing from feedback (rolling) & All & M & Pilot bug burndown chart decreases linearly. \\ \hline
+    5.3 & Prompt iteration based on instructor quiz-quality feedback & M1 & S & V2 prompt reduces reject rate below 30\%. \\ \hline
+    5.4 & Chat session quality audit (sample 20 sessions) & M1 & S & Hallucination rate is measured and mitigations exist. \\ \hline
+    5.5 & Performance profiling: identify bottlenecks (Qdrant search, LLM call, parsing) & M4 & S & Report top-3 bottlenecks + tuning plan. \\ \hline
+    5.6 & Curriculum versioning (track LO changes by \texttt{academic\_year}) & M2 & S & Creating LO v2 does not break old chunk links. \\ \hline
+    5.7 & Instructor dashboard v1 (LO coverage, top wrong quiz items, class activity) & M3 & S & Basic dashboard exists, real-time not required. \\ \hline
+    5.8 & Test on a second course (if a volunteer instructor is available) & All & N & One extended course experiment exists. \\ \hline
+\end{longtable}
+
+\subsection{Sprint 6 (Weeks 10--12) --- Evaluation, Security, and Polish}
+\label{subsec:sprint6-gd2}
+
+Goal: collect proper empirical metrics for Chapter 6, \textbf{replacing
+all} \texttt{TODO: measure empirically} entries with real numbers. In
+parallel, harden security and polish the UI.
+
+\begin{longtable}{|p{0.85cm}|p{5.35cm}|p{1.5cm}|p{0.9cm}|p{3.7cm}|}
+    \caption{Sprint 6 --- Weeks 10--12.}
+    \label{tab:sprint6-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    6.1 & Create retrieval ground truth: $\geq 50$ queries with correct chunks & M1 & M & Ground-truth JSONL file committed. \\ \hline
+    6.2 & Measure Recall@1, Recall@5, Recall@10, MRR for 3 retrieval modes (dense, sparse, hybrid+RRF) & M1, M4 & M & Recall/MRR table in C6. \\ \hline
+    6.3 & Measure nDCG for Graph-aware rerank (ablation on/off) & M1 & S & Comparison with/without Neo4j boost exists. \\ \hline
+    6.4 & Quiz rubric: 5 criteria, instructor grades $\geq 100$ quiz items & M1, Supervisor & M & Rubric score distribution table in C6. \\ \hline
+    6.5 & Chat quality: hallucination rate, citation hit rate, helpfulness Likert 5 & M1 & S & Result table in C6. \\ \hline
+    6.6 & OWASP scan: \texttt{trivy}, \texttt{pip-audit}, \texttt{npm audit} & M4 & S & High vulnerabilities patched or whitelisted with reasons. \\ \hline
+    6.7 & Prompt injection test set ($\geq 20$ scenarios) & M1 & S & Bypass rate below 10\%. \\ \hline
+    6.8 & Load test (k6 or Locust) with 50 concurrent users & M4 & S & Chatbot p95 latency under 5s, error rate under 1\%. \\ \hline
+    6.9 & UI polish: accessibility (WCAG AA), optional dark mode & M3 & S & Lighthouse accessibility $\geq 90$. \\ \hline
+    6.10 & Cost report: total token usage + cost per pilot user & M4 & M & Cost table in C6. \\ \hline
+    6.11 & Documentation: \texttt{README.md}, \texttt{ARCHITECTURE.md}, \texttt{RUNBOOK.md} & All & S & New developer onboarding under 1h. \\ \hline
+    6.12 & GraphRAG ablation: compare with/without Neo4j boost (nDCG, MRR) & M1 & N & Comparison table in C6. \\ \hline
+\end{longtable}
+
+\subsection{Sprint 7 (Weeks 13--14) --- Pilot Wrap-up and Data Analysis}
+\label{subsec:sprint7-gd2}
+
+Goal: close the pilot, analyze the final data, and write results into
+the report.
+
+\begin{longtable}{|p{0.85cm}|p{5.35cm}|p{1.5cm}|p{0.9cm}|p{3.7cm}|}
+    \caption{Sprint 7 --- Weeks 13--14.}
+    \label{tab:sprint7-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    7.1 & Stop pilot, export dataset (PostgreSQL dump + chat log JSONL + quiz attempt CSV) & M4 & M & Dataset has timestamps and is anonymized. \\ \hline
+    7.2 & Instructor survey (10 Likert questions + 3 open questions) & M3 & M & $\geq 1$ instructor fully responds. \\ \hline
+    7.3 & Student survey ($\geq 7$/10 students respond) & M3 & M & Quantitative and qualitative data collected. \\ \hline
+    7.4 & Analyze quiz quality: manual scoring + LLM judge (Gemini Pro) comparison & M1 & S & Inter-annotator agreement Cohen's $\kappa$ computed. \\ \hline
+    7.5 & Analyze chat sessions: top questions, top citations, failure cases & M1 & S & Pattern-analysis table in C6. \\ \hline
+    7.6 & Aggregate cost (LLM tokens + Whisper + storage) & M4 & M & Cost per active user/month. \\ \hline
+    7.7 & Final bug list + known issues for C6 Limitations section & All & M & Clear list in report. \\ \hline
+    7.8 & Final UI polish (typos, copy, loading states) & M3 & M & Walkthrough finds no UI errors. \\ \hline
+    7.9 & Freeze code backup, tag \texttt{v1.0-defense} & M4 & M & Tag exists on GitHub. \\ \hline
+\end{longtable}
+
+\subsection{Sprint 8 (Week 15) --- Final Report and Demo}
+\label{subsec:sprint8-gd2}
+
+Goal: finalize the report and prepare for defense. No new feature is
+added.
+
+\begin{longtable}{|p{0.85cm}|p{5.35cm}|p{1.5cm}|p{0.9cm}|p{3.7cm}|}
+    \caption{Sprint 8 --- Week 15.}
+    \label{tab:sprint8-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    8.1 & Update C5 (Implementation): folder structure, adapter snippets, sample DDL/Cypher, Compose file & M1, M2, M3, M4 & M & C5 is $\geq 700$ lines and contains real code snippets. \\ \hline
+    8.2 & Update C6 (Evaluation): replace \texttt{TODO} with pilot metrics, Recall/MRR/Rubric tables & M1, M4 & M & C6 has no \texttt{TODO}. \\ \hline
+    8.3 & Update appendix: final schema, env config, prompt template & M4 & M & Appendix complete. \\ \hline
+    8.4 & Draw real class diagram (\texttt{class\_diagram\_*.png}) & M2, M3 & S & C4 section 4.9 has figures. \\ \hline
+    8.5 & Record 8--10 minute demo video (full instructor + learner journey) & M3 & M & Video uploaded to YouTube unlisted. \\ \hline
+    8.6 & Defense slides (15--20 slides, 20-minute presentation) & All & M & Rehearsal passes before supervisor. \\ \hline
+    8.7 & Internal defense rehearsal ($\geq 2$ times) & All & M & At least 10 prepared Q\&A questions. \\ \hline
+    8.8 & Submit report by faculty deadline & All & M & Receipt available. \\ \hline
+\end{longtable}
+
+\subsection{Main Risks and Mitigations}
+\label{subsec:risks-gd2}
+
+\begin{longtable}{|p{4.5cm}|p{1.5cm}|p{8.5cm}|}
+    \caption{Risks and mitigations.}
+    \label{tab:risks-gd2} \\
+    \hline
+    \textbf{Risk} & \textbf{Level} & \textbf{Mitigation} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{Risk} & \textbf{Level} & \textbf{Mitigation} \\
+    \hline
+    \endhead
+
+    Canvas Cloud sandbox is rate-limited or locked
+        & High
+        & Backup with self-hosted Canvas Open Source in Docker Compose;
+          store credentials and sample course in advance. \\ \hline
+    Lab GPU is unavailable for local Whisper
+        & High
+        & Use Whisper API adapter (OpenAI or AssemblyAI) as fallback;
+          switch via env var \texttt{STT\_PROVIDER}. \\ \hline
+    Gemini API rate limit or quota exhaustion
+        & Medium
+        & Configure Gemini Flash fallback; cache deterministic prompts;
+          prepare $\geq 2$ backup keys. \\ \hline
+    Pilot does not reach 10 students
+        & High
+        & Outreach from week 1; prepare $\geq 2$ backup instructors; two
+          small classes can be combined. \\ \hline
+    Pilot bugs spread and reduce student trust
+        & High
+        & Feature flags for quick rollback; 24h on-call during the first
+          two pilot weeks; reset environment nightly if needed. \\ \hline
+    LLM cost exceeds budget
+        & Medium
+        & Cost cap per user; Prometheus alerts; switch to Gemini Flash
+          for tasks that do not require Pro. \\ \hline
+    Privacy: internal course documents sent to external APIs
+        & Medium
+        & Hard filter PII before embedding; sign DPA with provider;
+          provide a fully local option for sensitive courses. \\ \hline
+    Member is sick or unexpectedly busy
+        & Medium
+        & Cross-review code from Sprint 1; pair programming in weeks 1--2
+          to share context. \\ \hline
+    Report is rejected because empirical data is missing
+        & High
+        & Sprint 6 is the longest sprint (3 weeks) dedicated to
+          evaluation; replace all TODOs before Sprint 8. \\ \hline
+\end{longtable}
+
+\subsection{Plan Operation Notes}
+\label{subsec:plan-notes-gd2}
+
+\begin{itemize}
+    \item \textbf{Daily standup} 15 minutes every morning, online via
+          Discord or in person, recording blockers and assigning actions
+          within 24h.
+    \item \textbf{Sprint review + retro} at the end of each sprint with
+          the supervisor, demoing achieved MUST tasks and adjusting the
+          next sprint's priorities.
+    \item \textbf{Mandatory code review:} every PR requires $\geq 1$
+          reviewer who is not the branch owner. No self-merge except
+          hot-fixes with a reason logged.
+    \item \textbf{Flexible scope reduction:} if the pilot cannot start
+          by the end of Sprint 4, move it to Sprint 5; if Recall@K is
+          still unavailable by the end of Sprint 6, drop all
+          NICE-TO-HAVE tasks to protect MUST criteria.
+    \item \textbf{Report in parallel with code:} from Sprint 2 onward,
+          every completed MUST feature must include 1--2 paragraphs of
+          updates for C5 or C6 in the same PR, avoiding report-writing
+          overload in Sprint 8.
+\end{itemize}
+
+In summary, Generative AI can significantly support the transformation
+of academic materials into short learning content and assessment
+questions, but it must be placed inside an architecture with source
+traceability, instructor review, and clear evaluation. The approach that
+combines RAG, Knowledge Graph, Bloom taxonomy, and LTI makes the system
+more than a text-generation tool; it becomes a component that can be
+integrated into the teaching and learning workflow of an LMS.

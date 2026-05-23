@@ -1,0 +1,65 @@
+@startuml state_machine_pipeline
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam StateBackgroundColor #EBF5FB
+
+title State Machine: AI Pipeline (Document + Video Processing)
+
+[*] --> UPLOADING : create upload session
+
+state UPLOADING : browser PUT to MinIO\nvia presigned URL
+UPLOADING --> UPLOADED : confirm upload
+UPLOADING --> ERROR : upload failed / timeout
+
+state UPLOADED : file persisted in MinIO\nmetadata in PostgreSQL
+UPLOADED --> QUEUED : publish DocumentUploaded\nor VideoUploaded
+
+state QUEUED : job enqueued in BullMQ\nawaiting worker
+
+state input_type <<choice>>
+QUEUED --> input_type : worker acquires job
+
+input_type --> PARSING : document\nPDF / DOCX / PPTX
+input_type --> TRANSCRIBING : video / audio
+
+state PARSING : document-worker downloads\nextract text + OCR fallback
+PARSING --> CHUNKING : parsed OK
+PARSING --> ERROR : parse failed
+
+state CHUNKING : split by heading path\nmap chunks to LO if available
+CHUNKING --> EMBEDDING : chunks persisted\n+ outbox events committed
+CHUNKING --> ERROR : chunk failed
+
+state TRANSCRIBING : video-worker extracts audio\nWhisper STT + timestamps
+TRANSCRIBING --> SEGMENTING : transcript ready
+TRANSCRIBING --> ERROR : STT failed
+
+state SEGMENTING : segment transcript\ncut clips with FFmpeg\npersist video_segments
+SEGMENTING --> EMBEDDING : publish TranscriptReady
+SEGMENTING --> ERROR : segment / clip failed
+
+state EMBEDDING : BGE-M3 1024-dim vectors\nupsert to Qdrant
+EMBEDDING --> INDEXED : vector index OK
+EMBEDDING --> ERROR : embed / upsert failed
+
+state INDEXED : Qdrant has chunks / segments\nPostgreSQL status synced
+INDEXED --> [*] : publish TextIndexed\nor VideoIndexed
+
+state ERROR : persist last_error\nand last_success_state\nshow Retry to instructor
+ERROR --> QUEUED : manual retry / requeue
+
+note right of EMBEDDING
+  PostgreSQL is source of truth.
+  Qdrant upsert runs inline in the same worker
+  AFTER the PG commit (no Outbox needed).
+  Outbox Poller + BullMQ is used ONLY for
+  the asynchronous Neo4j graph projection.
+end note
+
+note right of INDEXED
+  Downstream Micro-Content and Quiz Generation
+  pipelines run as separate event consumers.
+end note
+
+@enduml

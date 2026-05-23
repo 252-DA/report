@@ -1,0 +1,72 @@
+@startuml seq_document_processing
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+
+title Sequence: Upload and Process Document\n(Document -> Qdrant + Neo4j -> TextIndexed)
+
+actor "Instructor" as Instructor
+participant "web-bff\n(Next.js)" as Web
+participant "core-api" as Core
+database "PostgreSQL" as PG
+participant "MinIO\nObject Storage" as MinIO
+queue "Redis\nBullMQ + Pub/Sub" as Redis
+participant "document-worker" as Worker
+participant "Parser / OCR" as Parser
+participant "Chunker\n+ LO Mapper" as Chunker
+participant "BGE-M3\nEmbedder" as Embedder
+database "Qdrant\nlearning_chunks" as Qdrant
+participant "Outbox Poller\n(in core-api)" as Outbox
+database "Neo4j\nKnowledge Graph" as Neo4j
+
+== Upload session ==
+Instructor -> Web : choose PDF / DOCX / PPTX
+Web -> Core : POST /documents/upload-session\n(course_id, file metadata)
+Core -> PG : INSERT documents status=UPLOADING
+Core -> MinIO : create presigned PUT URL
+Core --> Web : {document_id, upload_url}
+Web -> MinIO : PUT raw file
+Web -> Core : POST /documents/{id}/confirm-upload
+Core -> PG : UPDATE documents status=QUEUED
+Core -> Redis : enqueue DocumentUploaded
+Core --> Web : {status=QUEUED}
+
+== Parse, chunk, persist ==
+Worker -> Redis : consume DocumentUploaded
+Worker -> PG : UPDATE status=PARSING
+Worker -> MinIO : GET raw file
+Worker -> Parser : extract_text(file)\nOCR fallback if needed
+Parser --> Worker : ParsedDocument\nsections + metadata
+Worker -> PG : UPDATE status=CHUNKING
+Worker -> Chunker : chunk(parsed_document)\nmap chunk -> LO if applicable
+Chunker --> Worker : chunks[]\nheading_path + lo_refs
+
+== Source transaction (PG commit FIRST) ==
+Worker -> PG : UPDATE status=EMBEDDING
+Worker -> Embedder : embed(chunks[].content)
+Embedder --> Worker : dense_vectors[1024]
+Worker -> PG : BEGIN\nINSERT chunks\nINSERT outbox_events (ChunkIndexed)\nCOMMIT
+
+== Upsert Qdrant (after PG commit, idempotent retry) ==
+Worker -> Qdrant : upsert points (idempotent UUIDv7)\npayload={course_id, document_id,\nchunk_id, lo_ids}
+
+== Async Neo4j graph projection ==
+Outbox -> PG : SELECT pending outbox_events
+Outbox -> Redis : enqueue GraphSyncRequested
+Worker -> Redis : consume GraphSyncRequested
+Worker -> Neo4j : MERGE Chunk nodes\nMERGE SUPPORTS -> LearningOutcome
+Worker -> PG : UPDATE outbox_events status=PROCESSED\nUPDATE documents status=INDEXED
+Worker -> Redis : publish TextIndexed\n{document_id, course_id}
+
+== Progress UI ==
+Redis --> Web : progress events\nPARSING -> CHUNKING -> EMBEDDING -> INDEXED
+Web --> Instructor : SSE progress bar
+
+note over Worker, Redis
+  Document processing only normalizes and indexes content.
+  Micro-Content and Quiz Generation are triggered separately
+  after TextIndexed.
+end note
+
+@enduml

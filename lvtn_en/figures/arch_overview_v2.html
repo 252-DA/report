@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Micro-learning System Architecture - LMS Agnostic</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'JetBrains Mono',monospace;background:#020617;min-height:100vh;padding:1.5rem;color:white}
+.header{margin-bottom:1.5rem}
+.header-row{display:flex;align-items:center;gap:1rem;margin-bottom:.5rem}
+.pulse-dot{width:12px;height:12px;background:#22d3ee;border-radius:50%;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+h1{font-size:1.3rem;font-weight:700}
+.subtitle{color:#94a3b8;font-size:.8rem;margin-left:1.75rem}
+.diagram-container{background:rgba(15,23,42,.5);border-radius:1rem;border:1px solid #1e293b;padding:1rem;overflow-x:auto}
+svg{width:100%;min-width:1100px;display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.75rem;margin-top:1.5rem}
+.card{background:rgba(15,23,42,.5);border-radius:.75rem;border:1px solid #1e293b;padding:1rem}
+.card-header{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem}
+.card-dot{width:8px;height:8px;border-radius:50%}
+.card-dot.cyan{background:#22d3ee}.card-dot.emerald{background:#34d399}.card-dot.violet{background:#a78bfa}
+.card-dot.amber{background:#fbbf24}.card-dot.rose{background:#fb7185}.card-dot.orange{background:#fb923c}
+.card h3{font-size:.8rem;font-weight:600}
+.card ul{list-style:none;color:#94a3b8;font-size:.7rem}
+.card li{margin-bottom:.3rem}
+.footer{text-align:center;margin-top:1rem;color:#475569;font-size:.7rem}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<div class="header-row"><div class="pulse-dot"></div><h1>Micro-learning System Architecture (LMS-Agnostic)</h1></div>
+<p class="subtitle">AI Backend (Hexagonal gRPC) + LMS (Open edX / Moodle) via LTI 1.3 + Next.js Frontend</p>
+</div>
+
+<div class="diagram-container">
+<svg viewBox="0 0 1200 780">
+<defs>
+<marker id="ah" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/></marker>
+<marker id="ahc" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee"/></marker>
+<marker id="ahg" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#34d399"/></marker>
+<marker id="ahv" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa"/></marker>
+<marker id="ahr" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#fb7185"/></marker>
+<marker id="aho" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#fb923c"/></marker>
+<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/></pattern>
+</defs>
+<rect width="100%" height="100%" fill="url(#grid)"/>
+
+<!-- lms_shared NETWORK -->
+<rect x="10" y="115" width="1180" height="640" rx="12" fill="rgba(34,211,238,.03)" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="8,4"/>
+<text x="25" y="138" fill="#22d3ee" font-size="10" font-weight="700">network: lms_shared (external Docker bridge)</text>
+
+<!-- ====== LMS LAYER (left side) ====== -->
+<rect x="15" y="155" width="300" height="335" rx="8" fill="rgba(34,211,238,.05)" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="165" y="178" fill="#22d3ee" font-size="10" font-weight="600" text-anchor="middle">LMS Layer (LTI 1.3 Consumers)</text>
+
+<!-- Open edX -->
+<rect x="30" y="195" width="270" height="130" rx="6" fill="rgba(8,51,68,.35)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="165" y="218" fill="#22d3ee" font-size="11" font-weight="700" text-anchor="middle">Open edX (Redwood)</text>
+<text x="165" y="236" fill="#94a3b8" font-size="8" text-anchor="middle">Tutor 18.2.2 + lti_consumer-xblock</text>
+<line x1="45" y1="245" x2="285" y2="245" stroke="#1e293b" stroke-width="0.5"/>
+<text x="165" y="260" fill="white" font-size="9" text-anchor="middle">AILessonBlock XBlock (thin glue)</text>
+<text x="165" y="276" fill="#94a3b8" font-size="7" text-anchor="middle">student_view → iframe OIDC URL</text>
+<text x="165" y="292" fill="#94a3b8" font-size="7" text-anchor="middle">studio_view → config document_id, LO</text>
+<text x="165" y="312" fill="#22d3ee" font-size="7" text-anchor="middle">LMS :80 | CMS :18010 | Studio :18010</text>
+
+<!-- Moodle -->
+<rect x="30" y="340" width="270" height="130" rx="6" fill="rgba(8,51,68,.2)" stroke="#475569" stroke-width="1.5" stroke-dasharray="5,3"/>
+<text x="165" y="363" fill="#94a3b8" font-size="11" font-weight="700" text-anchor="middle">Moodle (Planned)</text>
+<text x="165" y="381" fill="#64748b" font-size="8" text-anchor="middle">mod_lti + OIDC Registration</text>
+<line x1="45" y1="390" x2="285" y2="390" stroke="#1e293b" stroke-width="0.5"/>
+<text x="165" y="405" fill="#94a3b8" font-size="8" text-anchor="middle">Activity Module → LTI External Tool</text>
+<text x="165" y="421" fill="#64748b" font-size="7" text-anchor="middle">Config: tool_url, consumer_key, JWKS</text>
+<text x="165" y="440" fill="#64748b" font-size="7" text-anchor="middle">lms_type_enum = 'moodle' in Postgres</text>
+<text x="165" y="458" fill="#475569" font-size="7" text-anchor="middle">GĐ2 Post-Report (if needed)</text>
+
+<!-- ====== APPLICATION LAYER ====== -->
+<rect x="330" y="155" width="340" height="180" rx="8" fill="rgba(6,78,59,.05)" stroke="#34d399" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="500" y="178" fill="#34d399" font-size="10" font-weight="600" text-anchor="middle">Application Layer</text>
+
+<!-- Next.js -->
+<rect x="345" y="195" width="150" height="80" rx="6" fill="rgba(8,51,68,.4)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="420" y="218" fill="white" font-size="10" font-weight="600" text-anchor="middle">ai_nextjs:3000</text>
+<text x="420" y="236" fill="#94a3b8" font-size="8" text-anchor="middle">Next.js 15 App Router</text>
+<text x="420" y="252" fill="#94a3b8" font-size="7" text-anchor="middle">ltijs Provider (LTI 1.3)</text>
+<text x="420" y="266" fill="#22d3ee" font-size="7" text-anchor="middle">gRPC Proxy | Redis Session</text>
+
+<!-- http-api -->
+<rect x="510" y="195" width="145" height="80" rx="6" fill="rgba(6,78,59,.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="583" y="218" fill="white" font-size="10" font-weight="600" text-anchor="middle">http-api:8000</text>
+<text x="583" y="236" fill="#94a3b8" font-size="8" text-anchor="middle">FastAPI Swagger</text>
+<text x="583" y="252" fill="#94a3b8" font-size="7" text-anchor="middle">/api/documents</text>
+<text x="583" y="266" fill="#34d399" font-size="7" text-anchor="middle">/api/curriculum/ingest</text>
+
+<!-- ====== BACKEND CORE ====== -->
+<rect x="690" y="155" width="200" height="180" rx="8" fill="rgba(6,78,59,.08)" stroke="#34d399" stroke-width="1.5"/>
+<text x="790" y="182" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle">chunking_v2 Core</text>
+
+<rect x="705" y="200" width="170" height="55" rx="6" fill="rgba(6,78,59,.4)" stroke="#34d399" stroke-width="1.5"/>
+<text x="790" y="222" fill="white" font-size="9" font-weight="600" text-anchor="middle">gRPC Server :50051</text>
+<text x="790" y="240" fill="#94a3b8" font-size="7" text-anchor="middle">ChunkingService (12 RPCs)</text>
+<text x="790" y="252" fill="#94a3b8" font-size="6" text-anchor="middle">ProcessDoc, IngestCurriculum,...</text>
+
+<rect x="705" y="265" width="170" height="55" rx="6" fill="rgba(251,146,60,.3)" stroke="#fb923c" stroke-width="1.5"/>
+<text x="790" y="287" fill="white" font-size="9" font-weight="600" text-anchor="middle">BullMQ Workers x3</text>
+<text x="790" y="303" fill="#94a3b8" font-size="7" text-anchor="middle">document | enrichment | outbox</text>
+<text x="790" y="315" fill="#fb923c" font-size="6" text-anchor="middle">+ video_worker (Go, GĐ2)</text>
+
+<!-- ====== INFRASTRUCTURE ====== -->
+<rect x="15" y="510" width="1170" height="155" rx="8" fill="rgba(168,85,247,.05)" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="600" y="533" fill="#a78bfa" font-size="10" font-weight="600" text-anchor="middle">Infrastructure Layer (DA Stack)</text>
+
+<rect x="30" y="548" width="130" height="55" rx="6" fill="rgba(76,29,149,.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="95" y="572" fill="white" font-size="9" font-weight="600" text-anchor="middle">PostgreSQL :5432</text>
+<text x="95" y="590" fill="#94a3b8" font-size="7" text-anchor="middle">14 tables + pool</text>
+<text x="95" y="600" fill="#a78bfa" font-size="6" text-anchor="middle">lms_user_mappings</text>
+
+<rect x="175" y="548" width="130" height="55" rx="6" fill="rgba(76,29,149,.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="240" y="572" fill="white" font-size="9" font-weight="600" text-anchor="middle">Qdrant :6333</text>
+<text x="240" y="590" fill="#94a3b8" font-size="7" text-anchor="middle">cosine, 1024-dim</text>
+<text x="240" y="600" fill="#a78bfa" font-size="6" text-anchor="middle">documents collection</text>
+
+<rect x="320" y="548" width="130" height="55" rx="6" fill="rgba(76,29,149,.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="385" y="572" fill="white" font-size="9" font-weight="600" text-anchor="middle">Neo4j :7687</text>
+<text x="385" y="590" fill="#94a3b8" font-size="7" text-anchor="middle">LO Knowledge Graph</text>
+<text x="385" y="600" fill="#a78bfa" font-size="6" text-anchor="middle">SUPPORTS, MASTERY</text>
+
+<rect x="465" y="548" width="130" height="55" rx="6" fill="rgba(76,29,149,.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="530" y="572" fill="white" font-size="9" font-weight="600" text-anchor="middle">Redis :6379</text>
+<text x="530" y="590" fill="#94a3b8" font-size="7" text-anchor="middle">Session (30' TTL)</text>
+<text x="530" y="600" fill="#a78bfa" font-size="6" text-anchor="middle">BullMQ + Cache</text>
+
+<rect x="610" y="548" width="130" height="55" rx="6" fill="rgba(76,29,149,.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="675" y="572" fill="white" font-size="9" font-weight="600" text-anchor="middle">MinIO :9000</text>
+<text x="675" y="590" fill="#94a3b8" font-size="7" text-anchor="middle">S3-compatible</text>
+<text x="675" y="600" fill="#a78bfa" font-size="6" text-anchor="middle">documents bucket</text>
+
+<rect x="755" y="548" width="200" height="55" rx="6" fill="rgba(76,29,149,.25)" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="855" y="572" fill="white" font-size="9" font-weight="600" text-anchor="middle">Gemini + BGE-M3</text>
+<text x="855" y="590" fill="#94a3b8" font-size="7" text-anchor="middle">LLM + Embedding (external)</text>
+<text x="855" y="600" fill="#a78bfa" font-size="6" text-anchor="middle">gemini-3-flash-preview</text>
+
+<!-- Browser -->
+<rect x="350" y="30" width="200" height="55" rx="6" fill="rgba(30,41,59,.5)" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="450" y="54" fill="white" font-size="11" font-weight="600" text-anchor="middle">Browser (Student / Lecturer)</text>
+<text x="450" y="72" fill="#94a3b8" font-size="8" text-anchor="middle">localhost:3000 | local.edly.io</text>
+
+<!-- ARROWS -->
+<!-- Browser → Next.js (LTI) -->
+<line x1="450" y1="85" x2="420" y2="193" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#ahr)"/>
+<text x="445" y="145" fill="#fb7185" font-size="7">LTI 1.3 OIDC</text>
+
+<!-- Browser → edX -->
+<line x1="350" y1="55" x2="165" y2="193" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#ahc)"/>
+<text x="240" y="115" fill="#94a3b8" font-size="7">:443</text>
+
+<!-- LMS → Next.js (LTI launch) -->
+<path d="M 300 260 L 330 260 Q 340 260 340 250 L 340 240" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#ahr)"/>
+<text x="315" y="270" fill="#fb7185" font-size="6">id_token POST</text>
+
+<!-- Next.js → gRPC -->
+<line x1="495" y1="240" x2="703" y2="240" stroke="#34d399" stroke-width="1.5" marker-end="url(#ahg)"/>
+<text x="600" y="235" fill="#94a3b8" font-size="7">gRPC :50051</text>
+
+<!-- http-api → gRPC (same process) -->
+<line x1="655" y1="240" x2="703" y2="240" stroke="#34d399" stroke-width="1" stroke-dasharray="3,3"/>
+
+<!-- gRPC → Workers -->
+<line x1="790" y1="255" x2="790" y2="263" stroke="#fb923c" stroke-width="1.5" marker-end="url(#aho)"/>
+<text x="800" y="262" fill="#fb923c" font-size="6">BullMQ</text>
+
+<!-- Workers → DBs -->
+<line x1="790" y1="320" x2="95" y2="546" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#ahv)"/>
+<line x1="790" y1="320" x2="240" y2="546" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#ahv)"/>
+<line x1="790" y1="320" x2="385" y2="546" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#ahv)"/>
+<line x1="790" y1="320" x2="530" y2="546" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#ahv)"/>
+<line x1="790" y1="320" x2="675" y2="546" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#ahv)"/>
+
+<!-- gRPC → DBs (direct) -->
+<line x1="705" y1="220" x2="95" y2="570" stroke="#a78bfa" stroke-width="1" marker-end="url(#ahv)"/>
+<line x1="705" y1="220" x2="530" y2="570" stroke="#a78bfa" stroke-width="1" marker-end="url(#ahv)"/>
+
+<!-- Next.js → Redis -->
+<line x1="420" y1="275" x2="530" y2="546" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#ahv)"/>
+<text x="485" y="420" fill="#94a3b8" font-size="6">session R/W</text>
+
+<!-- ====== LEGEND ====== -->
+<rect x="970" y="510" width="16" height="10" rx="2" fill="rgba(8,51,68,.4)" stroke="#22d3ee" stroke-width="1"/>
+<text x="992" y="518" fill="#94a3b8" font-size="7">LMS / Frontend</text>
+<rect x="970" y="526" width="16" height="10" rx="2" fill="rgba(6,78,59,.4)" stroke="#34d399" stroke-width="1"/>
+<text x="992" y="534" fill="#94a3b8" font-size="7">Backend (chunking_v2)</text>
+<rect x="970" y="542" width="16" height="10" rx="2" fill="rgba(76,29,149,.4)" stroke="#a78bfa" stroke-width="1"/>
+<text x="992" y="550" fill="#94a3b8" font-size="7">Databases</text>
+<rect x="970" y="558" width="16" height="10" rx="2" fill="rgba(251,146,60,.3)" stroke="#fb923c" stroke-width="1"/>
+<text x="992" y="566" fill="#94a3b8" font-size="7">Workers / Queue</text>
+<line x1="970" y1="578" x2="986" y2="578" stroke="#fb7185" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="992" y="581" fill="#94a3b8" font-size="7">LTI 1.3 Auth</text>
+<line x1="970" y1="594" x2="986" y2="594" stroke="#22d3ee" stroke-width="1" stroke-dasharray="8,4"/>
+<text x="992" y="597" fill="#94a3b8" font-size="7">lms_shared network</text>
+<rect x="970" y="608" width="16" height="10" rx="2" fill="rgba(8,51,68,.15)" stroke="#475569" stroke-width="1" stroke-dasharray="4,3"/>
+<text x="992" y="616" fill="#64748b" font-size="7">Planned / Post-GĐ1</text>
+</svg>
+</div>
+
+<div class="cards">
+<div class="card">
+<div class="card-header"><div class="card-dot emerald"></div><h3>AI Backend (chunking_v2)</h3></div>
+<ul>
+<li>• Hexagonal Architecture (Port/Adapter)</li>
+<li>• 12 gRPC RPCs + 3 BullMQ Workers</li>
+<li>• Postgres 14 tables + Qdrant + Neo4j</li>
+<li>• BGE-M3 1024-dim + Gemini LLM</li>
+<li>• Go Video Worker (GĐ2)</li>
+</ul>
+</div>
+<div class="card">
+<div class="card-header"><div class="card-dot cyan"></div><h3>LMS Integration (LTI 1.3)</h3></div>
+<ul>
+<li>• Open edX Redwood (active)</li>
+<li>• Moodle (planned, same interface)</li>
+<li>• lti_consumer-xblock / mod_lti</li>
+<li>• lms_type_enum: openedx | moodle</li>
+<li>• lms_user_mappings + lms_course_ref</li>
+</ul>
+</div>
+<div class="card">
+<div class="card-header"><div class="card-dot rose"></div><h3>Frontend (Next.js)</h3></div>
+<ul>
+<li>• ltijs Provider (LTI 1.3 OIDC)</li>
+<li>• 9 routes / 3 roles</li>
+<li>• Server-side gRPC proxy</li>
+<li>• Redis session 30' TTL</li>
+<li>• Tailwind + shadcn/ui</li>
+</ul>
+</div>
+<div class="card">
+<div class="card-header"><div class="card-dot violet"></div><h3>LMS-Agnostic Design</h3></div>
+<ul>
+<li>• LTI 1.3 standard (IMS Global)</li>
+<li>• OIDC + JWT authentication</li>
+<li>• AGS grade passback</li>
+<li>• Compatible: Canvas, Blackboard, D2L</li>
+<li>• Switch LMS = re-register Tool only</li>
+</ul>
+</div>
+</div>
+<p class="footer">DA Project • LMS-Agnostic Micro-learning System • 2026-05-10</p>
+</div>
+</body>
+</html>

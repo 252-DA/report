@@ -1,0 +1,113 @@
+@startuml neo4j_graph_schema
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ClassBackgroundColor #FFF8DC
+
+title Neo4j Graph Schema\n(Heading Graph + Curriculum Graph + Concept Graph)
+
+' ===== NODES =====
+class "Course" <<Node>> #D6EAF8 {
+    id : String
+    title : String
+}
+
+class "Chapter" <<Node>> #D5F5E3 {
+    id : String
+    title : String
+    order_index : Integer
+}
+
+class "LearningOutcome" <<Node>> #FEF9E7 {
+    id : String
+    code : String
+    statement : String
+    bloom_level : Integer
+}
+
+class "Assessment" <<Node>> #FDEBD0 {
+    id : String
+    name : String
+    weight : Float
+}
+
+class "Document" <<Node>> #E8F5E9 {
+    id : String
+    name : String
+    source_type : String
+}
+
+class "Heading" <<Node>> #F2F4F4 {
+    id : String
+    title : String
+    level : Integer
+}
+
+class "Chunk" <<Node>> #FFF8DC {
+    id : String
+    document_id : String
+    page_range : String
+    language : String
+}
+
+class "Concept" <<Node>> #EAEDED {
+    id : String
+    canonical_name : String
+    domain : String
+}
+
+class "LessonCard" <<Node>> #F5EEF8 {
+    id : String
+    title : String
+}
+
+class "QuizItem" <<Node>> #FADBD8 {
+    id : String
+    bloom_level : Integer
+}
+
+' ===== RELATIONSHIPS =====
+Course "1" --> "many" Chapter : HAS_CHAPTER
+Course "1" --> "many" LearningOutcome : HAS_LO
+Course "1" --> "many" Assessment : HAS_ASSESSMENT
+Chapter "1" --> "many" LearningOutcome : HAS_LO
+Chapter "1" --> "many" Document : USES_DOCUMENT
+Assessment "many" --> "many" LearningOutcome : MEASURES
+
+Document "1" --> "many" Heading : HAS_HEADING\n(top-level only)
+Heading "1" --> "many" Heading : HAS_SUBHEADING\n(recursive)
+Heading "1" --> "many" Chunk : HAS_CHUNK
+Document "1" --> "many" Chunk : HAS_CHUNK
+Chunk "1" --> "1" Chunk : NEXT\n(sequential order)
+
+Chunk "many" --> "many" LearningOutcome : SUPPORTS\n{confidence, source}
+Chunk "many" --> "many" Concept : MENTIONS\n{confidence}
+
+Concept "many" --> "many" Concept : PREREQUISITE_OF\n{weight}
+Concept "many" --> "many" Concept : RELATED_TO\n{weight}
+Concept "many" --> "many" Concept : SAME_AS
+
+LessonCard "many" --> "many" Chunk : GROUNDED_IN
+QuizItem "many" --> "many" Chunk : GROUNDED_IN
+QuizItem "many" --> "many" LearningOutcome : ASSESSES
+
+note bottom of Concept
+  Three layered subgraphs:
+   - Curriculum graph: Course / Chapter / LO / Assessment.
+   - Heading graph: Document / Heading / Chunk.
+   - Concept graph: Concept-Concept relations.
+
+  Query patterns used by RAG / GraphRAG:
+   - Quiz: Chunk SUPPORTS LO; QuizItem ASSESSES LO.
+   - Chat: Concept PREREQUISITE_OF Concept (n-hop).
+   - Rerank: combine vector score with graph proximity.
+end note
+
+note right of Chunk
+  Idempotent MERGE keys (consistency across reruns):
+   - Heading.id  = "{doc_id}:{level}:{h1}>{h2}>..."
+   - Chunk.id    = UUIDv7 from PostgreSQL
+   - Concept.id  = canonical_name (normalized)
+end note
+
+@enduml

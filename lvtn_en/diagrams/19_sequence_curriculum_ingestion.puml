@@ -1,0 +1,72 @@
+@startuml seq_curriculum_ingestion
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+
+title Sequence: Curriculum Ingestion\n(Syllabus -> PostgreSQL -> Outbox -> Neo4j)
+
+actor "Instructor" as Instructor
+participant "web-bff\n(Next.js)" as Web
+participant "core-api" as Core
+database "PostgreSQL" as PG
+participant "MinIO\nObject Storage" as MinIO
+queue "Redis\nBullMQ + Pub/Sub" as Redis
+participant "document-worker" as Worker
+participant "SyllabusExtractor\nRegex + Gemini Flash" as Extractor
+participant "Outbox Poller\n(in core-api)" as Outbox
+database "Neo4j\nKnowledge Graph" as Neo4j
+participant "HeuristicLoMapper" as Mapper
+database "Qdrant\nlearning_chunks" as Qdrant
+
+== Upload syllabus ==
+Instructor -> Web : upload syllabus PDF
+Web -> Core : POST /documents/upload-session\nsource_type=syllabus
+Core -> PG : INSERT documents status=UPLOADING
+Core -> MinIO : create presigned PUT URL
+Core --> Web : {document_id, upload_url}
+Web -> MinIO : PUT syllabus file
+Web -> Core : POST /documents/{id}/confirm-upload
+Core -> PG : UPDATE documents status=QUEUED
+Core -> Redis : enqueue CurriculumIngestionRequested
+
+== Extract curriculum structure ==
+Worker -> Redis : consume CurriculumIngestionRequested
+Worker -> MinIO : GET syllabus file
+Worker -> Extractor : parse(file)\nregex + JSON schema extraction
+Extractor --> Worker : Course metadata\nChapters, LO, Assessments
+
+== Source transaction (PostgreSQL + Outbox) ==
+Worker -> PG : BEGIN\nUPSERT courses / chapters\nINSERT learning_outcomes\nINSERT assessments / lo_assessments\nINSERT outbox_events (CurriculumIngested)\nCOMMIT
+Worker -> Redis : publish CurriculumIngested\n(progress only)
+Redis --> Web : ingestion progress
+Web --> Instructor : show extracted curriculum
+
+== Async Neo4j graph projection (Outbox-driven) ==
+Outbox -> PG : SELECT pending outbox_events\nWHERE type=CurriculumIngested
+Outbox -> Redis : enqueue GraphSyncRequested\n(target=curriculum)
+Worker -> Redis : consume GraphSyncRequested
+Worker -> Neo4j : MERGE Course, Chapter, LO,\nAssessment nodes
+Worker -> Neo4j : MERGE HAS_CHAPTER, HAS_LO, MEASURES
+Worker -> PG : UPDATE outbox_events status=PROCESSED
+
+== Map existing chunks to LO ==
+Worker -> Qdrant : list / search chunks\nby course_id
+Qdrant --> Worker : existing chunks[]
+Worker -> Mapper : map chunks -> LO\nheuristic + heading context
+Mapper --> Worker : chunk_lo_mappings[]
+Worker -> PG : UPSERT chunk_lo_mappings\nINSERT outbox_events (ChunkLOMapped)
+Outbox -> PG : SELECT pending outbox_events
+Outbox -> Redis : enqueue GraphSyncRequested
+Worker -> Redis : consume GraphSyncRequested
+Worker -> Neo4j : MERGE Chunk SUPPORTS LO
+Worker -> Redis : publish CurriculumGraphReady
+
+note over Outbox
+  Outbox Poller daemon lives in core-api.
+  It is the single owner that reads outbox_events
+  and dispatches BullMQ jobs to workers,
+  not the worker reading the table directly.
+end note
+
+@enduml

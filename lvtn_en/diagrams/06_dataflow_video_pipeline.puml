@@ -1,0 +1,84 @@
+@startuml dataflow_video_pipeline
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+
+title Data Flow: Video Processing Pipeline\n(Upload -> Transcript -> Segment -> Vector Index -> Graph Sync)
+
+actor "Instructor" as Instructor
+participant "web-bff\n(Next.js)" as Web
+participant "core-api" as Core
+database "PostgreSQL" as PG
+participant "MinIO" as MinIO
+queue "Redis\nBullMQ" as Redis
+participant "video-worker\n(Go)" as VideoWorker
+participant "FFmpeg" as FFmpeg
+participant "Whisper STT" as Whisper
+participant "document-worker" as DocWorker
+participant "BGE-M3\nEmbedder" as Embedder
+database "Qdrant\nlearning_chunks" as Qdrant
+participant "Outbox Poller\n(in core-api)" as Outbox
+database "Neo4j\nKnowledge Graph" as Neo4j
+
+== 1. Upload video ==
+Instructor -> Web : choose lecture video
+Web -> Core : POST /videos/upload-session\n(course_id, metadata)
+Core -> PG : INSERT videos (status=UPLOADING)
+Core -> MinIO : create presigned PUT URL
+Core --> Web : {video_id, upload_url}
+Web -> MinIO : PUT raw video
+Web -> Core : POST /videos/{id}/confirm-upload
+Core -> PG : UPDATE status=UPLOADED
+Core -> Redis : enqueue VideoUploaded
+Core --> Web : {status=QUEUED}
+
+== 2. Transcribing (audio extract + STT) ==
+VideoWorker -> Redis : consume VideoUploaded
+VideoWorker -> PG : UPDATE status=TRANSCRIBING
+VideoWorker -> MinIO : GET raw video
+VideoWorker -> FFmpeg : extract_audio(video)
+FFmpeg --> VideoWorker : audio_bytes
+VideoWorker -> Whisper : transcribe(audio)\nword + segment timestamps
+Whisper --> VideoWorker : transcript_segments[]
+
+== 3. Segmenting (clip + persist metadata) ==
+VideoWorker -> PG : UPDATE status=SEGMENTING
+VideoWorker -> VideoWorker : segment_by_topic_shift\n+ normalize timestamps
+loop each segment
+    VideoWorker -> FFmpeg : cut(video, start_ms, end_ms)
+    FFmpeg --> VideoWorker : clip_bytes
+    VideoWorker -> MinIO : PUT clip (bucket: video-clips)
+end
+VideoWorker -> PG : INSERT video_segments,\ntranscript_segments
+VideoWorker -> Redis : publish TranscriptReady
+
+== 4. Source transaction (PG commit FIRST) ==
+DocWorker -> Redis : consume TranscriptReady
+DocWorker -> PG : SELECT transcript_segments
+DocWorker -> PG : UPDATE status=EMBEDDING
+DocWorker -> Embedder : embed(transcript text)
+Embedder --> DocWorker : dense_vectors[1024]
+DocWorker -> PG : BEGIN\nUPDATE transcript_segments\nINSERT outbox_events (SegmentIndexed)\nCOMMIT
+note right of PG
+  PG commit BEFORE Qdrant so the source of truth
+  reflects the segment first. Outbox row schedules
+  Neo4j sync; Qdrant upsert is inline (no Outbox).
+end note
+
+== 5. Upsert Qdrant (after PG commit, idempotent) ==
+DocWorker -> Qdrant : upsert points (idempotent UUIDv7)\npayload={video_id, segment_id,\ncourse_id, start_ms, end_ms,\nvisibility=instructor,\nsource_type=video}
+
+== 6. Async Neo4j graph projection ==
+Outbox -> PG : SELECT pending outbox_events
+Outbox -> Redis : enqueue GraphSyncRequested
+DocWorker -> Redis : consume GraphSyncRequested
+DocWorker -> Neo4j : MERGE VideoSegment nodes\nMERGE SUPPORTS -> LearningOutcome
+DocWorker -> PG : UPDATE outbox_events status=PROCESSED\nUPDATE videos status=INDEXED
+DocWorker -> Redis : publish VideoIndexed
+
+== 7. Progress to UI ==
+Redis --> Web : BullMQ events / PubSub
+Web --> Instructor : SSE update status=INDEXED
+
+@enduml

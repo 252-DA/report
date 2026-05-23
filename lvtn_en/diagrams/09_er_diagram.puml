@@ -1,0 +1,352 @@
+@startuml er_diagram
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+skinparam EntityBackgroundColor #EBF5FB
+
+title Entity-Relationship Diagram - PostgreSQL Schema (31 tables)
+
+' ===== Subsystem 1: Identity & LMS Integration =====
+entity "lms_user_mappings" as users {
+    *internal_user_id : UUID <<PK>>
+    --
+    lms_type : VARCHAR(50)
+    lms_sub : VARCHAR(255)
+    display_name : VARCHAR(255)
+    role : ENUM(instructor, learner, administrator)
+    UNIQUE(lms_type, lms_sub)
+}
+
+entity "courses" as courses {
+    *course_id : UUID <<PK>>
+    --
+    lms_id : VARCHAR
+    code : VARCHAR(50) UNIQUE
+    name : VARCHAR(255)
+}
+
+entity "lms_course_ref" as lms_course {
+    *course_ref_id : UUID <<PK>>
+    --
+    course_id : UUID <<FK>>
+    lms_context_id : VARCHAR
+    lms_custom_settings : JSONB
+}
+
+entity "lti_resource_links" as lti_rl {
+    *resource_link_id : UUID <<PK>>
+    --
+    course_ref_id : UUID <<FK>>
+    lms_resource_link_id : VARCHAR
+    target_kind : ENUM(lesson, card, quiz_set, chat, video)
+    target_id : UUID
+    custom_claims : JSONB
+}
+
+entity "lti_line_items" as lti_li {
+    *line_item_id : UUID <<PK>>
+    --
+    resource_link_id : UUID <<FK>>
+    lms_line_item_url : VARCHAR(512)
+    score_maximum : NUMERIC
+}
+
+entity "course_memberships" as memberships {
+    *user_id : UUID <<FK, PK>>
+    *course_id : UUID <<FK, PK>>
+    *role : ENUM(instructor,learner,ta,observer) <<PK>>
+}
+
+' ===== Subsystem 2: Curriculum =====
+entity "chapters" as chapters {
+    *chapter_id : UUID <<PK>>
+    --
+    course_id : UUID <<FK>>
+    title : VARCHAR
+    sort_order : INT
+}
+
+entity "learning_outcomes" as lo {
+    *lo_id : UUID <<PK>>
+    --
+    chapter_id : UUID <<FK>>
+    code : VARCHAR(50)
+    statement_vi : TEXT
+    bloom_level : INT
+    cdio_level : ENUM(I,II,III)
+    academic_year : VARCHAR
+    version : INT
+    is_current : BOOLEAN
+}
+
+entity "assessments" as assess {
+    *assessment_id : UUID <<PK>>
+    --
+    course_id : UUID <<FK>>
+    title : VARCHAR
+    type : ENUM
+}
+
+entity "lo_assessments" as lo_assess {
+    *lo_id : UUID <<FK, PK>>
+    *assessment_id : UUID <<FK, PK>>
+    weight : NUMERIC
+}
+
+' ===== Subsystem 3: Documents =====
+entity "documents" as documents {
+    *document_id : UUID <<PK>>
+    --
+    course_id : UUID <<FK>>
+    title : VARCHAR
+    file_path : VARCHAR
+    checksum : VARCHAR(64)
+    status : ENUM(UPLOADING..INDEXED,ERROR)
+}
+
+entity "chunks" as chunks {
+    *chunk_id : UUID(v7) <<PK>>
+    --
+    document_id : UUID <<FK>>
+    course_id : UUID <<FK>>
+    content : TEXT
+    heading_path : TEXT[]
+    page_number : INT
+    language : VARCHAR
+}
+
+entity "chunk_lo_mappings" as chunk_lo {
+    *chunk_id : UUID <<FK, PK>>
+    *lo_id : UUID <<FK, PK>>
+    confidence : NUMERIC
+}
+
+' ===== Subsystem 4: Video =====
+entity "videos" as videos {
+    *video_id : UUID <<PK>>
+    --
+    course_id : UUID <<FK>>
+    title : VARCHAR
+    file_path : VARCHAR
+    status : ENUM(UPLOADING..INDEXED,ERROR)
+}
+
+entity "video_segments" as v_seg {
+    *segment_id : UUID <<PK>>
+    --
+    video_id : UUID <<FK>>
+    course_id : UUID <<FK>>
+    start_ms, end_ms : INT
+    clip_url : VARCHAR
+}
+
+entity "transcript_segments" as t_seg {
+    *transcript_id : UUID <<PK>>
+    --
+    segment_id : UUID <<FK>>
+    text : TEXT
+    start_ms, end_ms : INT
+}
+
+' ===== Subsystem 5: Generated Content =====
+entity "lessons" as lessons {
+    *lesson_id : UUID <<PK>>
+    --
+    course_id : UUID <<FK>>
+    lo_id : UUID <<FK>>
+    title : VARCHAR
+    status : ENUM(DRAFT,PUBLISHED,UNPUBLISHED,ARCHIVED)
+    UNIQUE(course_id, lo_id)
+}
+
+entity "lesson_cards" as cards {
+    *card_id : UUID(v7) <<PK>>
+    --
+    lesson_id : UUID <<FK>>
+    course_id : UUID <<FK>>
+    lo_id : UUID <<FK>>
+    title : VARCHAR
+    content : JSONB
+    source_chunk_ids : UUID[]
+    status : ENUM(GENERATED_DRAFT..ARCHIVED)
+}
+
+entity "card_video_attachments" as card_video {
+    *card_id : UUID <<FK, PK>>
+    *segment_id : UUID <<FK, PK>>
+    sort_order : INT
+}
+
+entity "quiz_items" as quiz {
+    *quiz_id : UUID(v7) <<PK>>
+    --
+    lesson_id : UUID <<FK>>
+    course_id : UUID <<FK>>
+    lo_id : UUID <<FK>>
+    type : ENUM(MCQ_SINGLE,MCQ_MULTI,TRUE_FALSE,FILL_BLANK)
+    question : TEXT
+    options : JSONB
+    correct_answer : JSONB
+    bloom_level : INT
+    status : ENUM(GENERATED_DRAFT..ARCHIVED)
+}
+
+entity "flashcard_reviews" as fc_rev {
+    *review_id : UUID <<PK>>
+    --
+    user_id : UUID <<FK>>
+    card_id : UUID <<FK>>
+    state : ENUM(NEW,MASTERED,REVIEW_AGAIN)
+    next_due_at : TIMESTAMPTZ
+    UNIQUE(user_id, card_id)
+}
+
+' ===== Subsystem 6: Analytics & Audit =====
+entity "quiz_attempts" as attempts {
+    *attempt_id : UUID(v7) <<PK>>
+    --
+    user_id : UUID <<FK>>
+    quiz_id : UUID <<FK>>
+    course_id : UUID <<FK>>
+    resource_link_id : UUID <<FK>>
+    score : NUMERIC
+    chosen_answer : JSONB
+    is_correct : BOOLEAN
+    ags_status : ENUM(NOT_REQUIRED,PENDING,POSTED,FAILED)
+}
+
+entity "chat_messages" as chat {
+    *message_id : UUID(v7) <<PK>>
+    --
+    session_id : UUID
+    user_id : UUID <<FK>>
+    course_id : UUID <<FK>>
+    role : ENUM(user,assistant,system)
+    content : TEXT
+    metadata : JSONB
+}
+
+entity "learning_events" as events {
+    *event_id : UUID(v7) <<PK>>
+    --
+    user_id : UUID <<FK>>
+    course_id : UUID <<FK>>
+    event_type : VARCHAR
+    payload : JSONB
+}
+
+entity "review_audit_logs" as audit {
+    *audit_id : UUID(v7) <<PK>>
+    --
+    actor_id : UUID <<FK>>
+    target_type : VARCHAR
+    target_id : UUID
+    action : VARCHAR
+    diff : JSONB
+}
+
+entity "llm_usage_logs" as llm_logs {
+    *usage_id : UUID(v7) <<PK>>
+    --
+    user_id : UUID <<FK>>
+    course_id : UUID <<FK>>
+    provider, model, use_case : VARCHAR
+    prompt_tokens, completion_tokens : INT
+    cost_usd : NUMERIC
+}
+
+entity "user_llm_quota" as user_quota {
+    *user_id : UUID <<FK, PK>>
+    --
+    daily_tokens_used, daily_limit : INT
+    monthly_tokens_used, monthly_limit : INT
+}
+
+entity "scope_llm_quota" as scope_quota {
+    *scope : ENUM(course,instructor) <<PK>>
+    *scope_id : UUID <<PK>>
+    --
+    monthly_tokens_used, monthly_limit : INT
+}
+
+' ===== Subsystem 7: Async/Requests/Cache =====
+entity "content_generation_requests" as gen_req {
+    *request_id : UUID <<PK>>
+    --
+    course_id : UUID <<FK>>
+    requested_by : UUID <<FK>>
+    type : ENUM(card,quiz)
+    scope : JSONB
+    status : ENUM(QUEUED,RUNNING,SUCCEEDED,FAILED,CANCELLED)
+    generated_count : INT
+}
+
+entity "outbox_events" as outbox {
+    *event_id : UUID(v7) <<PK>>
+    --
+    event_type : VARCHAR
+    aggregate_type : VARCHAR
+    aggregate_id : UUID
+    payload : JSONB
+    status : ENUM(PENDING,PROCESSING,PROCESSED,FAILED,DEAD_LETTER)
+    retry_count : INT
+}
+
+entity "youtube_search_cache" as yt_cache {
+    *query_hash : VARCHAR(64) <<PK>>
+    --
+    search_query : TEXT
+    search_results : JSONB
+    expires_at : TIMESTAMPTZ
+}
+
+' ===== Relationships =====
+users ||--o{ memberships
+courses ||--o{ memberships
+courses ||--o{ lms_course
+lms_course ||--o{ lti_rl
+lti_rl ||--|| lti_li
+courses ||--o{ chapters
+chapters ||--o{ lo
+courses ||--o{ assess
+lo ||--o{ lo_assess
+assess ||--o{ lo_assess
+
+courses ||--o{ documents
+documents ||--o{ chunks
+chunks ||--o{ chunk_lo
+lo ||--o{ chunk_lo
+
+courses ||--o{ videos
+videos ||--o{ v_seg
+v_seg ||--o{ t_seg
+
+courses ||--o{ lessons
+lo ||--o{ lessons
+lessons ||--o{ cards
+lessons ||--o{ quiz
+cards ||--o{ card_video
+v_seg ||--o{ card_video
+lo ||--o{ cards
+lo ||--o{ quiz
+
+users ||--o{ fc_rev
+cards ||--o{ fc_rev
+
+users ||--o{ attempts
+quiz ||--o{ attempts
+lti_rl ||--o{ attempts
+
+users ||--o{ chat
+courses ||--o{ chat
+users ||--o{ events
+courses ||--o{ events
+users ||--o{ audit
+users ||--o{ llm_logs
+courses ||--o{ llm_logs
+users ||--|| user_quota
+
+courses ||--o{ gen_req
+users ||--o{ gen_req
+
+@enduml

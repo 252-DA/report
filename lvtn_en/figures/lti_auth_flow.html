@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LTI 1.3 Authentication Flow</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'JetBrains Mono',monospace;background:#020617;min-height:100vh;padding:2rem;color:white}
+.header{margin-bottom:2rem}
+.header-row{display:flex;align-items:center;gap:1rem;margin-bottom:.5rem}
+.pulse-dot{width:12px;height:12px;background:#fb7185;border-radius:50%;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+h1{font-size:1.5rem;font-weight:700}
+.subtitle{color:#94a3b8;font-size:.875rem;margin-left:1.75rem}
+.diagram-container{background:rgba(15,23,42,.5);border-radius:1rem;border:1px solid #1e293b;padding:1.5rem;overflow-x:auto}
+svg{width:100%;min-width:1000px;display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-top:2rem}
+.card{background:rgba(15,23,42,.5);border-radius:.75rem;border:1px solid #1e293b;padding:1.25rem}
+.card-header{display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem}
+.card-dot{width:8px;height:8px;border-radius:50%}
+.card-dot.cyan{background:#22d3ee}.card-dot.rose{background:#fb7185}.card-dot.violet{background:#a78bfa}
+.card h3{font-size:.875rem;font-weight:600}
+.card ul{list-style:none;color:#94a3b8;font-size:.75rem}
+.card li{margin-bottom:.375rem}
+.footer{text-align:center;margin-top:1.5rem;color:#475569;font-size:.75rem}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<div class="header-row"><div class="pulse-dot"></div><h1>LTI 1.3 Authentication Flow</h1></div>
+<p class="subtitle">OIDC-based: AILessonBlock (edX) → Next.js → ltijs → Postgres + Redis → /learn/cards</p>
+</div>
+
+<div class="diagram-container">
+<svg viewBox="0 0 1100 680">
+<defs>
+<marker id="ah" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/></marker>
+<marker id="ahc" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee"/></marker>
+<marker id="ahr" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#fb7185"/></marker>
+<marker id="ahg" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#34d399"/></marker>
+<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/></pattern>
+</defs>
+<rect width="100%" height="100%" fill="url(#grid)"/>
+
+<!-- LIFELINES (vertical dashed) -->
+<line x1="120" y1="40" x2="120" y2="620" stroke="#22d3ee" stroke-width="1" stroke-dasharray="6,4" opacity="0.4"/>
+<line x1="340" y1="40" x2="340" y2="620" stroke="#fb7185" stroke-width="1" stroke-dasharray="6,4" opacity="0.4"/>
+<line x1="560" y1="40" x2="560" y2="620" stroke="#34d399" stroke-width="1" stroke-dasharray="6,4" opacity="0.4"/>
+<line x1="780" y1="40" x2="780" y2="620" stroke="#a78bfa" stroke-width="1" stroke-dasharray="6,4" opacity="0.4"/>
+<line x1="1000" y1="40" x2="1000" y2="620" stroke="#fbbf24" stroke-width="1" stroke-dasharray="6,4" opacity="0.4"/>
+
+<!-- HEADERS -->
+<rect x="60" y="30" width="120" height="45" rx="6" fill="rgba(8,51,68,.5)" stroke="#22d3ee" stroke-width="1.5"/>
+<text x="120" y="56" fill="white" font-size="10" font-weight="600" text-anchor="middle">Browser</text>
+<text x="120" y="68" fill="#94a3b8" font-size="7" text-anchor="middle">(Student)</text>
+
+<rect x="280" y="30" width="120" height="45" rx="6" fill="rgba(136,19,55,.5)" stroke="#fb7185" stroke-width="1.5"/>
+<text x="340" y="56" fill="white" font-size="10" font-weight="600" text-anchor="middle">edX LMS</text>
+<text x="340" y="68" fill="#94a3b8" font-size="7" text-anchor="middle">lti_consumer</text>
+
+<rect x="500" y="30" width="120" height="45" rx="6" fill="rgba(6,78,59,.5)" stroke="#34d399" stroke-width="1.5"/>
+<text x="560" y="56" fill="white" font-size="10" font-weight="600" text-anchor="middle">Next.js</text>
+<text x="560" y="68" fill="#94a3b8" font-size="7" text-anchor="middle">ltijs Provider</text>
+
+<rect x="730" y="30" width="100" height="45" rx="6" fill="rgba(76,29,149,.4)" stroke="#a78bfa" stroke-width="1.5"/>
+<text x="780" y="56" fill="white" font-size="10" font-weight="600" text-anchor="middle">Postgres</text>
+<text x="780" y="68" fill="#94a3b8" font-size="7" text-anchor="middle">mappings</text>
+
+<rect x="950" y="30" width="100" height="45" rx="6" fill="rgba(251,146,60,.4)" stroke="#fbbf24" stroke-width="1.5"/>
+<text x="1000" y="56" fill="white" font-size="10" font-weight="600" text-anchor="middle">Redis</text>
+<text x="1000" y="68" fill="#94a3b8" font-size="7" text-anchor="middle">session</text>
+
+<!-- STEP 1: Click Block -->
+<rect x="135" y="100" width="350" height="28" rx="4" fill="rgba(15,23,42,.8)"/>
+<text x="310" y="118" fill="#22d3ee" font-size="8" text-anchor="middle">1. Click AILessonBlock → GET /lti/login?iss=...&login_hint=...&target_link_uri=...</text>
+<line x1="120" y1="120" x2="340" y2="120" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#ahc)"/>
+
+<!-- STEP 2: OIDC redirect -->
+<rect x="355" y="150" width="360" height="28" rx="4" fill="rgba(15,23,42,.8)"/>
+<text x="535" y="168" fill="#fb7185" font-size="8" text-anchor="middle">2. 302 → edX /oauth2/authorize?scope=openid&response_type=id_token&redirect_uri=...</text>
+<line x1="340" y1="152" x2="120" y2="155" stroke="#fb7185" stroke-width="1.2" marker-end="url(#ahr)"/>
+
+<!-- STEP 3: edX authenticates -->
+<rect x="135" y="205" width="350" height="28" rx="4" fill="rgba(15,23,42,.8)"/>
+<text x="310" y="223" fill="#22d3ee" font-size="8" text-anchor="middle">3. Browser follows redirect → SSO login → edX generates id_token (JWT)</text>
+<line x1="120" y1="210" x2="340" y2="210" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#ahc)"/>
+
+<!-- STEP 4: POST id_token -->
+<rect x="355" y="260" width="360" height="28" rx="4" fill="rgba(15,23,42,.8)"/>
+<text x="535" y="278" fill="#fb7185" font-size="8" text-anchor="middle">4. Browser auto-submit form → POST /lti/launch (id_token + state)</text>
+<line x1="120" y1="270" x2="560" y2="275" stroke="#fb7185" stroke-width="1.5" marker-end="url(#ahr)"/>
+
+<!-- STEP 5: Validate JWT -->
+<rect x="575" y="320" width="300" height="45" rx="4" fill="rgba(15,23,42,.8)"/>
+<text x="725" y="337" fill="#34d399" font-size="8" text-anchor="middle">5. ltijs.validateJWT(id_token)</text>
+<text x="725" y="354" fill="#94a3b8" font-size="7" text-anchor="middle">Fetch edX JWKS → verify signature, iss, aud, exp</text>
+<line x1="560" y1="330" x2="560" y2="330" stroke="#34d399" stroke-width="1" marker-end="url(#ahg)"/>
+<text x="575" y="325" fill="#94a3b8" font-size="7">(self-call)</text>
+
+<!-- STEP 6: Extract claims -->
+<rect x="575" y="385" width="300" height="40" rx="4" fill="rgba(15,23,42,.8)"/>
+<text x="725" y="400" fill="#34d399" font-size="8" text-anchor="middle">6. Extract: sub (user_id), context.id (course),</text>
+<text x="725" y="416" fill="#34d399" font-size="8" text-anchor="middle">   roles, custom.document_id, custom.lo_ids</text>
+
+<!-- STEP 7: UPSERT Postgres -->
+<rect x="575" y="450" width="350" height="40" rx="4" fill="rgba(15,23,42,.8)"/>
+<text x="750" y="467" fill="#34d399" font-size="8" text-anchor="middle">7. UPSERT lms_user_mappings(lms_type='openedx',</text>
+<text x="750" y="483" fill="#34d399" font-size="8" text-anchor="middle">   lms_user_id=$sub) → internal_user_id</text>
+<line x1="560" y1="460" x2="778" y2="460" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#ah)"/>
+<line x1="780" y1="465" x2="780" y2="465" stroke="#a78bfa" stroke-width="1"/>
+
+<!-- STEP 8: Redis SET -->
+<rect x="575" y="510" width="350" height="40" rx="4" fill="rgba(15,23,42,.8)"/>
+<text x="750" y="527" fill="#34d399" font-size="8" text-anchor="middle">8. SET session:lms:{uid}:{course_id}=</text>
+<text x="750" y="543" fill="#34d399" font-size="8" text-anchor="middle">   {role,doc_id,lo_ids} EX 1800</text>
+<line x1="560" y1="520" x2="998" y2="520" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#ah)"/>
+
+<!-- STEP 9: Cookie + Redirect -->
+<rect x="355" y="570" width="350" height="40" rx="4" fill="rgba(15,23,42,.8)"/>
+<text x="530" y="587" fill="#fb7185" font-size="8" text-anchor="middle">9. Set-Cookie: sid={uid}:{course_id}; HttpOnly; Secure</text>
+<text x="530" y="603" fill="#fb7185" font-size="8" text-anchor="middle">   302 → /learn/cards (student) | /manage/review (lecturer)</text>
+<line x1="560" y1="570" x2="120" y2="580" stroke="#fb7185" stroke-width="1.5" marker-end="url(#ahr)"/>
+
+<!-- STEP 10: Load page -->
+<rect x="135" y="625" width="350" height="28" rx="4" fill="rgba(15,23,42,.8)"/>
+<text x="310" y="642" fill="#22d3ee" font-size="8" text-anchor="middle">10. GET /learn/cards → server reads Redis → gRPC GetCards → render</text>
+<line x1="120" y1="630" x2="560" y2="640" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#ahc)"/>
+
+</svg>
+</div>
+
+<div class="cards">
+<div class="card">
+<div class="card-header"><div class="card-dot rose"></div><h3>LTI 1.3 Security</h3></div>
+<ul>
+<li>• OIDC third-party initiated login</li>
+<li>• JWT signed with RS256 key</li>
+<li>• JWKS endpoint for key rotation</li>
+<li>• State + nonce prevent CSRF replay</li>
+</ul>
+</div>
+<div class="card">
+<div class="card-header"><div class="card-dot cyan"></div><h3>Session Management</h3></div>
+<ul>
+<li>• HttpOnly cookie sid (XSS-proof)</li>
+<li>• Redis TTL 30' auto-expire</li>
+<li>• Server-side gRPC proxy auth gate</li>
+<li>• Role-based routing (Instructor vs Student)</li>
+</ul>
+</div>
+<div class="card">
+<div class="card-header"><div class="card-dot violet"></div><h3>Mapping Strategy</h3></div>
+<ul>
+<li>• lms_user_mappings: edX user → internal UUID</li>
+<li>• lms_course_ref: edX course → DA course</li>
+<li>• ON CONFLICT DO NOTHING (idempotent)</li>
+<li>• Cross-LMS ready (openedx, moodle enum)</li>
+</ul>
+</div>
+</div>
+<p class="footer">LTI 1.3 + OIDC • Next.js ltijs Provider • Redis Session 30' TTL</p>
+</div>
+</body>
+</html>

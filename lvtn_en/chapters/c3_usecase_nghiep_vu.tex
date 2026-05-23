@@ -1,0 +1,1552 @@
+% !TeX root = ../main.tex
+\chapter{Theoretical and Technological Foundations}
+\label{chap:co-so-ly-thuyet-cong-nghe}
+
+This chapter presents the core theoretical and technical foundations used
+in the LMS system that automatically generates Micro-Content and Quizzes
+with Generative AI. The chapter focuses on four main groups of content:
+Micro-learning and Bloom Taxonomy, Large Language Models,
+Retrieval-Augmented Generation, and chunking/document-processing
+techniques. These foundations support the design of the document
+processing, content generation, quiz generation, and learning chatbot
+pipelines in later chapters.
+
+\section{Micro-learning and Bloom Taxonomy}
+\label{sec:microlearning-bloom}
+
+\subsection{Micro-learning}
+\label{subsec:microlearning}
+
+Micro-learning organizes learning content into small units, each focused
+on a specific concept, skill, or learning objective. Instead of requiring
+learners to absorb a long chapter or a lecture video lasting tens of
+minutes, micro-learning divides content into short units such as lesson
+summaries, key concept cards, flashcards, self-check questions, or short
+explanations with examples.
+
+In the LMS context, micro-learning has three important meanings. First,
+it helps learners approach knowledge in short learning rhythms, suitable
+for mobile learning habits and short intermittent study sessions. Second,
+it allows the system to track progress at a finer granularity: which card
+the learner has read, which concept they answered incorrectly, or which
+Learning Outcome should be reviewed. Third, it provides a clear output
+format for AI generation: from one document chunk, the system can
+generate a structured set of cards and quizzes.
+
+For this thesis, micro-learning is not only a presentation interface but
+also a direct influence on the document-processing pipeline. Input
+documents must be extracted, chunked, attached with source metadata, and
+then transformed into short learning units that can be reviewed and
+published. Each micro-content unit must maintain its relationship with
+the original document, its position in the chapter, the related Learning
+Outcome, and the instructor review state.
+
+\begin{table}[H]
+    \centering
+    \caption{Characteristics of micro-learning in the proposed system}
+    \label{tab:microlearning-characteristics}
+    \begin{tabular}{p{4cm}p{9.5cm}}
+        \toprule
+        \textbf{Characteristic} & \textbf{Meaning in the system} \\
+        \midrule
+        Concise & Each content unit focuses on one main idea, reducing cognitive load for learners. \\
+        Source-aware & Cards/quizzes must link to a document, page, heading, or video timestamp for verification. \\
+        Quickly assessable & Each content cluster can attach flashcards or quizzes to reinforce memory. \\
+        Pedagogical metadata & Content is tagged with Learning Outcome, Bloom level, difficulty, and review state. \\
+        Personalization-friendly & Completion data for each card/quiz can be used to recommend review content. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Bloom Taxonomy}
+\label{subsec:bloom-taxonomy}
+
+Bloom Taxonomy is a framework for classifying learning objectives by
+cognitive level. In the commonly used revised classification, cognitive
+levels include Remember, Understand, Apply, Analyze, Evaluate, and
+Create. These levels represent increasing cognitive complexity, from
+remembering basic information to evaluating and creating new products.
+
+In quiz generation, Bloom Taxonomy is used as a pedagogical metadata
+layer to guide question design. If the system only generates questions
+from surface content, quizzes tend to remain at the simple memorization
+level. With Bloom level metadata, instructors can ask the system to
+create questions for specific objectives, for example testing the ability
+to ``explain'', ``apply'', or ``analyze'' instead of merely ``list''.
+
+\begin{longtable}{|p{2.6cm}|p{4.2cm}|p{7cm}|}
+\caption{Bloom levels and their meaning in quiz generation}
+\label{tab:bloom-levels}\\
+\hline
+\textbf{Bloom level} & \textbf{Common verbs} & \textbf{Meaning in question generation} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Bloom level} & \textbf{Common verbs} & \textbf{Meaning in question generation} \\
+\hline
+\endhead
+Remember & list, define, identify, name & Tests the ability to remember terms, concepts, formulas, or facts. \\
+\hline
+Understand & explain, describe, distinguish, summarize & Tests the ability to interpret meaning and recognize basic relations among concepts. \\
+\hline
+Apply & apply, calculate, use, illustrate & Tests the ability to use knowledge in a concrete situation or example. \\
+\hline
+Analyze & analyze, compare, infer, classify & Tests the ability to separate a problem into components and recognize causes, consequences, or structure. \\
+\hline
+Evaluate & evaluate, select, critique, justify & Tests the ability to make judgments based on criteria. This level is often more suitable for essays than simple MCQs. \\
+\hline
+Create & design, build, propose, create & Tests the ability to produce a new product or solution. This level usually requires projects or open-ended questions. \\
+\hline
+\end{longtable}
+
+Within this thesis, Remember, Understand, Apply, and Analyze are the most
+suitable levels for automatic multiple-choice quizzes. Evaluate and
+Create are still stored in the metadata model for future expansion, but
+they are not the focus of the MVP because they usually require essay
+grading, rubrics, or project-based assignments.
+
+\subsection{Bloom-aware Quiz Generation}
+\label{subsec:bloom-aware-quiz-generation}
+
+Bloom-aware Quiz Generation is the process of generating questions with
+explicit awareness of cognitive level. Instead of simply asking the LLM
+to ``create five questions from the passage'', the system provides
+constraints about Learning Outcome, Bloom level, difficulty, question
+type, and output structure. This makes generated questions more aligned
+with pedagogical objectives and easier to evaluate.
+
+A Bloom-aware question in the system requires at least these fields:
+
+\begin{itemize}
+    \item \texttt{question}: question content.
+    \item \texttt{options}: list of answer options.
+    \item \texttt{correct\_answer}: correct answer.
+    \item \texttt{explanation}: explanation of why the answer is correct.
+    \item \texttt{bloom\_level}: target Bloom level.
+    \item \texttt{learning\_outcome\_id}: related Learning Outcome if available.
+    \item \texttt{source\_chunk\_id}: source document chunk.
+\end{itemize}
+
+To improve quality, the system must validate LLM output after generation.
+Basic checks include: the question has the required number of options,
+there is exactly one correct answer, the explanation is grounded in the
+source, the Bloom level belongs to the allowed value set, and the question
+stem does not reveal the answer. Questions that do not satisfy these
+checks can be moved to a review-needed state or sent back to the LLM for
+schema-constrained repair.
+
+\subsection{Micro-Content Classification in the System}
+\label{subsec:phan-loai-micro-content}
+
+In the proposed system, micro-content is classified by learning purpose
+and by learner interaction pattern. This classification helps the content
+generation pipeline produce stable outputs and helps the learning
+interface present content in a clear rhythm.
+
+\begin{longtable}{|p{3cm}|p{4.2cm}|p{6.8cm}|}
+\caption{Micro-content classification in the system}
+\label{tab:micro-content-types}\\
+\hline
+\textbf{Content type} & \textbf{Purpose} & \textbf{Characteristics} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Content type} & \textbf{Purpose} & \textbf{Characteristics} \\
+\hline
+\endhead
+Lesson Summary & Summarize a learning section & Presents the main ideas of a section or large chunk; usually longer than a card but shorter than a full lesson. \\
+\hline
+Key Concept Card & Clarify a central concept & Focuses on one concept, definition, example, or common misconception. \\
+\hline
+Flashcard & Support memory and review & The front side is a question/prompt and the back side is an answer or short explanation; suitable for spaced repetition. \\
+\hline
+Quiz Question & Check understanding & Question with answer, explanation, Bloom level, and source; used to evaluate learning progress. \\
+\hline
+Video Timestamp Card & Link content to video & Connects a card to start/end timestamps in a video or transcript. \\
+\hline
+\end{longtable}
+
+All micro-content types must preserve source metadata to support
+traceability, review, and regeneration when the original document changes.
+This is an important difference between the proposed system and standalone
+summarization or flashcard-generation tools.
+
+\section{Large Language Models and Generative AI}
+\label{sec:llm-generative-ai}
+
+\subsection{Basic LLM Architecture}
+\label{subsec:kien-truc-llm}
+
+A Large Language Model (LLM) is a deep-learning model trained on large
+amounts of text to learn language representations and generate token
+sequences. The foundation architecture of most modern LLMs is the
+Transformer, introduced by Vaswani et al.~\cite{vaswani2017attention}.
+The core component of the Transformer is self-attention, which allows the
+model to compute relevance between tokens in the input sequence and learn
+long-range dependencies more effectively than traditional sequential
+architectures.
+
+LLMs usually operate through next-token prediction. Given an input
+prompt, the model generates each new token based on the conditional
+probability distribution of the previous context. In modern dialogue
+models, the prompt is not only the user's question but also includes
+system instructions, roles, retrieved context, output examples, and
+format constraints.
+
+In this thesis, LLMs are used for tasks that require knowledge
+interpretation:
+
+\begin{itemize}
+    \item summarizing chunks into lesson summaries or key concept cards;
+    \item generating flashcards and quiz questions;
+    \item standardizing/extracting Learning Outcomes from course syllabi when needed;
+    \item generating answers for the AI Tutor Chatbot based on RAG context;
+    \item supporting answer explanations and the rationale for mapping questions to Bloom levels.
+\end{itemize}
+
+Models such as GPT-4o, Gemini, or open-weights models can be used
+depending on cost, speed, privacy, and output-quality requirements
+\cite{openai2024gpt4o,google2024gemini}. Therefore, the system design
+places the LLM behind an abstract adapter or port so the provider can be
+changed without changing business logic.
+
+\subsection{Prompt Engineering}
+\label{subsec:prompt-engineering}
+
+Prompt Engineering is the technique of designing LLM inputs to control
+behavior, quality, and output format without retraining the model. In an
+educational system, a prompt should not only describe a generic task; it
+must specify the pedagogical role, source material, learning objective,
+Bloom constraint, output format, and safety conditions.
+
+A quiz-generation prompt in the system usually contains:
+
+\begin{enumerate}
+    \item \textbf{Role}: ask the model to act as an instructor or
+          pedagogical assistant.
+    \item \textbf{Task}: generate multiple-choice questions, flashcards,
+          or learning cards.
+    \item \textbf{Source}: document chunk, heading path, Learning Outcome,
+          and metadata.
+    \item \textbf{Constraints}: number of questions, language, Bloom
+          level, difficulty, maximum length.
+    \item \textbf{Format}: JSON schema or fixed field structure.
+    \item \textbf{Safety rules}: do not invent beyond the source, do not
+          reveal the answer in the question, and return an error if
+          context is insufficient.
+\end{enumerate}
+
+\begin{table}[H]
+    \centering
+    \caption{Prompt engineering techniques applied in the system}
+    \label{tab:prompt-engineering-techniques}
+    \begin{tabular}{p{3.4cm}p{4.6cm}p{5.5cm}}
+        \toprule
+        \textbf{Technique} & \textbf{Description} & \textbf{Application in this thesis} \\
+        \midrule
+        Role Prompting & Assigns a professional role to the model. & ``You are a university instructor preparing quizzes for learners''. \\
+        Constraint Prompting & Sets constraints on quantity, length, difficulty, and language. & Generate exactly 5 questions, each with 4 options and a short explanation. \\
+        Context Grounding & Provides retrieved context from documents. & Requires the answer to rely only on the supplied chunk. \\
+        Few-shot Example & Provides an example of the desired output. & Shows a quiz item that satisfies schema and Bloom level. \\
+        Self-check Instruction & Asks the model to check itself before responding. & Check unique correct answer, no answer leakage, and citation presence. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Prompt Engineering improves output quality, but it is not sufficient to
+guarantee correctness. The system still needs schema validation, source
+data checks, access control, and instructor review.
+
+\subsection{Structured Output Generation}
+\label{subsec:structured-output-generation}
+
+Structured Output Generation asks the LLM to return data in a defined
+structure, for example JSON, instead of free-form text. In an LMS system,
+structured output is important because AI results must be stored in a
+database, displayed on the UI, edited by instructors, and evaluated by
+automatic criteria.
+
+If the LLM generates free-form text, the system has difficulty knowing
+which part is the question, which part is the correct answer, which part
+is the explanation, and where the source is. With a clear schema, the
+backend can validate every field and reject invalid data. For example, a
+quiz item can be modeled as:
+
+\begin{lstlisting}[caption={Example output structure for a quiz item}]
+{
+  "type": "MCQ_SINGLE",
+  "question": "Question ...",
+  "options": ["A", "B", "C", "D"],
+  "correct_answer": "B",
+  "explanation": "Short explanation ...",
+  "bloom_level": "Understand",
+  "source_chunk_ids": ["chunk-123"]
+}
+\end{lstlisting}
+
+After receiving the result, the system checks:
+
+\begin{itemize}
+    \item whether the JSON can be parsed;
+    \item whether \texttt{type} is one of \texttt{MCQ\_SINGLE},
+          \texttt{MCQ\_MULTI}, \texttt{TRUE\_FALSE},
+          \texttt{FILL\_BLANK};
+    \item whether the number and shape of \texttt{options} match
+          \texttt{type} (for example, MCQ\_SINGLE needs $\geq 2$
+          options);
+    \item whether \texttt{correct\_answer} is a string for single-answer
+          types and an array for \texttt{MCQ\_MULTI}, and references
+          values that appear in \texttt{options};
+    \item whether \texttt{bloom\_level} belongs to the allowed values;
+    \item whether every id in \texttt{source\_chunk\_ids} exists in the
+          course documents;
+    \item whether the question, answer, and explanation are non-empty.
+\end{itemize}
+
+When data is invalid, the system can retry with a repair prompt or move
+the result into a review-needed state. This approach reduces operational
+errors caused by unstable LLM output.
+
+\subsection{Hallucination in Educational Systems}
+\label{subsec:hallucination-giao-duc}
+
+Hallucination is the phenomenon in which an LLM generates information
+that is incorrect, absent from the source, or inconsistent with context,
+while still presenting it fluently and convincingly. In education,
+hallucination is a major risk because learners may absorb incorrect
+knowledge and instructors may spend time detecting and correcting errors.
+
+Common causes include:
+
+\begin{itemize}
+    \item prompts that lack concrete source material;
+    \item models reasoning from general knowledge instead of course documents;
+    \item incorrect retrieval or missing important context;
+    \item requests that ask for content beyond the available data;
+    \item outputs that are not validated and reviewed before publishing.
+\end{itemize}
+
+In the proposed system, hallucination is reduced by these principles:
+
+\begin{enumerate}
+    \item \textbf{Retrieval-first}: every answer or generated content
+          should be grounded in chunks retrieved from course materials.
+    \item \textbf{Citation}: micro-content, quizzes, and chatbot answers
+          must link sources to the original document/chunk.
+    \item \textbf{Structured output}: output is validated before storage.
+    \item \textbf{Human-in-the-loop}: instructors review before content is
+          published to learners.
+    \item \textbf{Refusal rule}: if no suitable context is found, the
+          chatbot must say that the content is not present in the course
+          instead of inventing an answer.
+\end{enumerate}
+
+\section{Retrieval-Augmented Generation (RAG)}
+\label{sec:rag}
+
+\subsection{RAG Architecture}
+\label{subsec:kien-truc-rag}
+
+Retrieval-Augmented Generation (RAG) combines information retrieval with
+language generation \cite{lewis2020rag}. Instead of letting the LLM answer
+entirely from knowledge learned during pretraining, the system retrieves
+relevant document passages and injects them into the prompt as context.
+
+A basic RAG architecture includes five steps:
+
+\begin{enumerate}
+    \item \textbf{Ingestion}: documents are parsed, chunked, embedded, and
+          stored in a vector database.
+    \item \textbf{Query understanding}: the user's question or content
+          generation request is normalized.
+    \item \textbf{Retrieval}: the system finds relevant top-K chunks in
+          the vector store, possibly filtering by course, document, role,
+          or Learning Outcome.
+    \item \textbf{Prompt assembly}: relevant chunks are inserted into the
+          prompt along with instructions and output schema.
+    \item \textbf{Generation}: the LLM generates answers, micro-content,
+          or quizzes based on retrieved context.
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        node distance=1.2cm,
+        box/.style={draw, rounded corners, align=center, minimum width=3.1cm, minimum height=1cm},
+        arrow/.style={->, thick}
+    ]
+        \node[box] (doc) {Documents\\PDF/DOCX/PPTX};
+        \node[box, right=of doc] (chunk) {Parse\\Chunk\\Embedding};
+        \node[box, right=of chunk] (store) {Vector DB\\Metadata};
+        \node[box, below=of store] (retrieve) {Retrieve\\top-K chunks};
+        \node[box, left=of retrieve] (prompt) {Prompt\\+ Context};
+        \node[box, left=of prompt] (llm) {LLM\\Generation};
+        \draw[arrow] (doc) -- (chunk);
+        \draw[arrow] (chunk) -- (store);
+        \draw[arrow] (store) -- (retrieve);
+        \draw[arrow] (retrieve) -- (prompt);
+        \draw[arrow] (prompt) -- (llm);
+    \end{tikzpicture}
+    \caption{General RAG architecture in the system}
+    \label{fig:rag-architecture}
+\end{figure}
+
+In educational systems, RAG is especially important because course
+materials are the source of truth. For the same question, the appropriate
+answer must follow the course content, the instructor's definitions, and
+the curriculum scope.
+
+\subsection{Semantic Retrieval}
+\label{subsec:semantic-retrieval}
+
+Semantic Retrieval retrieves documents by meaning rather than exact
+keyword matching. Each chunk and each query are represented as embedding
+vectors in a high-dimensional space. Texts with similar meaning should
+have nearby vectors according to a metric such as cosine similarity.
+
+With an embedding model \(f\), a chunk \(c_i\) is represented as:
+
+\[
+    \vec{e_i} = f(c_i)
+\]
+
+A query \(q\) is represented as:
+
+\[
+    \vec{e_q} = f(q)
+\]
+
+Cosine similarity between query and chunk is calculated as:
+
+\[
+    sim(\vec{e_q}, \vec{e_i}) =
+    \frac{\vec{e_q} \cdot \vec{e_i}}{\|\vec{e_q}\| \|\vec{e_i}\|}
+\]
+
+The system selects chunks with the highest similarity for context. To
+avoid retrieving the wrong scope, semantic retrieval must be combined
+with metadata filtering: \texttt{course\_id}, \texttt{document\_id},
+publish state, access permissions, and Learning Outcome if available.
+Multilingual embedding models such as BGE-M3 can support Vietnamese and
+English retrieval in the same representation space \cite{chen2024bge}.
+
+\subsection{Curriculum-aware Retrieval}
+\label{subsec:curriculum-aware-retrieval}
+
+Curriculum-aware Retrieval extends semantic retrieval for educational
+contexts. Instead of only finding the chunks closest to a query, the
+system also considers curriculum structure such as Course, Chapter,
+Learning Outcome, Bloom level, and Assessment. This helps retrieve the
+right knowledge that instructors want to assess or learners need to
+review.
+
+For example, if an instructor requests quiz generation for LO-3.2, the
+system should not take every chunk with similar keywords. It should
+prioritize chunks mapped to LO-3.2, located in the relevant chapter, and
+already reviewed. If a learner is weak in a specific LO, the system can
+find cards, flashcards, and quizzes related to that LO for review.
+
+A curriculum-aware pipeline can include:
+
+\begin{enumerate}
+    \item Extract or import the list of Learning Outcomes from the course
+          syllabus.
+    \item Map document chunks to Learning Outcomes using headings,
+          keywords, embedding similarity, or LLMs.
+    \item Store chunk--LO relationships in the metadata store or graph
+          database.
+    \item During retrieval, filter or boost chunks belonging to the target
+          LO.
+    \item Generate content/quiz and record LO, Bloom level, and source
+          chunks for analytics.
+\end{enumerate}
+
+Curriculum-aware Retrieval is the foundation for Bloom-aware Quiz
+Generation, weak-LO dashboards, and adaptive learning in later phases.
+
+\subsection{GraphRAG}
+\label{subsec:graphrag}
+
+GraphRAG combines RAG with a Knowledge Graph. In traditional RAG, the main
+retrieval unit is a text chunk. In GraphRAG, the system adds nodes and
+edges representing relationships among Course, Chapter, Learning Outcome,
+Concept, Chunk, Quiz, and Assessment. Retrieval can then rely not only on
+similarity but also on structured relationships.
+
+In the proposed system, GraphRAG is understood in a curriculum-aware
+sense; it does not require extracting all world knowledge into a graph.
+Important relationships include:
+
+\begin{itemize}
+    \item Course contains Chapter.
+    \item Chapter has Learning Outcome.
+    \item Chunk supports Learning Outcome.
+    \item Quiz measures Learning Outcome.
+    \item Concept appears in Chunk.
+\end{itemize}
+
+\begin{table}[H]
+    \centering
+    \caption{Comparison between traditional RAG and GraphRAG in educational systems}
+    \label{tab:rag-vs-graphrag-c3}
+    \begin{tabular}{p{3.8cm}p{4.8cm}p{5.2cm}}
+        \toprule
+        \textbf{Criterion} & \textbf{Traditional RAG} & \textbf{GraphRAG / Curriculum-aware RAG} \\
+        \midrule
+        Retrieval unit & Text chunk & Chunk combined with nodes/edges such as LO, Chapter, Concept \\
+        Search method & Vector similarity & Vector similarity + metadata filter + graph traversal \\
+        Alignment with outcomes & Depends on simple metadata & Explicit relation between Chunk and Learning Outcome \\
+        Quiz by LO & May drift if query is ambiguous & Prioritizes chunks supporting the target LO \\
+        Implementation complexity & Lower & Higher because graph schema and data synchronization are needed \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+GraphRAG does not replace semantic retrieval; it adds a structural layer.
+In the MVP, the system can use metadata and chunk--LO relationships at a
+basic level. In future expansion, the graph can rerank results, explain
+why a chunk was selected, or generate quizzes that connect multiple
+concepts.
+
+\section{Text Chunking and Document Intelligence}
+\label{sec:text-chunking-document-intelligence}
+
+\subsection{Fixed-size Chunking}
+\label{subsec:fixed-size-chunking}
+
+Fixed-size Chunking divides text by fixed length, for example 500 or 1000
+tokens per chunk. This is simple to implement, easy to control in cost,
+and useful when documents have no clear structure.
+
+Its advantage is that chunk sizes are relatively uniform, which helps
+predict embedding cost and the number of tokens sent to the LLM. Its main
+drawback is that it can cut across sentences, tables, or complete ideas.
+A concept may be split into two chunks, reducing retrieval quality and
+leaving the LLM without enough context when generating content.
+
+In the proposed system, fixed-size chunking is suitable as a fallback when
+documents have no headings, the parser cannot extract structure, or the
+input is plain text.
+
+\subsection{Heading-based Chunking}
+\label{subsec:heading-based-chunking}
+
+Heading-based Chunking divides documents by structural headings such as
+chapter, section, subsection, or slide title. This is suitable for
+academic materials because content is usually organized by topic. When
+chunks follow headings, each chunk is more likely to contain a relatively
+complete knowledge unit.
+
+For example, a document with this structure:
+
+\begin{itemize}
+    \item Chapter 1: Overview
+    \item 1.1 Basic concepts
+    \item 1.2 Illustrated examples
+\end{itemize}
+
+The system can create chunks by section and store \texttt{heading\_path}
+to know the chunk's location. This metadata is important for citation,
+review UI, and chapter-based retrieval.
+
+The limitation of heading-based chunking is its dependence on source
+document quality. If a PDF has no clear heading structure, or slides use
+inconsistent styles, the system must fall back to paragraph-, sentence-,
+or size-based chunking.
+
+\subsection{Semantic Chunking}
+\label{subsec:semantic-chunking}
+
+Semantic Chunking divides text based on changes in meaning between
+paragraphs. Instead of relying only on token count or headings, the
+system analyzes sentence/paragraph embeddings to find split points when
+the topic changes. In theory, semantic chunking creates more natural
+chunks and preserves semantic integrity better.
+
+However, semantic chunking is more expensive because it requires
+sentence- or paragraph-level embeddings before deciding boundaries. It is
+also harder to debug: instructors and developers cannot easily predict
+why the system split at a specific location. Therefore, in this system,
+semantic chunking is more suitable as a later quality optimization, while
+the MVP prioritizes heading-based chunking with fallback.
+
+\subsection{Sliding Window and Overlap}
+\label{subsec:sliding-window-overlap}
+
+Sliding Window divides text into fixed-size windows that move by a fixed
+step. Overlap is the repeated part between two consecutive chunks. For
+example, if chunk size is 800 tokens and overlap is 100 tokens, the next
+chunk repeats the final 100 tokens of the previous chunk.
+
+Overlap reduces the risk of losing context at chunk boundaries. This is
+important in academic documents, because a definition may appear at the
+end of one section while its example appears at the beginning of the next.
+Without overlap, retrieval may miss relevant information.
+
+However, overlap also increases token count, embedding cost, and duplicate
+retrieval results. Therefore, overlap must be just enough. In the proposed
+system, sliding window is mainly used when a heading section is too long
+or when falling back for unstructured documents.
+
+\subsection{Trade-off in Chunk Design}
+\label{subsec:tradeoff-thiet-ke-chunk}
+
+Chunk design is one of the most important decisions in a RAG pipeline. If
+chunks are too short, retrieval can be precise at sentence level but may
+lack enough context for the LLM to generate answers or quizzes. If chunks
+are too long, they preserve more context but can dilute content, increase
+token cost, and make semantic search less sharp.
+
+\begin{longtable}{|p{3cm}|p{4.2cm}|p{6.8cm}|}
+\caption{Trade-offs in chunk design}
+\label{tab:chunking-tradeoff}\\
+\hline
+\textbf{Factor} & \textbf{If too low/small} & \textbf{If too high/large} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Factor} & \textbf{If too low/small} & \textbf{If too high/large} \\
+\hline
+\endhead
+Chunk size & Lacks context, hard to generate questions with sufficient explanation. & Dilutes content, reduces retrieval precision, increases LLM tokens. \\
+\hline
+Overlap & Information can be lost at chunk boundaries. & More chunks, higher embedding cost, duplicate results. \\
+\hline
+Top-K count & Relevant chunks may be missed. & Long prompt, noisy context, higher cost and latency. \\
+\hline
+Heading depth & Chunks are too broad if only high-level headings are used. & Chunks are too fragmented if split by too small headings. \\
+\hline
+Source metadata & Citation and review are difficult if metadata is poor. & Overly complex metadata increases storage and synchronization cost. \\
+\hline
+\end{longtable}
+
+For academic documents, a suitable strategy is to prioritize
+heading-based chunking and then apply sliding window for overly long
+sections. Each chunk must store at least \texttt{document\_id},
+\texttt{chunk\_id}, \texttt{heading\_path}, page or timestamp position,
+language, and publish/review state. These metadata are the foundation for
+RAG, GraphRAG, curriculum-aware retrieval, and human-in-the-loop review.
+
+\section{Vector Embedding and Semantic Search}
+\label{sec:vector-embedding-semantic-search}
+
+Vector embedding represents text as numeric vectors in a high-dimensional
+space. Instead of direct keyword matching, the system compares the meaning
+of a user question and document chunks through vector distance or
+similarity. This approach is the foundation of semantic search, dense
+retrieval, and many modern RAG architectures
+\cite{karpukhin2020dpr,lewis2020rag}.
+
+In the proposed LMS system, embeddings are generated for document chunks,
+video transcripts, published flashcards/quizzes, and user queries. When a
+learner searches or asks the AI Tutor Chatbot, the system converts the
+query into a vector, retrieves the most relevant chunks, and uses them as
+the basis for displaying results or providing context to the LLM.
+Therefore, embedding quality directly affects semantic search, citation,
+chatbot answers, and source-grounded quiz generation.
+
+\subsection{Embedding Models}
+\label{subsec:embedding-models}
+
+An embedding model receives text and maps it to a fixed-dimensional vector.
+Modern semantic representation models are often based on Transformers,
+inherit contextual-representation ideas from BERT, and are further
+optimized for sentence comparison, passage retrieval, or document search
+\cite{devlin2019bert,reimers2019sbert}.
+
+For semantic search, embeddings should place semantically similar passages
+near each other even if they do not share the same keywords. For example,
+the query ``how the system generates questions based on output standards''
+should retrieve chunks about Learning Outcome, Bloom level, and quiz
+generation even if the document does not contain that exact phrase.
+
+Two model groups are common. The first is bi-encoder, where query and
+document are encoded independently; this is suitable for large-scale
+search because document vectors can be computed ahead of time and stored
+in a vector database. The second is cross-encoder, where query and
+document are passed into the model together for relevance scoring; it is
+usually more accurate but slower, so it is better for reranking a small
+top-K result set instead of searching the whole corpus.
+
+In the proposed system, bi-encoder is the main choice for the MVP because
+it fits the asynchronous pipeline: when a document or transcript is
+chunked, the system creates embeddings once and stores them in Qdrant.
+Cross-encoder or LLM reranker can be added later to improve results for
+chatbot or Learning Outcome-based quiz generation.
+
+\subsection{Similarity Search}
+\label{subsec:similarity-search}
+
+Similarity search finds vectors closest to the query vector. For each
+query, the system creates an embedding, compares it with stored chunk
+vectors, and returns the top-K results with the highest similarity. Common
+metrics include cosine similarity, dot product, and Euclidean distance.
+The metric choice depends on how the embedding model was trained and how
+vectors are normalized.
+
+Cosine similarity measures the angle between two vectors and is useful
+when comparing semantic direction rather than vector magnitude. Dot
+product is often used when vectors are normalized or the model is trained
+directly for inner-product scoring. Euclidean distance measures geometric
+distance between two points in vector space. Although the formulas differ,
+the common goal is to rank chunks by relevance to the query.
+
+In an LMS, similarity search should not rely only on vector scores.
+Results must combine metadata filters such as course, chapter, publish
+state, user role, and Learning Outcome. For example, learners can only
+retrieve published content in their own course, while instructors may also
+search draft content for review. Combining vector similarity and metadata
+filtering makes semantic search both meaningful and compliant with
+business rules.
+
+\subsection{Approximate Nearest Neighbor}
+\label{subsec:approximate-nearest-neighbor}
+
+When the number of chunks is small, exact search can compare the query
+vector with every vector in the database. However, when the number grows
+to hundreds of thousands or millions, linear search becomes expensive and
+cannot meet latency requirements. Approximate Nearest Neighbor (ANN)
+solves this by finding approximate nearest vectors at lower cost than
+exact search.
+
+Common ANN approaches include inverted file indexes, product quantization,
+and graph-based indexes such as HNSW. HNSW builds a multi-layer graph in
+which search moves through nodes progressively closer to the query vector.
+Many modern vector databases use or support HNSW because it balances query
+speed, retrieval accuracy, and scalability
+\cite{malkov2018hnsw,johnson2019faiss}.
+
+ANN always has a trade-off between speed and accuracy. If the configuration
+prioritizes speed, the system may miss some relevant chunks; if it
+prioritizes accuracy, latency and compute cost increase. Therefore, in the
+proposed system, top-K, index type, and search configuration should be
+evaluated with a test query set instead of chosen by intuition. For the
+MVP, Qdrant acts as the vector database storing embeddings, metadata, and
+ANN retrieval for documents and video transcripts.
+
+\subsection{Retrieval Metrics}
+\label{subsec:retrieval-metrics}
+
+Retrieval metrics evaluate whether semantic search retrieves the correct
+sources. This is important because if retrieval is wrong, the LLM in RAG
+may answer without evidence or generate quizzes from unsuitable chunks.
+Benchmarks such as BEIR and MTEB show that retrieval evaluation should
+cover many tasks, data domains, and query types
+\cite{thakur2021beir,muennighoff2023mteb}.
+
+Common metrics include Recall@K, Precision@K, MRR, and nDCG. Recall@K
+measures whether the correct document appears in the first K results; it
+is suitable for RAG because the LLM only needs to receive at least a few
+correct chunks in context. Precision@K measures how many top-K results
+are actually relevant, helping detect noisy context. MRR emphasizes the
+rank of the first correct result, while nDCG considers both ranking and
+multi-level relevance.
+
+\begin{longtable}{|p{3cm}|p{4.2cm}|p{6.8cm}|}
+\caption{Retrieval evaluation metrics in semantic search}
+\label{tab:retrieval-metrics}\\
+\hline
+\textbf{Metric} & \textbf{Meaning} & \textbf{Application in the system} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Metric} & \textbf{Meaning} & \textbf{Application in the system} \\
+\hline
+\endhead
+Recall@K & Checks whether the correct document/chunk is in top-K. & Evaluates whether chatbot or quiz generator receives enough relevant sources. \\
+\hline
+Precision@K & Measures the proportion of truly relevant top-K results. & Reduces noisy context and limits wrong chunks in prompts. \\
+\hline
+MRR & Measures the rank of the first correct result. & Prioritizes the best source in search UI or RAG context. \\
+\hline
+nDCG@K & Evaluates ranking when results have multiple relevance levels. & Suitable when instructors grade relevance as high, medium, low. \\
+\hline
+\end{longtable}
+
+For this thesis, the retrieval evaluation set should include sample
+questions for each course, correct chunks labeled by instructors or
+developers, embedding/index/top-K configurations, and measured Recall@K,
+Precision@K, and MRR. These metrics evaluate semantic search itself and
+also support comparisons when changing chunking strategy, embedding model,
+reranker, or vector database configuration.
+
+\section{Learning Management System Integration Standards}
+\label{sec:lms-integration-standards}
+
+In the digital-education ecosystem, a learning tool rarely works alone.
+It usually needs to integrate with an LMS such as Moodle, Canvas, or Open
+edX to receive course, user, role, assignment, and grade information. If
+each LMS required a separate integration mechanism, development and
+maintenance cost would increase significantly. Therefore, integration
+standards such as Learning Tools Interoperability (LTI), OAuth2, and
+OpenID Connect are used to standardize how LMS platforms connect with
+external learning tools \cite{lti-advantage,openedx-lti}.
+
+For this thesis, the micro-content, quiz, and AI Tutor Chatbot system is
+treated as an external learning tool. The LMS is the main platform for
+managing courses and learners, while the proposed system provides
+specialized AI functions. This approach prevents dependence on a single
+LMS while still allowing the system to receive course context, enforce
+user authorization, and return learning results to the LMS when needed.
+
+\subsection{Learning Tools Interoperability (LTI)}
+\label{subsec:lti}
+
+Learning Tools Interoperability (LTI) is a standard developed by 1EdTech
+to allow LMS platforms to connect with external learning tools. In the
+LTI model, the LMS is usually called the platform, and the external
+application is called the tool. When a user clicks a link inside the LMS,
+the platform initiates a launch and sends the tool the necessary
+information such as user identity, course, role, and resource link.
+
+LTI solves three main problems. First, it provides single sign-on so users
+do not need to log in again to the tool. Second, it transmits learning
+context so the tool knows which course, lesson, or activity the user is
+currently in. Third, it standardizes LMS--tool communication, allowing the
+same tool to integrate with multiple LMS platforms if they support LTI.
+
+In the proposed system, LTI launch opens the learner interface or the
+instructor interface from the LMS. After a valid launch, the system
+creates an internal session, maps the LMS user to a system account, and
+determines access rights. For example, instructors can upload documents,
+review, and publish content; learners can only view published content,
+take quizzes, and interact with the chatbot within the course scope.
+
+\subsection{LTI 1.3 and Advantage Services}
+\label{subsec:lti13-advantage-services}
+
+LTI 1.3 is the modern version of LTI, using security mechanisms based on
+OAuth2, OpenID Connect, and JSON Web Token. Compared with older LTI
+versions based on OAuth 1.0, LTI 1.3 better standardizes login, signing,
+claims in ID tokens, and registration information between platform and
+tool.
+
+LTI Advantage is a set of extended services built on LTI 1.3. These
+services allow a tool not only to be launched from the LMS but also to
+interact more deeply with it. Three important capability groups are Deep
+Linking, which allows the tool to create or select content to place in
+the LMS; Assignment and Grade Services, which synchronize assignments,
+scores, and submission states; and Names and Role Provisioning Services,
+which retrieve membership lists and roles in a learning context.
+
+\begin{longtable}{|p{3.5cm}|p{4.2cm}|p{6.3cm}|}
+\caption{LTI Advantage services related to the system}
+\label{tab:lti-advantage-services}\\
+\hline
+\textbf{Service} & \textbf{Purpose} & \textbf{Application in this thesis} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Service} & \textbf{Purpose} & \textbf{Application in this thesis} \\
+\hline
+\endhead
+Deep Linking & Select or create content from the tool to attach to the LMS. & Instructors insert flashcard sets, quizzes, or chatbot activities into a course. \\
+\hline
+Assignment and Grade Services & Synchronize assignments, grades, and result states. & Send quiz scores or micro-learning completion states back to the LMS. \\
+\hline
+Names and Role Provisioning Services & Retrieve learners and roles in a context. & Support authorization, class analytics, and learner-list synchronization. \\
+\hline
+\end{longtable}
+
+In the MVP, the system can prioritize LTI launch and Deep Linking for the
+basic learning flow. AGS and NRPS can be implemented incrementally when
+grade synchronization, class rosters, or learning dashboards need LMS
+integration.
+
+\subsection{OAuth2 and OpenID Connect in LMS}
+\label{subsec:oauth2-oidc-lms}
+
+OAuth2 is an authorization framework that allows an application to access
+resources on behalf of a user or system within granted scopes. OpenID
+Connect (OIDC) extends OAuth2 to support identity authentication, usually
+returning the authentication result as an ID token. LTI 1.3 uses OIDC to
+perform the login flow between LMS and tool, and uses JWT to transmit
+signed claims.
+
+During LTI launch, the tool should not trust data sent from the browser
+before verification. The tool must validate issuer, audience, nonce,
+message type, deployment id, JWT signature, and token expiration. These
+checks ensure that the launch request really comes from the registered
+LMS, has not been replayed, and is intended for the correct tool.
+
+In the proposed system, after OIDC verification succeeds, the backend
+creates a server-side internal session. This session stores necessary
+information such as user id, role, course id, resource link id, and
+expiration. Business APIs such as upload, review, publish, search,
+chatbot, and quiz submission rely on this session for access control
+instead of trusting client-submitted data.
+
+\subsection{Deep Linking}
+\label{subsec:deep-linking}
+
+Deep Linking is an LTI Advantage service that allows instructors to
+select or create content in the tool and return it to the LMS as a
+learning link. Instead of manually copying URLs or configuring resources,
+the LMS can open the tool in content-selection mode; the tool then returns
+one or more content items for the LMS to attach to the course.
+
+In the proposed system, Deep Linking fits the instructor AI-material
+creation flow. After uploading documents and reviewing content, the
+instructor can select a flashcard set, quiz, lesson card set, or chatbot
+activity to insert into an LMS module. When learners open that activity,
+the LMS performs an LTI launch with the corresponding resource link, so
+the system knows what content to display.
+
+Deep Linking also reduces UI dependence. The LMS remains the main place
+for course organization and navigation, while the AI system is responsible
+for creating, managing, and distributing specialized content. This aligns
+with the thesis goal of building an AI tool that can be integrated into
+an LMS instead of replacing the entire LMS.
+
+\subsection{Assignment and Grade Services (AGS)}
+\label{subsec:assignment-grade-services}
+
+Assignment and Grade Services (AGS) allow a tool to exchange score and
+submission-state information with the LMS. On the LMS side, an activity
+can have a corresponding line item in the gradebook. On the tool side,
+after a learner completes a quiz or learning activity, the tool can send
+the score back to the LMS through that line item.
+
+In this thesis, AGS can be used for automatically generated quizzes or
+micro-learning completion activities. For example, when a learner takes a
+quiz, the system stores an internal submission containing answers, score,
+time, and question sources. If the activity is linked to the LMS
+gradebook, the backend sends the score back through AGS. Instructors can
+therefore continue viewing grades in the familiar LMS, while the AI system
+retains richer data for analytics.
+
+It is important to distinguish grading data from learning-analytics data.
+The LMS usually only needs final score, completion state, or submission
+time. The proposed system needs to store additional details such as
+questions, Bloom levels, Learning Outcomes, attempt count, response time,
+and answer explanations to evaluate learning quality. Therefore, AGS is
+the official grade-synchronization channel, not a replacement for the
+internal analytics database.
+
+\subsection{LMS Interoperability Architecture}
+\label{subsec:lms-interoperability-architecture}
+
+LMS integration architecture must clearly separate LMS communication
+standards from core business logic. If upload, review, semantic search, or
+quiz logic depends directly on one LMS-specific API, the system becomes
+difficult to extend to Moodle, Canvas, Open edX, or other platforms.
+Therefore, the system should place LTI/OIDC/AGS in an adapter layer, while
+the domain/application core works with abstract concepts such as user,
+role, course, activity, and grade result.
+
+A suitable integration architecture for this thesis includes:
+
+\begin{itemize}
+    \item \textbf{LMS Platform:} Moodle, Canvas, or Open edX, where
+          courses, users, and learning navigation are managed.
+    \item \textbf{LTI/OIDC Adapter:} handles login initiation, launch
+          validation, JWT claims, deployment configuration, and session
+          mapping.
+    \item \textbf{Deep Linking Adapter:} creates content items so the LMS
+          can insert flashcards, quizzes, or chatbot activities into a
+          course.
+    \item \textbf{AGS Adapter:} synchronizes quiz score, completion
+          state, or score back to the LMS gradebook.
+    \item \textbf{Application Core:} contains use cases for upload,
+          processing, review, publish, semantic search, chatbot, quiz, and
+          analytics.
+\end{itemize}
+
+\begin{table}[H]
+    \centering
+    \caption{Data mapping between LMS and the proposed system}
+    \label{tab:lms-data-mapping}
+    \begin{tabular}{p{4cm}p{4.2cm}p{5.3cm}}
+        \toprule
+        \textbf{Data from LMS} & \textbf{Object in system} & \textbf{Usage purpose} \\
+        \midrule
+        User claim & User / Account & Identify identity and create session. \\
+        Role claim & Role / Permission & Authorize instructors, learners, and administrators. \\
+        Context claim & Course / Class context & Limit content by course. \\
+        Resource link & Learning activity & Open the correct flashcard, quiz, or chatbot activity. \\
+        Line item & Grade mapping & Send score or completion state through AGS. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+With this organization, LMS integration becomes a boundary layer of the
+system. When changing LMS or adding a new platform, the team mainly
+updates adapters and deployment configuration, while core AI use cases
+remain stable. This is an important condition for deploying the system in
+many training environments without rewriting the document processing,
+semantic search, or AI Tutor Chatbot pipelines.
+
+\section{Knowledge Graph and Curriculum Mapping}
+\label{sec:knowledge-graph-curriculum-mapping}
+
+In an AI-based learning system, content does not only exist as isolated
+text chunks. Each document passage, video transcript, flashcard, or quiz
+question is usually related to a chapter, a concept, a Learning Outcome,
+and a specific assessment activity. Knowledge Graphs model these entities
+and their relationships as nodes and edges, supporting retrieval, source
+explanation, and structured learning-progress analytics
+\cite{hogan2021knowledgegraphs}.
+
+Curriculum Mapping links learning content with curriculum structure,
+especially Learning Outcomes, topics, and assessments. In this thesis,
+Curriculum Mapping helps the system understand which Outcome a chunk
+supports, which competency a quiz measures, and which knowledge group a
+learner is weak in. It is the foundation for Bloom-level quiz generation,
+learning analytics dashboards, and later adaptive learning. This approach
+aligns with constructive alignment and curriculum mapping in educational
+design, where learning objectives, learning activities, and assessment
+must be explicitly connected
+\cite{biggs1996constructive,harden2001curriculum}.
+
+\subsection{Learning Outcome Graph}
+\label{subsec:learning-outcome-graph}
+
+The Learning Outcome Graph represents relationships among course,
+chapter, learning outcomes, concepts, document chunks, and assessment
+questions. Instead of storing a Learning Outcome as an isolated text
+field, the system models it as a node connected to other nodes. This
+representation fits education because learning content is hierarchical
+and contains many cross-relations.
+
+In the proposed system, important nodes include \texttt{Course},
+\texttt{Chapter}, \texttt{LearningOutcome}, \texttt{Concept},
+\texttt{Chunk}, \texttt{Flashcard}, \texttt{QuizQuestion}, and
+\texttt{Assessment}. Edges express relations such as course contains
+chapter, chapter has Learning Outcome, chunk supports Learning Outcome,
+quiz measures Learning Outcome, or concept appears in chunk. These
+relations can be created from the course syllabus, document headings,
+user-provided metadata, and automatic extraction results.
+
+\begin{longtable}{|p{3.2cm}|p{4.2cm}|p{6.6cm}|}
+\caption{Main relationships in the Learning Outcome Graph}
+\label{tab:learning-outcome-graph-relations}\\
+\hline
+\textbf{Relationship} & \textbf{Meaning} & \textbf{Application in the system} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Relationship} & \textbf{Meaning} & \textbf{Application in the system} \\
+\hline
+\endhead
+Course--Chapter & A course consists of many chapters or modules. & Filter content by LMS course structure. \\
+\hline
+Chapter--LearningOutcome & Each chapter supports one or more outcomes. & Generate quizzes and report results by LO. \\
+\hline
+Chunk--LearningOutcome & A document chunk provides evidence for an LO. & Retrieve the right source when chatbot answers or quizzes are generated. \\
+\hline
+QuizQuestion--LearningOutcome & A question assesses one or more LOs. & Analyze learner weaknesses by outcome. \\
+\hline
+Concept--Chunk & A concept appears in one or more chunks. & Support search, review recommendation, and GraphRAG expansion. \\
+\hline
+\end{longtable}
+
+The Learning Outcome Graph does not have to be complete in the MVP. The
+first phase can start with basic relations among course, chapter, LO, and
+chunk. As the system collects quiz submissions, chatbot interactions, and
+instructor feedback, the graph can be enriched to reflect the knowledge
+structure and learner mastery more accurately.
+
+\subsection{Curriculum-aware Learning}
+\label{subsec:curriculum-aware-learning}
+
+Curriculum-aware Learning organizes the learning experience according to
+curriculum structure and Learning Outcomes, instead of only relying on a
+document list or upload order. When the system knows which content belongs
+to which LO, it can help learners study toward specific objectives and
+help instructors evaluate outcome achievement.
+
+In the proposed system, Curriculum-aware Learning appears in three main
+flows. First, when generating flashcards and quizzes, the prompt can
+include LO, Bloom level, and chapter so the LLM creates pedagogically
+aligned content. Second, when learners search or ask the chatbot,
+retrieval can prioritize chunks belonging to the LO or chapter being
+studied. Third, learning analytics can aggregate quiz results by LO to
+identify knowledge groups that the learner or class needs to review.
+
+A typical example is quiz generation by outcome. The instructor selects
+an LO in the syllabus, the system retrieves chunks supporting that LO, and
+then asks the LLM to generate questions at the appropriate Bloom level.
+Each question is stored with \texttt{lo\_id}, \texttt{bloom\_level},
+\texttt{source\_chunk\_id}, and review state. When learners take the quiz,
+scores can be aggregated by LO to build a progress dashboard.
+
+The curriculum-aware approach also reduces the risk of generating content
+that drifts away from the objective. If the system relies only on general
+similarity search, a short query may retrieve chunks about a similar topic
+but not the correct outcome. Combining curriculum metadata allows the
+system to limit or boost sources that better match teaching objectives.
+
+\subsection{Metadata Strategy}
+\label{subsec:metadata-strategy}
+
+Metadata Strategy defines what information the system must store for
+traceability, retrieval, review, publishing, and AI-quality evaluation.
+In RAG and curriculum mapping, metadata is as important as text content
+because it records where a chunk comes from, which course it belongs to,
+which LO it relates to, and whether learners are allowed to see it.
+
+In the proposed system, metadata should be organized into multiple layers.
+The source layer includes \texttt{document\_id}, \texttt{file\_type},
+\texttt{page}, \texttt{timestamp}, or \texttt{heading\_path}. The
+pedagogical layer includes \texttt{course\_id}, \texttt{chapter\_id},
+\texttt{learning\_outcome\_id}, \texttt{bloom\_level}, and
+\texttt{difficulty}. The operational layer includes
+\texttt{pipeline\_status}, \texttt{parser\_version},
+\texttt{embedding\_model}, \texttt{prompt\_version},
+\texttt{review\_status}, and \texttt{publish\_status}.
+
+\begin{table}[H]
+    \centering
+    \caption{Metadata strategy for curriculum-aware retrieval}
+    \label{tab:metadata-strategy-curriculum}
+    \begin{tabular}{p{3.2cm}p{4.5cm}p{5.8cm}}
+        \toprule
+        \textbf{Metadata group} & \textbf{Representative fields} & \textbf{Usage purpose} \\
+        \midrule
+        Source & \texttt{document\_id}, \texttt{page}, \texttt{timestamp}, \texttt{heading\_path} & Citation, review, and update when original material changes. \\
+        Pedagogical & \texttt{course\_id}, \texttt{chapter\_id}, \texttt{learning\_outcome\_id}, \texttt{bloom\_level} & Course filtering, LO-based quiz generation, and learning-result analysis. \\
+        AI operation & \texttt{embedding\_model}, \texttt{prompt\_version}, \texttt{parser\_version} & Evaluation and reproducibility after model or pipeline changes. \\
+        Access control & \texttt{review\_status}, \texttt{publish\_status}, \texttt{visibility} & Ensure learners only see published content. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Metadata must be stored consistently in both the metadata store and the
+vector database. The vector database uses metadata for retrieval filters,
+while PostgreSQL or graph store keeps more detailed relationships for
+review, analytics, and audit. The key principle is that every AI-generated
+content item must be traceable back to its source: document, chunk,
+prompt, model, and pipeline version.
+
+\subsection{Graph-based Retrieval}
+\label{subsec:graph-based-retrieval}
+
+Graph-based Retrieval combines vector similarity with graph relationships.
+Vector search finds chunks semantically close to the query, while the
+graph expands or filters results based on relationships such as same
+Learning Outcome, same chapter, same concept, or same assessment. This is
+suitable for educational systems because learner questions often depend
+on a specific course context, not only on general linguistic meaning.
+
+A graph-based retrieval flow can have four steps. First, the system
+identifies context from LMS or UI, for example course, chapter, resource
+link, or target LO. Next, the query is embedded and top-K chunks are
+retrieved from the vector database. Then, the system uses the graph to
+filter, expand, or rerank chunks according to curriculum relationships.
+Finally, chunks are sent to the chatbot or quiz generator prompt with
+citations and source metadata.
+
+Graph-based retrieval can be implemented at several levels. At the simple
+level, the system uses metadata filters such as \texttt{course\_id},
+\texttt{chapter\_id}, and \texttt{publish\_status}. At a more advanced
+level, it queries the graph for chunks belonging to related LOs, nearby
+concepts, or questions that previously assessed the same outcome. At a
+complete level, the graph supports reranking and explanation of why a
+source was selected.
+
+\begin{longtable}{|p{3.2cm}|p{4.5cm}|p{6.3cm}|}
+\caption{Role of graph in retrieval flows}
+\label{tab:graph-based-retrieval-roles}\\
+\hline
+\textbf{Flow} & \textbf{Graph usage} & \textbf{Benefit} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Flow} & \textbf{Graph usage} & \textbf{Benefit} \\
+\hline
+\endhead
+Semantic Search & Filter by course, chapter, LO, and publish state. & Results match learning context and access permissions. \\
+\hline
+AI Tutor Chatbot & Expand context with chunks from the same LO or related concepts. & Answers become more complete while remaining verifiable. \\
+\hline
+Quiz Generation & Prioritize chunks supporting the target LO and desired Bloom level. & Questions align with outcomes and are easier to review/evaluate. \\
+\hline
+Learning Analytics & Aggregate submissions by LO, chapter, and concept. & Detect difficult content and recommend evidence-based review. \\
+\hline
+\end{longtable}
+
+In the MVP, graph-based retrieval can begin with metadata filters and
+basic chunk--LO relations. As data and evaluation needs increase, the
+system can add a graph database or graph index to support more complex
+relationship queries. The important point is to design the data from the
+beginning to preserve \texttt{source\_chunk\_id},
+\texttt{learning\_outcome\_id}, and related metadata, so that future
+GraphRAG expansion does not require reprocessing all data.
+
+\section{Speech-to-Text and Video AI}
+In a modern LMS enhanced by Generative AI, Speech-to-Text and Video AI
+are foundational technologies. They digitize, extract, and structure
+multimedia data (lecture video and audio) into text streams and metadata
+that Large Language Models can understand and process, thereby enabling
+micro-content and quiz generation.
+
+\subsection{Whisper}
+Whisper is an advanced open-source Automatic Speech Recognition (ASR)
+system based on the Transformer architecture developed by OpenAI
+\cite{radford2023robust}.
+\begin{itemize}
+    \item \textbf{Mechanism:} The model is trained on hundreds of
+          thousands of hours of multilingual audio, allowing it to
+          transcribe audio into text with high accuracy. It handles
+          background noise, diverse accents, and complex technical terms
+          well.
+    \item \textbf{Role in LMS:} Whisper digitizes the entire spoken
+          lecture into raw transcript and provides sentence-level
+          timestamps, creating the foundation for later semantic
+          processing.
+\end{itemize}
+
+\subsection{Transcript Alignment}
+Transcript Alignment refines transcript timestamps so text aligns with
+audio/video at word level \cite{mcauliffe2017montreal}.
+\begin{itemize}
+    \item \textbf{Core technology:} Forced Alignment algorithms, such as
+          Wav2Vec2 \cite{baevski2020wav2vec} or WhisperX
+          \cite{bain2023whisperx}, synchronize each word with the exact
+          millisecond at which it is spoken in the original video.
+    \item \textbf{Role in LMS:} This process is crucial for real-time
+          temporal context. It allows the system to determine exactly when
+          a concept is taught, enabling the LMS to pause the video at the
+          right moment for Pop-up Quiz insertion or interactive
+          transcript features.
+\end{itemize}
+
+\subsection{Video Segmentation}
+Video Segmentation divides a long lecture video into shorter
+micro-learning clips, each focused on a specific academic topic or
+concept \cite{galanopoulos2020lecture}.
+\begin{itemize}
+    \item \textbf{Mechanism:} Segmentation combines several analysis streams:
+    \begin{itemize}
+        \item \textit{Semantic Text Segmentation:} uses LLMs to analyze
+              transcript semantics and identify topic shifts.
+        \item \textit{Visual Cues:} applies Computer Vision to detect
+              slide changes, scene cuts, or board interactions.
+        \item \textit{Audio Pauses:} identifies intentionally long pauses
+              in the instructor's speech.
+    \end{itemize}
+    \item \textbf{Role in LMS:} The output is independent micro-content
+          video segments. Each segment is then automatically summarized,
+          tagged, and titled by AI to optimize personalized learning.
+\end{itemize}
+
+\subsection{Multimodal Learning Pipeline}
+The Multimodal Learning Pipeline integrates multiple data streams to
+provide the richest context for Generative AI \cite{baltrusaitis2018multimodal}.
+\begin{itemize}
+    \item \textbf{Overall architecture:}
+    \begin{enumerate}
+        \item \textbf{Audio stream:} data passes through Whisper and
+              Transcript Alignment to create word-level timestamped text.
+        \item \textbf{Video-frame stream:} data passes through Computer
+              Vision and OCR to extract text from lecture slides and
+              record visual transition events.
+        \item \textbf{Multimodal fusion:} spoken transcript and slide text
+              are tightly synchronized on the same timeline to form a
+              shared metadata base.
+        \item \textbf{Generative AI processing:} the multimodal metadata
+              block is passed into an LLM (with multimodal support) along
+              with Prompt Engineering instructions to automatically
+              generate quiz questions and segment videos logically.
+    \end{enumerate}
+    \item \textbf{Role in LMS:} Multimodal fusion prevents the LLM from
+          missing important information when instructors explain using
+          visual elements, improving the accuracy of micro-content and
+          quiz context.
+\end{itemize}
+
+\section{AI Orchestration Frameworks and Supporting Libraries}
+In complex Generative AI applications, a Large Language Model rarely works
+alone. To build a multimodal pipeline from video cutting and transcript
+reading to quiz generation, the system needs an ``orchestrator'' to
+coordinate data, manage memory, and connect tasks. AI Orchestration
+Frameworks solve this problem.
+
+\subsection{LangChain}
+LangChain is a leading open-source platform designed to simplify the
+development of LLM-based applications \cite{chase2022langchain}. In the
+LMS system, LangChain acts as a framework connecting models such as
+Whisper or GPT-4 with lecture data and internal databases. Core LangChain
+components applied in the system include:
+
+\begin{itemize}
+    \item[\textbf{a.}] \textbf{Document Loader:} \\
+    This is the first step in the data-processing flow. Document Loader
+    provides standard interfaces to extract data from many formats and
+    sources, such as TXT, JSON, PDF lecture slides, or video transcripts.
+    In the LMS context, loaders take raw data from speech recognition
+    (Whisper) and OCR, then normalize them into \texttt{Document} objects
+    containing text and metadata such as timestamps for later analysis.
+
+    \item[\textbf{b.}] \textbf{Retriever:} \\
+    This component is the heart of Retrieval-Augmented Generation
+    \cite{lewis2020retrieval}. When the LMS needs to create a quiz for a
+    video segment from minute 05:00 to 10:00, the Retriever finds and
+    extracts the correct transcript passages, slide content, and key
+    concepts for that time range from the Vector Store. This gives the LLM
+    accurate context and prevents hallucination during question generation.
+
+    \item[\textbf{c.}] \textbf{Prompt Template:} \\
+    Prompt Template parameterizes and reuses prompts sent to the LLM
+    \cite{white2023prompt}. Instead of rewriting prompts from scratch for
+    each video segment, the system uses dynamic templates. For example:
+    \textit{"Based on the lecture transcript: \{transcript\_segment\} and
+    board content: \{ocr\_data\}, create \{num\_questions\}
+    multiple-choice questions at difficulty \{difficulty\_level\}."}
+    LangChain injects these variables into the prompt before calling the
+    language model API.
+
+    \item[\textbf{d.}] \textbf{Chain Orchestration:} \\
+    This mechanism links multiple sequential or parallel processing steps
+    into a complete pipeline \cite{wu2022promptchainer}. In the
+    micro-content generation system, a typical LLMChain proceeds as:
+    (1) load data from Document Loader $\rightarrow$
+    (2) Retriever fetches relevant context $\rightarrow$
+    (3) pass data into Prompt Template $\rightarrow$
+    (4) send to the LLM for question generation $\rightarrow$
+    (5) pass through an Output Parser to coerce output into a standard
+    format such as JSON before saving it to the LMS database. Chains allow
+    the process to be automated without manual intervention between steps.
+\end{itemize}
+
+\subsection{LangGraph}
+Although LangChain provides powerful tools for connecting tasks (Chains),
+those chains are usually linear and less flexible for complex scenarios
+requiring loops. LangGraph extends the LangChain ecosystem by allowing LLM
+applications to be built as cyclic graphs with complex state management
+\cite{langgraph2024}. In the LMS system, LangGraph provides
+infrastructure for reliable automated content generation through three
+core properties:
+
+\begin{itemize}
+    \item[\textbf{a.}] \textbf{Stateful Workflow:} \\
+    Unlike stateless chains, LangGraph maintains a Global State throughout
+    execution. In the LMS context, this state may store the original
+    video, the transcript being processed, extracted key concepts, and the
+    generated quiz questions. As data passes through nodes in the graph,
+    for example from video cutting to question generation, this state is
+    continuously updated and inherited, so the system does not lose
+    context in long multi-step workflows.
+
+    \item[\textbf{b.}] \textbf{Agentic Pipeline:} \\
+    LangGraph allows the system to be designed as multiple autonomous AI
+    Agents that coordinate with each other \cite{wang2023survey}. Instead
+    of using one LLM for everything, the LMS can split tasks into: (1)
+    \textit{Extraction Agent} for semantic analysis and video cutting, (2)
+    \textit{Quiz Generation Agent} for multiple-choice question
+    generation, and (3) \textit{Reviewer Agent} for quality control. These
+    agents can call tools and communicate, creating a specialized and more
+    optimized processing pipeline.
+
+    \item[\textbf{c.}] \textbf{Branching Flow:} \\
+    The major strength of graphs is conditional edges. Instead of always
+    moving from A to B, the system can branch or loop based on evaluation
+    results \cite{wei2022chain}. For example, after the Quiz Generation
+    Agent creates a question, the workflow moves to review. If the
+    question lacks an answer or does not follow the source transcript, the
+    workflow loops back to the generation node with an error message for
+    the LLM to repair. This self-correction branching helps ensure that
+    micro-content and quizzes satisfy pedagogical quality before entering
+    the LMS database.
+\end{itemize}
+
+\subsection{Document Processing Libraries}
+Besides audio and visual data from video, the LMS system often needs to
+process attached documents such as lecture slides (PowerPoint), textbooks
+(PDF), or text documents (Word). Document Processing Libraries extract raw
+text, tables, and metadata from these files, converting them into a
+structured format for the RAG system to generate quiz questions.
+
+\begin{itemize}
+    \item[\textbf{a.}] \textbf{Docling:} \\
+    Docling is an advanced open-source library developed by IBM for
+    parsing and understanding complex documents \cite{docling2024}. In an
+    LMS, Docling is especially useful for PDFs containing mathematical
+    formulas, scientific tables, and diagrams. It can extract and preserve
+    document structure in Markdown or JSON, helping the LLM maintain
+    context when reading complex academic content.
+
+    \item[\textbf{b.}] \textbf{Unstructured:} \\
+    Unstructured is a standard library in the RAG ecosystem for extracting
+    unstructured data \cite{unstructured2024}. It provides unified APIs to
+    read dozens of formats such as HTML, PDF, TXT, and EPUB. In the
+    micro-content generation system, Unstructured works well with
+    LangChain for Document Chunking, splitting textbooks into meaningful
+    short passages so the Vector Database can retrieve them easily.
+
+    \item[\textbf{c.}] \textbf{PyMuPDF:} \\
+    PyMuPDF is a high-performance PDF processing library based on the
+    MuPDF engine \cite{mckennon2024pymupdf}. Its strength in the LMS
+    pipeline is very fast text extraction and direct rendering of PDF
+    pages into image frames. The system can use PyMuPDF to extract text
+    from PDF slides and align it with video display time.
+
+    \item[\textbf{d.}] \textbf{python-docx:} \\
+    This is the standard Python library for creating and updating
+    Microsoft Word (.docx) files \cite{python_docx2024}. In this system,
+    it has two purposes: (1) read and extract scripts or lesson plans
+    uploaded by instructors; (2) export generated results, for example a
+    set of 50 multiple-choice questions with answers, into a formatted
+    Word file so instructors can download and manually edit them if
+    needed.
+
+    \item[\textbf{e.}] \textbf{PPTX Parser (python-pptx):} \\
+    Lecture slides are a core knowledge source. \texttt{python-pptx}
+    allows the system to inspect .pptx files and extract text from each
+    Text Box and Speaker Notes on each slide \cite{python_pptx2024}. This
+    data is then aligned with the video transcript to create a highly
+    accurate multimodal learning context.
+\end{itemize}
+
+\subsection{Video Processing Libraries}
+After AI Agents such as LLMs analyze semantics and decide the video cut
+points, for example cutting from second 120 to 340 to form micro-content
+lesson 1, the system needs low-level tools to execute heavy media-file
+processing.
+
+\begin{itemize}
+    \item[\textbf{a.}] \textbf{FFmpeg:} \\
+    FFmpeg is the ``gold standard'' in multimedia processing
+    \cite{tomar2006converting}. In the LMS system, FFmpeg runs at the
+    operating-system level and performs the heaviest tasks at high speed
+    with efficient resource usage: extracting the audio stream (.wav) from
+    the original lecture video (.mp4) for speech recognition, or extracting
+    batches of frames for Computer Vision analysis.
+
+    \item[\textbf{b.}] \textbf{MoviePy:} \\
+    MoviePy is a Python library providing a high-level, easy-to-use API
+    around the FFmpeg engine \cite{moviepy2024}. The system uses MoviePy
+    to execute automatic subclip cutting, video concatenation, fade-in and
+    fade-out effects, and insertion of text or watermarks such as the
+    university logo or micro-lesson title over the output video before
+    storing it in LMS storage.
+
+    \item[\textbf{c.}] \textbf{Whisper (Library Integration):} \\
+    Besides being an AI model, Whisper is also available as the open-source
+    Python library \texttt{openai-whisper} \cite{radford2023robust}. This
+    library integrates closely with PyTorch and FFmpeg, allowing the system
+    to programmatically load models to GPU, set decoding parameters,
+    perform language detection, and return JSON objects containing
+    transcripts with detailed word-level timestamps.
+\end{itemize}
+
+\section{Technologies Used}
+To implement an LMS capable of automatically generating micro-content and
+quizzes from lecture videos, the software architecture combines several
+modern technologies. Technology selection is based on multimedia
+processing performance, flexible integration with AI/ML libraries
+(Python), multimodal data storage, and scalability.
+
+\subsection{FastAPI}
+FastAPI is a modern high-performance web framework for building Python
+APIs based on type hints \cite{ramirez2018fastapi}.
+\begin{itemize}
+    \item \textbf{Role in the system:} Because most core AI libraries
+          (LangChain, Whisper, OpenCV) are written in Python, FastAPI is
+          an ideal choice for building the core backend. FastAPI natively
+          supports asynchronous processing through \texttt{async/await},
+          which is suitable for time-consuming tasks such as calling LLM
+          APIs, waiting for audio extraction from video, or running a RAG
+          pipeline.
+\end{itemize}
+
+\subsection{React + Next.js}
+React is a JavaScript library for building component-based user
+interfaces, while Next.js is a framework built on React that provides
+Server-Side Rendering (SSR) and optimized routing \cite{vercel2024nextjs}.
+\begin{itemize}
+    \item \textbf{Role in the system:} Next.js builds the frontend
+          learning website. It handles complex user interfaces such as an
+          interactive video player with subtitles, Pop-up Quiz display on
+          top of video, and a dashboard where instructors manage and edit
+          AI-generated micro-content.
+\end{itemize}
+
+\subsection{PostgreSQL}
+PostgreSQL is an advanced open-source relational database management
+system (RDBMS), known for strong ACID compliance and diverse data types
+\cite{postgresql2024}.
+\begin{itemize}
+    \item \textbf{Role in the system:} PostgreSQL is the main database of
+          the whole system, storing structured and highly relational data:
+          user accounts (students, instructors), course lists, learning
+          progress, quiz attempt history, and grades.
+\end{itemize}
+
+\subsection{Redis}
+Redis is an in-memory data structure store, commonly used as a database,
+cache, and message broker \cite{carlson2013redis}.
+\begin{itemize}
+    \item \textbf{Role in the system:} Video cutting and AI model
+          execution take a long time, so they cannot be handled
+          synchronously through normal HTTP APIs. Redis is used as a
+          Message Broker together with a background task queue. After an
+          instructor uploads a video, they receive an immediate response
+          while Redis queues and distributes video-processing work to
+          backend workers.
+\end{itemize}
+
+\subsection{Qdrant}
+Qdrant is an open-source vector search engine and vector database,
+optimized for high performance with high-dimensional embedding data
+\cite{qdrant2024}.
+\begin{itemize}
+    \item \textbf{Role in the system:} Qdrant is the heart of the RAG
+          system. When lecture slides and transcripts are chunked, they
+          are converted into semantic vectors by embedding models and
+          stored in Qdrant. When the LLM needs to generate quiz questions
+          for a specific video segment, the system queries Qdrant to find
+          the most semantically relevant text passages as context.
+\end{itemize}
+
+\subsection{Neo4j}
+Neo4j is a specialized graph database management system that stores data
+as nodes and edges representing relationships \cite{neo4j2024}.
+\begin{itemize}
+    \item \textbf{Role in the system:} The system uses Neo4j to build the
+          course Knowledge Graph. AI analyzes videos and extracts core
+          concepts, for example node ``Deep Learning'' has a
+          \textit{REQUIRES} relation to node ``Linear Algebra''. This
+          helps the LMS understand course structure and recommend which
+          micro-content a student should review if they answer a quiz
+          about a specific concept incorrectly.
+\end{itemize}
+
+\subsection{MinIO}
+MinIO is a high-performance open-source object storage system fully
+compatible with the Amazon S3 API \cite{minio2024}.
+\begin{itemize}
+    \item \textbf{Role in the system:} Original lecture videos, extracted
+          audio files, and generated micro-content videos are large
+          unstructured data. MinIO stores these media files safely with
+          horizontal scalability, instead of placing them directly on the
+          server disk or in PostgreSQL.
+\end{itemize}
+
+\subsection{gRPC}
+gRPC is a high-performance open-source Remote Procedure Call framework
+developed by Google, using Protocol Buffers to encode transmitted data
+\cite{grpc2024}.
+\begin{itemize}
+    \item \textbf{Role in the system:} In the microservices structure,
+          gRPC is used for internal communication between services. For
+          example, the web server may need to communicate with an AI
+          Worker Service running on a strong GPU machine to execute
+          Whisper. gRPC transfers binary video/audio data over the
+          internal network with higher speed and lower latency than REST
+          API (JSON).
+\end{itemize}
+
+\subsection{Docker}
+Docker is a containerization platform that automates application
+deployment inside isolated environments called containers
+\cite{merkel2014docker}.
+\begin{itemize}
+    \item \textbf{Role in the system:} With a complex system containing a
+          frontend (Node.js), backend (Python), databases (PostgreSQL,
+          Redis, Qdrant, Neo4j), and operating-system-level C++ libraries
+          such as FFmpeg, Docker ensures that the whole ecosystem can be
+          packaged and run consistently in every environment, from
+          developers' personal computers to cloud servers, without library
+          conflicts.
+\end{itemize}

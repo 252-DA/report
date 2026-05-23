@@ -1,0 +1,100 @@
+@startuml arch_hexagonal
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ComponentBorderColor #555555
+skinparam InterfaceBorderColor #0070C0
+skinparam PackageBorderColor #888888
+
+title Hexagonal Architecture (Ports and Adapters) - AI / Business Services
+
+' --- DOMAIN CORE ---
+package "Domain Core (Use Cases)" #FEF9E7 {
+    component [ProcessDocumentUseCase] as UC1
+    component [GenerateContentUseCase] as UC2
+    component [EmbedChunksUseCase] as UC3
+    component [TranscribeVideoUseCase] as UC4
+    component [AnswerQuestionUseCase] as UC5
+}
+
+' --- PORTS ---
+package "Ports (Interfaces)" #EAF2FF {
+    interface "IParser" as Parser
+    interface "IEmbeddingModel" as Embed
+    interface "IVectorStore" as Vector
+    interface "IMetadataStore" as Meta
+    interface "IGraphStore" as Graph
+    interface "IObjectStorage" as Storage
+    interface "ILLMClient" as LLM
+    interface "ISTTClient" as STT
+}
+
+' --- PRODUCTION ADAPTERS ---
+package "Production Adapters" #E9F7EF {
+    component [PyMuPDFAdapter\nDoclingAdapter\nDocxAdapter\nPptxAdapter] as Parsers
+    component [BGEm3Adapter\n(local model)] as BGE
+    component [QdrantAdapter] as QdrantA
+    component [PostgresAdapter] as PGAdapter
+    component [Neo4jAdapter] as NeoAdapter
+    component [MinIOAdapter] as MinIOA
+    component [GeminiAdapter\nOpenAIAdapter] as LLMA
+    component [WhisperAdapter\n(local + API fallback)] as STTA
+}
+
+' --- TEST ADAPTERS ---
+package "Test Adapters" #FDF2F8 {
+    component [MockParser] as MockParser
+    component [InMemoryEmbedding] as MockEmbed
+    component [InMemoryVectorStore] as MemVec
+    component [InMemoryMetadataStore] as MemMeta
+    component [InMemoryGraphStore] as MemGraph
+    component [LocalFSAdapter] as LocalFS
+    component [MockLLMAdapter\n(deterministic JSON)] as MockLLM
+    component [MockSTTAdapter] as MockSTT
+}
+
+' --- USE CASE → PORT ---
+UC1 --> Parser
+UC1 --> Storage
+UC1 --> Meta
+UC2 --> LLM
+UC2 --> Meta
+UC2 --> Graph
+UC3 --> Embed
+UC3 --> Vector
+UC4 --> STT
+UC4 --> Storage
+UC5 --> Vector
+UC5 --> Graph
+UC5 --> LLM
+
+' --- PORT → PROD ADAPTER ---
+Parser <|.. Parsers
+Embed <|.. BGE
+Vector <|.. QdrantA
+Meta <|.. PGAdapter
+Graph <|.. NeoAdapter
+Storage <|.. MinIOA
+LLM <|.. LLMA
+STT <|.. STTA
+
+' --- PORT → TEST ADAPTER ---
+Parser <|.. MockParser
+Embed <|.. MockEmbed
+Vector <|.. MemVec
+Meta <|.. MemMeta
+Graph <|.. MemGraph
+Storage <|.. LocalFS
+LLM <|.. MockLLM
+STT <|.. MockSTT
+
+note bottom of "Production Adapters"
+  Used in pilot / production runtimes.
+end note
+
+note bottom of "Test Adapters"
+  Used in unit tests - no external calls,
+  no cost, no network dependency.
+end note
+
+@enduml

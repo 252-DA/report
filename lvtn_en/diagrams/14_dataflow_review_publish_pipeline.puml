@@ -1,0 +1,58 @@
+@startuml dataflow_review_publish_pipeline
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam SequenceArrowThickness 1.5
+
+title Data Flow: Review and Publish Pipeline\n(Human-in-the-loop -> Outbox -> Graph Sync)
+
+actor "Instructor" as Instructor
+participant "web-bff\nReview Inbox" as Web
+participant "core-api" as Core
+database "PostgreSQL\ncards + quiz + outbox" as PG
+queue "Redis\nBullMQ" as Redis
+participant "Outbox Poller" as Outbox
+participant "graph-sync worker" as GraphWorker
+database "Neo4j\nKnowledge Graph" as Neo4j
+
+== 1. Review drafts ==
+Instructor -> Web : open Review Inbox
+Web -> Core : GET /review-items\nstatus=GENERATED_DRAFT
+Core -> PG : SELECT lesson_cards,\nquiz_items
+PG --> Core : drafts[]
+Core --> Web : drafts with citations
+Web --> Instructor : show card / quiz\nwith source references
+
+== 2. Edit and approve ==
+Instructor -> Web : Edit / Approve / Reject
+Web -> Core : PATCH /review-items/{id}\ncontent + decision
+Core -> PG : UPDATE status\nREVIEWING / APPROVED /\nCHANGES_REQUESTED
+Core --> Web : saved
+
+== 3. Atomic publish transaction ==
+Instructor -> Web : Publish
+Web -> Core : POST /review-items/{id}/publish
+Core -> PG : BEGIN\nUPDATE item status=PUBLISHED\nINSERT outbox_events\nCOMMIT
+Core --> Web : {status=PUBLISHED}
+
+note right of PG
+  Business update and outbox event
+  share the same transaction to
+  avoid split-brain between PostgreSQL
+  and downstream stores.
+end note
+
+== 4. Async graph projection ==
+Outbox -> PG : SELECT outbox_events\nWHERE status=PENDING
+Outbox -> Redis : enqueue GraphProjectionRequested
+GraphWorker -> Redis : consume GraphProjectionRequested
+GraphWorker -> PG : LOAD published item + LO mappings
+GraphWorker -> Neo4j : MERGE Card / QuizItem\nMERGE relations\n[:GROUNDED_IN] / [:ASSESSES]
+GraphWorker -> PG : UPDATE outbox_events status=PROCESSED
+
+== 5. Serving to learners ==
+Web -> Core : GET /published-content
+Core -> PG : SELECT PUBLISHED items
+Core --> Web : card / quiz ready for learners
+
+@enduml

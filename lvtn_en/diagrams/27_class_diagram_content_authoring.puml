@@ -1,0 +1,210 @@
+@startuml class_diagram_content_authoring
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+skinparam ClassBackgroundColor #F0F8FF
+skinparam ClassBorderColor #555555
+skinparam PackageBorderColor #888888
+
+title Class Diagram - Content Authoring Bounded Context\n(Field names mirror the PostgreSQL schema in Appendix A)
+
+package "Document Ingestion" #FDEBD0 {
+    class Document {
+        + document_id : UUID <<PK>>
+        --
+        course_id : UUID <<FK>>
+        title : VARCHAR(255)
+        file_path : VARCHAR(512)
+        mime_type : VARCHAR(100)
+        checksum : VARCHAR(64)
+        status : DocumentStatus
+        created_by : UUID <<FK>>
+        --
+        + softDelete()
+        + reindex()
+    }
+
+    class Chunk {
+        + chunk_id : UUID(v7) <<PK>>
+        --
+        document_id : UUID <<FK>>
+        course_id : UUID <<FK>>  // denormalized
+        content : TEXT
+        heading_path : TEXT[]
+        page_number : INT
+        sort_order : INT
+        language : VARCHAR
+        --
+        + setVisibility(scope)
+    }
+
+    enum DocumentStatus {
+        UPLOADING
+        UPLOADED
+        QUEUED
+        PARSING
+        CHUNKING
+        EMBEDDING
+        INDEXED
+        ERROR
+    }
+}
+
+package "Video Pipeline" #E8F5E9 {
+    class Video {
+        + video_id : UUID <<PK>>
+        --
+        course_id : UUID <<FK>>
+        title : VARCHAR
+        file_path : VARCHAR
+        language : VARCHAR
+        status : VideoStatus
+    }
+
+    class VideoSegment {
+        + segment_id : UUID <<PK>>
+        --
+        video_id : UUID <<FK>>
+        course_id : UUID <<FK>>
+        start_ms, end_ms : INT
+        clip_url : VARCHAR
+        thumbnail_url : VARCHAR
+        title : VARCHAR
+    }
+
+    class TranscriptSegment {
+        + transcript_id : UUID <<PK>>
+        --
+        segment_id : UUID <<FK>>
+        text : TEXT
+        start_ms, end_ms : INT
+        language : VARCHAR
+    }
+
+    enum VideoStatus {
+        UPLOADING / UPLOADED
+        QUEUED / TRANSCRIBING
+        SEGMENTING / EMBEDDING
+        INDEXED / ERROR
+    }
+}
+
+package "Lesson Aggregate" #FEF9E7 {
+    class Lesson {
+        + lesson_id : UUID <<PK>>
+        --
+        course_id : UUID <<FK>>
+        lo_id : UUID <<FK>>
+        title : VARCHAR
+        status : LessonStatus
+        published_at : TIMESTAMPTZ
+        --
+        UNIQUE (course_id, lo_id)
+        --
+        + publish()
+        + unpublish()
+    }
+
+    class LessonCard {
+        + card_id : UUID(v7) <<PK>>
+        --
+        lesson_id : UUID <<FK>>
+        course_id : UUID <<FK>>
+        lo_id : UUID <<FK>>
+        title : VARCHAR
+        content : JSONB
+        ~ {key_insight, bullets[]}
+        source_chunk_ids : UUID[]
+        status : ReviewStatus
+        published_at : TIMESTAMPTZ
+        --
+        + edit()
+        + approve()
+        + publish()
+    }
+
+    class QuizItem {
+        + quiz_id : UUID(v7) <<PK>>
+        --
+        lesson_id : UUID <<FK>>
+        course_id : UUID <<FK>>
+        lo_id : UUID <<FK>>
+        type : QuizType
+        question : TEXT
+        options : JSONB
+        correct_answer : JSONB
+        ~ string for single
+        ~ array for MCQ_MULTI
+        explanation : TEXT
+        bloom_level : INT(1..6)
+        source_chunk_ids : UUID[]
+        status : ReviewStatus
+    }
+
+    class CardVideoAttachment {
+        + card_id : UUID <<FK, PK>>
+        + segment_id : UUID <<FK, PK>>
+        --
+        sort_order : INT
+    }
+
+    enum QuizType {
+        MCQ_SINGLE
+        MCQ_MULTI
+        TRUE_FALSE
+        FILL_BLANK
+    }
+
+    enum LessonStatus {
+        DRAFT
+        PUBLISHED
+        UNPUBLISHED
+        ARCHIVED
+    }
+
+    enum ReviewStatus {
+        GENERATED_DRAFT
+        REVIEWING
+        CHANGES_REQUESTED
+        APPROVED
+        PUBLISHED
+        UNPUBLISHED
+        ARCHIVED
+    }
+}
+
+' ===== Relationships =====
+Document "1" *-- "*" Chunk : contains >
+Video "1" *-- "*" VideoSegment : has >
+VideoSegment "1" *-- "*" TranscriptSegment : transcribed as >
+
+Lesson "1" o-- "*" LessonCard : groups >
+Lesson "1" o-- "*" QuizItem : groups >
+
+LessonCard "*" -- "*" Chunk : <<via source_chunk_ids[]>>
+QuizItem   "*" -- "*" Chunk : <<via source_chunk_ids[]>>
+
+LessonCard "1" -- "*" CardVideoAttachment
+VideoSegment "1" -- "*" CardVideoAttachment
+
+Document ..> DocumentStatus
+Video ..> VideoStatus
+Lesson ..> LessonStatus
+LessonCard ..> ReviewStatus
+QuizItem ..> ReviewStatus
+QuizItem ..> QuizType
+
+note bottom of Lesson
+  Lesson is the unit of LTI Deep Linking
+  and the lesson_id surfaced in
+   - custom.lesson_id (LTI launch claim)
+   - URL /learn/lessons/{id}
+end note
+
+note bottom of Chunk
+  source_chunk_ids[] is a soft FK array.
+  Cleanup is enforced by the document
+  delete saga, not by ON DELETE CASCADE.
+end note
+
+@enduml

@@ -125,39 +125,64 @@
       \put(0,-8){\includegraphics[width=8mm,height=8mm]{figures/hcmut.png}}
     \end{picture} &
     \begin{tabular}{l}
-      \textbf{Trường Đại Học Bách Khoa TP.HCM}\\
-      \textbf{Khoa Khoa Học và Kỹ Thuật Máy Tính}
+      \textbf{Ho Chi Minh City University of Technology}\\
+      \textbf{Faculty of Computer Science and Engineering}
     \end{tabular}
   \end{tabular}%
 }
 \fancyhead[R]{%
   \begin{tabular}{r}
-    \small\textbf{Đồ Án Chuyên Ngành}
+    \small\textbf{Graduation Thesis}
   \end{tabular}%
 }
 
-\fancyfoot[L]{\scriptsize Hệ thống LMS tự động tạo Micro-Content \& Quiz bằng Generative AI}
+\fancyfoot[L]{\scriptsize LMS for Automatically Generating Micro-Content \& Quizzes Using Generative AI}
 \fancyfoot[C]{}
-\fancyfoot[R]{\scriptsize Trang \thepage/\pageref{LastPage}}
+\fancyfoot[R]{\scriptsize Page \thepage/\pageref{LastPage}}
 
 \renewcommand{\headrulewidth}{0.4pt}
 \renewcommand{\footrulewidth}{0.4pt}
 
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \fancyhead[L]{%
+    \begin{tabular}{rl}
+      \begin{picture}(25,15)(0,0)
+        \put(0,-8){\includegraphics[width=8mm,height=8mm]{figures/hcmut.png}}
+      \end{picture} &
+      \begin{tabular}{l}
+        \textbf{Ho Chi Minh City University of Technology}\\
+        \textbf{Faculty of Computer Science and Engineering}
+      \end{tabular}
+    \end{tabular}%
+  }%
+  \fancyhead[R]{%
+    \begin{tabular}{r}
+      \small\textbf{Graduation Thesis}
+    \end{tabular}%
+  }%
+  \fancyfoot[L]{\scriptsize LMS for Automatically Generating Micro-Content \& Quizzes Using Generative AI}%
+  \fancyfoot[C]{}%
+  \fancyfoot[R]{\scriptsize Page \thepage/\pageref{LastPage}}%
+  \renewcommand{\headrulewidth}{0.4pt}%
+  \renewcommand{\footrulewidth}{0.4pt}%
+}
+
 % ============================================================
 % LOCALIZATION
 % ============================================================
-\AtBeginDocument{\renewcommand*\contentsname{Mục lục}}
-\AtBeginDocument{\renewcommand*\bibname{Tài liệu tham khảo}}
-\AtBeginDocument{\renewcommand*\listfigurename{Danh sách hình}}
-\AtBeginDocument{\renewcommand*\listtablename{Danh sách bảng}}
-\AtBeginDocument{\renewcommand{\chaptername}{Chương}}
+\AtBeginDocument{\renewcommand*\contentsname{Table of Contents}}
+\AtBeginDocument{\renewcommand*\bibname{References}}
+\AtBeginDocument{\renewcommand*\listfigurename{List of Figures}}
+\AtBeginDocument{\renewcommand*\listtablename{List of Tables}}
+\AtBeginDocument{\renewcommand{\chaptername}{Chapter}}
 
 % ============================================================
 % THEOREMS
 % ============================================================
-\newtheorem{theorem}{{\bf Định lý}}
-\newtheorem{property}{{\bf Tính chất}}
-\newtheorem{definition}{{\bf Định nghĩa}}
+\newtheorem{theorem}{{\bf Theorem}}
+\newtheorem{property}{{\bf Property}}
+\newtheorem{definition}{{\bf Definition}}
 
 % ============================================================
 % BEGIN DOCUMENT
@@ -172,9 +197,9 @@
   \vspace*{0.8cm}
 
   \begin{center}
-    {\large\bfseries ĐẠI HỌC QUỐC GIA THÀNH PHỐ HỒ CHÍ MINH \\[4pt]
-    TRƯỜNG ĐẠI HỌC BÁCH KHOA \\[4pt]
-    KHOA KHOA HỌC VÀ KỸ THUẬT MÁY TÍNH}
+    {\large\bfseries VIETNAM NATIONAL UNIVERSITY HO CHI MINH CITY \\[4pt]
+    HO CHI MINH CITY UNIVERSITY OF TECHNOLOGY \\[4pt]
+    FACULTY OF COMPUTER SCIENCE AND ENGINEERING}
   \end{center}
 
   \vspace{0.5cm}
@@ -184,15 +209,15 @@
   \vspace{0.8cm}
 
   \begin{center}
-    {\Large\bfseries Đồ Án Chuyên Ngành\par}
+    {\Large\bfseries Graduation Thesis\par}
     \vspace{0.3cm}
     \rule{0.72\textwidth}{0.5pt}\par
     \vspace{0.45cm}
-    {\LARGE\bfseries HỆ THỐNG LMS TỰ ĐỘNG TẠO MICRO-CONTENT \& QUIZ\par}
+    {\LARGE\bfseries LMS SYSTEM FOR AUTOMATICALLY GENERATING MICRO-CONTENT \& QUIZZES\par}
     \vspace{0.2cm}
-    {\Large\bfseries BẰNG GENERATIVE AI\par}
+    {\Large\bfseries USING GENERATIVE AI\par}
     % \vspace{0.45cm}
-    % {\large\itshape Tích hợp RAG, Knowledge Graph và LTI cho môi trường LMS\par}
+    % {\large\itshape Integrating RAG, Knowledge Graph, and LTI for LMS environments\par}
     \vspace{0.35cm}
     \rule{0.72\textwidth}{0.5pt}
   \end{center}
@@ -202,13 +227,13 @@
   \begin{minipage}{0.62\textwidth}
     \raggedright
     \onehalfspacing
-    \textbf{GV hướng dẫn:} Tên Giảng Viên \\[8pt]
-    \textbf{SV thực hiện:} Phùng Xương Cận - 2210348
+    \textbf{Advisor:} Advisor Name \\[8pt]
+    \textbf{Student:} Phùng Xương Cận - 2210348
   \end{minipage}
 
   \vfill
 
-  {\footnotesize THÀNH PHỐ HỒ CHÍ MINH, \the\year\par}
+  {\footnotesize HO CHI MINH CITY, \the\year\par}
 \end{titlepage}
 \hypersetup{pageanchor=true}
 
@@ -226,11 +251,11 @@
 
 \newpage
 \listoftables
-\addcontentsline{toc}{chapter}{Danh mục bảng biểu}
+\addcontentsline{toc}{chapter}{List of Tables}
 
 \newpage
 \listoffigures
-\addcontentsline{toc}{chapter}{Danh mục hình ảnh}
+\addcontentsline{toc}{chapter}{List of Figures}
 
 \newpage
 \include{frontmatter/danh_muc_viet_tat}

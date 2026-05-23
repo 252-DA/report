@@ -1,0 +1,90 @@
+@startuml activity_video_pipeline
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam ActivityBackgroundColor #F8FBFF
+skinparam ActivityDiamondBackgroundColor #FFF7E6
+
+title Activity: Video Pipeline\n(Upload -> Transcript -> Segments -> Vector Index)
+
+|Instructor / Browser|
+start
+:Choose lecture video;
+
+|web-bff|
+:Request upload session;
+
+|core-api|
+:Validate metadata\n(codec, mime type, size);
+if (Codec / format valid?) then (No)
+  :Reject upload request;
+  |web-bff|
+  :Show format error;
+  stop
+else (Yes)
+endif
+
+|Stores & Events|
+:Create video record\nstatus = UPLOADING;
+:Create presigned MinIO URL;
+
+|web-bff|
+:Return upload_url to browser;
+
+|Instructor / Browser|
+:PUT video directly to MinIO;
+
+|web-bff|
+:Confirm upload;
+
+|core-api|
+:Mark video QUEUED;
+
+|Stores & Events|
+:Publish VideoUploaded;
+
+|video-worker|
+:Consume VideoUploaded;
+:Download raw video from MinIO;
+:Set status = TRANSCRIBING;
+:Extract audio with FFmpeg;
+:Speech-to-Text with Whisper;
+:Set status = SEGMENTING;
+:Detect segment boundaries\n(silence + topic shift);
+
+fork
+  |video-worker|
+  :Cut video clips per segment;
+fork again
+  |video-worker|
+  :Generate thumbnails;
+fork again
+  |Stores & Events|
+  :INSERT video_segments\nand transcript_segments;
+end fork
+
+|Stores & Events|
+:Publish TranscriptReady;
+
+|document-worker|
+:Consume TranscriptReady;
+:Embed transcript segments\nwith BGE-M3;
+
+|Stores & Events|
+:Upsert transcript vectors\nto Qdrant;
+:Set video status = INDEXED;
+:Publish VideoIndexed;
+
+note right
+  Video pipeline only produces segments,
+  transcripts, and vector index.
+  Lesson / quiz generation runs in a separate flow.
+end note
+
+|web-bff|
+:Stream progress via SSE;
+
+|Instructor / Browser|
+:Show INDEXED status;
+stop
+@enduml

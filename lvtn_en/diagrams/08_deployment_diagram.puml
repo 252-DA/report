@@ -1,0 +1,99 @@
+@startuml deployment_diagram
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam NodeBorderColor #555555
+skinparam NodeBackgroundColor #F0F4F8
+skinparam DatabaseBackgroundColor #FFF8DC
+skinparam DatabaseBorderColor #888855
+skinparam ranksep 22
+skinparam nodesep 18
+skinparam linetype ortho
+
+top to bottom direction
+
+title Deployment Diagram - Docker Compose (Pilot Tier)
+
+' ===== Externals =====
+cloud "Canvas Cloud" as Canvas
+cloud "External APIs\nGemini / Whisper / YouTube MCP" as Providers
+
+' ===== Edge =====
+node "**Edge Layer**" as EdgeLayer #FDEBD0 {
+    component "**caddy**\nCaddy 2.7\nAuto HTTPS / ACME\n(port 443)" as Caddy
+}
+
+' ===== Application services (3 in one row) =====
+node "**Application Layer**" as AppLayer #FEF9E7 {
+    component "**web-bff**\nNext.js 14\nLTI gateway + UI" as Web
+    component "**core-api**\nNestJS 10\nBusiness + Outbox Poller" as Core
+    component "**chat-service**\nFastAPI\nRAG + SSE + Video Search" as Chat
+}
+
+' ===== Workers (3 in one row) =====
+node "**Async Workers**" as WorkerLayer #E8F5E9 {
+    component "**document-worker**\nPython + BullMQ\nParse + Chunk + Embed\nBGE-M3 ~2GB" as Doc
+    component "**enrichment-worker**\nPython + BullMQ\nLLM card / quiz" as Enrich
+    component "**video-worker**\nGo + FFmpeg + Whisper\nGPU passthrough" as Video
+}
+
+' ===== Stateful infra (5 in one row) =====
+node "**Stateful Infrastructure**" as DataLayer #FDEDEC {
+    database "**postgres**\nPostgreSQL 16/17" as PG
+    database "**redis**\nRedis 7\nBullMQ + sessions" as Redis
+    database "**qdrant**\nQdrant 1.10+\nInt8 quantized" as Qdrant
+    database "**neo4j**\nNeo4j 5 CE" as Neo4j
+    storage "**minio**\nS3 presigned" as MinIO
+}
+
+' ===== Observability (sidecar) =====
+node "**Observability**" as OTelLayer #EAF2FF {
+    component "Prometheus + Grafana\nLoki + Tempo" as OTel
+}
+
+' ===== Flows: top to bottom =====
+Canvas -down-> Caddy : LTI 1.3 launch (443)
+Caddy -down-> Web : reverse proxy
+Caddy -down-> Chat : SSE upgrade
+
+Web -down-> Core : internal JWT
+Web -down-> Chat : SSE ticket
+Chat -down-> Core : gRPC permission
+
+Core -down-> Redis : enqueue / poll
+Doc -up-> Redis : consume
+Enrich -up-> Redis : consume
+Video -up-> Redis : consume
+
+Core -down-> PG : SQL + outbox
+Doc -down-> PG : chunks
+Enrich -down-> PG : drafts
+Video -down-> PG : segments
+Chat -down-> PG : chat history
+
+Doc -down-> Qdrant : upsert vectors
+Enrich -down-> Qdrant : grounding
+Chat -down-> Qdrant : hybrid retrieval
+
+Enrich -down-> Neo4j : LO context
+Chat -down-> Neo4j : graph rerank
+
+Core -down-> MinIO : presigned URLs
+Doc -down-> MinIO : GET raw files
+Video -down-> MinIO : video + clips
+
+Enrich -right-> Providers : Gemini calls
+Chat -right-> Providers : Gemini stream + MCP
+Video -right-> Providers : Whisper fallback
+Core -up-> Canvas : LTI AGS passback
+
+OTel ..> AppLayer : metrics + logs + traces
+OTel ..> WorkerLayer : metrics + logs + traces
+
+note bottom
+  Docker Compose network ai_internal (bridge); only Caddy binds to host port 443.
+  GPU passthrough only for video-worker via nvidia-container-toolkit.
+  Volumes: pg_data, redis_data, qdrant_data, neo4j_data, minio_data, models (BGE-M3 read-only).
+end note
+
+@enduml

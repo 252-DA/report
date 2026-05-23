@@ -1,214 +1,1072 @@
+% !TeX root = ../main.tex
 \chapter{Hiện thực và triển khai}
+\label{chap:hien-thuc-trien-khai}
 
-\section{Môi trường và công cụ phát triển}
+Chương này trình bày các quyết định hiện thực cụ thể bám theo thiết kế
+ở Chương~\ref{chap:phan-tich-thiet-ke}: phiên bản công nghệ, cấu trúc
+mã nguồn, cấu hình môi trường triển khai và quy trình CI/CD. Mục tiêu
+là cho phép một thành viên mới onboard có thể dựng lại toàn bộ stack
+trên máy cá nhân hoặc VPS pilot trong dưới 1 giờ, đồng thời cung cấp
+checklist phần cứng để giảng viên hướng dẫn ước lượng tài nguyên cần
+chuẩn bị cho giai đoạn pilot.
 
-Hệ thống được hiện thực thành nhiều thành phần chạy trong Docker Compose:
-frontend/BFF Next.js, \texttt{core-api} NestJS, các service AI bằng Python,
-worker xử lý bất đồng bộ và các dịch vụ hạ tầng gồm PostgreSQL, Redis, MinIO,
-Qdrant và Neo4j. Cách triển khai này phù hợp cho môi trường phát triển, demo
-và staging; khi đưa vào production có thể chuyển dần sang Kubernetes.
+\section{Môi trường và yêu cầu hệ thống}
+\label{sec:environment-requirements}
 
-Các công cụ chính gồm:
+\subsection{Phân tầng môi trường triển khai}
+
+Hệ thống được dự tính chạy trên ba tầng môi trường, mỗi tầng có yêu
+cầu phần cứng và mục đích khác nhau:
+
+\begin{longtable}{|p{2cm}|p{3.2cm}|p{8.3cm}|}
+\caption{Ba tầng môi trường triển khai.}
+\label{tab:envs-c5} \\
+\hline
+\textbf{Tầng} & \textbf{Mục đích} & \textbf{Đặc điểm} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Tầng} & \textbf{Mục đích} & \textbf{Đặc điểm} \\
+\hline
+\endhead
+
+\texttt{dev}
+    & Phát triển cục bộ trên máy thành viên
+    & Docker Compose, dùng API embedding/STT thay model local để giảm
+      tải máy; dataset nhỏ; không bắt buộc GPU. \\
+\hline
+\texttt{ci}
+    & Pipeline tự động hóa trên GitHub Actions
+    & Testcontainers cho PostgreSQL/Redis/Qdrant; mock adapter cho LLM
+      và STT; sandbox không có Internet egress để test xác định. \\
+\hline
+\texttt{pilot}
+    & Triển khai pilot $\geq 10$ SV trên VPS hoặc máy chủ phòng lab
+    & Public HTTPS domain, Canvas Cloud sandbox; có thể bật model
+      local nếu có GPU; backup hàng ngày; OpenTelemetry full stack. \\
+\hline
+\end{longtable}
+
+\subsection{Hệ điều hành mục tiêu}
+
+\textbf{Tầng pilot:} \textbf{Ubuntu Server 22.04 LTS} (Jammy Jellyfish)
+là OS mục tiêu chính, được chọn vì:
+
 \begin{itemize}
-    \item \textbf{Next.js/TypeScript:} xây dựng giao diện người dùng,
-          Backend-for-Frontend và route LTI.
-    \item \textbf{NestJS/TypeScript:} hiện thực \texttt{core-api}, quản lý
-          metadata, phân quyền và điều phối job.
-    \item \textbf{Python FastAPI/worker:} hiện thực các service AI, RAG,
-          video search và pipeline sinh nội dung.
-    \item \textbf{PostgreSQL, Qdrant, Neo4j, MinIO, Redis:} các thành phần lưu
-          trữ và queue.
-    \item \textbf{Docker Compose:} tái lập môi trường chạy local/staging.
-    \item \textbf{LLM/Embedding provider:} sinh nội dung, embedding và hỗ trợ
-          structured output.
+    \item Được Canonical hỗ trợ đến tháng 4/2027 (LTS 5 năm) và mở rộng
+          ESM đến 2032, đủ dài cho vòng đời pilot và pha production
+          tiếp theo của đồ án.
+    \item Sẵn có các package cập nhật cho Docker Engine, Nvidia driver
+          và các runtime cần thiết qua APT chính thức hoặc Docker/Nvidia
+          official repository, không cần build từ source.
+    \item Tương thích với \texttt{nvidia-container-toolkit}, cho phép
+          \texttt{video-worker} truy cập GPU qua Docker Compose mà
+          không cần can thiệp kernel module thủ công.
 \end{itemize}
+
+Tùy chọn dự phòng \textit{Ubuntu Server 24.04 LTS} (Noble Numbat) được
+dùng nếu yêu cầu kernel mới hơn (vd. driver GPU thế hệ Blackwell) hoặc
+PostgreSQL 17 native cho hàm \texttt{uuidv7()} built-in.
+
+\textbf{Tầng dev:} không bắt buộc Linux để mở rộng khả năng tham gia
+của thành viên. Các môi trường được hỗ trợ:
+
+\begin{itemize}
+    \item \textbf{macOS 14+ (Sonoma) hoặc 15+ (Sequoia):} Docker
+          Desktop 4.28+; phù hợp Apple Silicon (M1/M2/M3) nhờ image
+          multi-arch (\texttt{linux/arm64}) của các base image trong
+          stack. Whisper local có thể chạy qua Metal Performance Shaders.
+    \item \textbf{Windows 11 + WSL2 (Ubuntu 22.04):} Docker Desktop
+          backend WSL2; source code mount trong WSL2 file system để
+          tránh latency I/O cross-OS.
+    \item \textbf{Linux Desktop (Ubuntu 22.04/24.04, Fedora 40+):}
+          Docker Engine native, không qua VM, performance tốt nhất cho
+          dev có GPU.
+\end{itemize}
+
+\textbf{Tầng ci:} GitHub Actions runner mặc định
+\texttt{ubuntu-22.04} (chuyển sang \texttt{ubuntu-24.04} sau tháng
+4/2025 khi GitHub đổi default).
+
+\subsection{Yêu cầu phần cứng theo tầng}
+\label{subsec:hardware-tiers}
+
+Bảng~\ref{tab:hardware-tiers} liệt kê cấu hình tối thiểu và khuyến nghị
+cho từng tầng môi trường, dùng làm checklist khi đặt mua máy hoặc thuê
+VPS.
+
+\begin{longtable}{|p{2.2cm}|p{1.6cm}|p{1.6cm}|p{2cm}|p{1.7cm}|p{3.3cm}|}
+\caption{Yêu cầu phần cứng theo tầng môi trường.}
+\label{tab:hardware-tiers} \\
+\hline
+\textbf{Tầng} & \textbf{CPU} & \textbf{RAM} & \textbf{Disk} & \textbf{GPU}
+    & \textbf{Ghi chú} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Tầng} & \textbf{CPU} & \textbf{RAM} & \textbf{Disk} & \textbf{GPU}
+    & \textbf{Ghi chú} \\
+\hline
+\endhead
+
+Dev tối thiểu & 4 core (i5 gen 10+/Ryzen 5/Apple M1) & 16GB & 50GB SSD
+    & Tuỳ chọn & Dùng API cho embedding/STT thay model local. \\
+\hline
+Dev khuyến nghị & 8 core & 32GB & 100GB SSD & 4GB VRAM tuỳ chọn
+    & Chạy được Whisper small và BGE-M3 local. \\
+\hline
+CI runner & 2 core & 8GB & 30GB & Không
+    & GitHub Actions \texttt{ubuntu-22.04} hoặc self-host. \\
+\hline
+Pilot tối thiểu & 4 core & 16GB & 100GB SSD & Không
+    & Đủ cho 10--20 SV đồng thời khi dùng STT/embedding API. \\
+\hline
+Pilot khuyến nghị & 8 core & 32GB & 200GB NVMe & 1x GPU 8GB VRAM
+    (vd. RTX 3060/4060 hoặc NVIDIA T4)
+    & Chạy Whisper medium + BGE-M3 local; vẫn cần Gemini API. \\
+\hline
+Production tham khảo & 16 core+ & 64GB+ & 500GB NVMe + backup riêng
+    & 2x GPU 16GB+ VRAM (vd. L4 hoặc A10)
+    & Tách PostgreSQL/Qdrant ra managed service; nhiều môn/lớp song
+      song. \\
+\hline
+\end{longtable}
+
+\textbf{Lý do chọn GPU 8GB VRAM cho pilot:} Whisper \texttt{medium}
+(769M params) cần $\approx$ 5GB VRAM khi inference, \texttt{small}
+(244M) cần $\approx$ 2GB; BGE-M3 dense embed cần thêm $\approx$ 2GB
+khi load FP16. Với 8GB VRAM có thể chạy đồng thời Whisper medium và
+BGE-M3 mà không cần unload/reload model giữa các request.
+
+\subsection{Phân bổ RAM theo từng container}
+\label{subsec:ram-allocation}
+
+Bảng~\ref{tab:ram-allocation} mô tả phân bổ RAM dự tính cho từng
+service trong stack Docker Compose. Tổng tải dev tối thiểu khoảng
+10GB, tải pilot khoảng 20GB --- chưa tính overhead Docker daemon
+($\approx$ 500MB) và OS host ($\approx$ 1--2GB).
+
+\begin{longtable}{|p{3.7cm}|p{1.5cm}|p{1.8cm}|p{6cm}|}
+\caption{Phân bổ RAM dự tính cho mỗi service.}
+\label{tab:ram-allocation} \\
+\hline
+\textbf{Service} & \textbf{Dev} & \textbf{Pilot} & \textbf{Ghi chú cấu hình} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Service} & \textbf{Dev} & \textbf{Pilot} & \textbf{Ghi chú cấu hình} \\
+\hline
+\endhead
+
+PostgreSQL 16/17 & 512MB & 2GB
+    & \texttt{shared\_buffers} 25\% RAM container, \texttt{work\_mem}
+      16MB, \texttt{effective\_cache\_size} 50\%. \\
+\hline
+Redis 7 & 256MB & 1GB
+    & AOF persistence; chứa BullMQ queue + LTI session. \\
+\hline
+Qdrant 1.10+ & 512MB & 2GB
+    & Int8 quantization cho vector dense (giảm 4x footprint);
+      \texttt{available\_on\_ram=true} cho hot collection. \\
+\hline
+Neo4j 5 Community & 1GB & 2GB
+    & Heap 50\%, pagecache 50\%; \textit{property-based
+      multi-tenancy}, không multi-instance. \\
+\hline
+MinIO & 256MB & 512MB & Cache nhỏ; data persist trên disk. \\
+\hline
+\texttt{web-bff} (Next.js 14) & 256MB & 512MB
+    & SSR + LTI route; node --max-old-space-size=384. \\
+\hline
+\texttt{core-api} (NestJS 10) & 512MB & 1GB
+    & Connection pool DB 20, Outbox poller daemon. \\
+\hline
+\texttt{chat-service} (FastAPI) & 512MB & 1GB
+    & Uvicorn 2 worker, streaming SSE; concurrency 50/worker. \\
+\hline
+\texttt{document-worker} & 3GB & 4GB
+    & \textbf{BGE-M3 model $\approx$ 2GB} (FP16) + parser/PDF buffer
+      1GB. \\
+\hline
+\texttt{enrichment-worker} & 512MB & 1GB
+    & I/O-bound, gọi LLM API; không load model. \\
+\hline
+\texttt{video-worker} (Go) & 2GB & 4GB
+    & \textbf{Whisper model 1--1.5GB} + FFmpeg subprocess buffer. \\
+\hline
+Prometheus & 256MB & 1GB & Scrape interval 15s; retention 7 ngày. \\
+\hline
+Grafana & 256MB & 512MB & UI; không lưu data. \\
+\hline
+Loki & 256MB & 1GB & Log aggregation với compactor. \\
+\hline
+Tempo & 256MB & 1GB & Trace storage; sampling 10\%. \\
+\hline
+Caddy & 64MB & 128MB & Reverse proxy + Let's Encrypt ACME. \\
+\hline
+\textbf{Tổng cộng} & \textbf{$\approx$10GB} & \textbf{$\approx$20GB}
+    & Chưa cộng overhead Docker daemon và OS host. \\
+\hline
+\end{longtable}
+
+\textbf{Lưu ý mở rộng:} Nếu pilot mở rộng sang $\geq 50$ SV đồng thời,
+nâng RAM Qdrant lên 4GB và PostgreSQL lên 4GB; \texttt{chat-service}
+scale ra 3 replica với 1GB mỗi replica. Khi tải tổng vượt 32GB, nên
+chuyển PostgreSQL và Qdrant sang managed service hoặc node riêng.
+
+\subsection{Phiên bản công nghệ chốt}
+\label{subsec:tech-versions}
+
+Bảng~\ref{tab:tech-versions} liệt kê phiên bản chốt của runtime và hạ
+tầng trong stack pilot. Phiên bản được chọn theo ba tiêu chí: (i) đã
+GA ít nhất 6 tháng, (ii) có cộng đồng hỗ trợ active, (iii) tương thích
+với Ubuntu 22.04 LTS qua repository chính thức (APT hoặc Docker Hub
+official).
+
+\begin{longtable}{|p{4.3cm}|p{3.7cm}|p{5.5cm}|}
+\caption{Phiên bản công nghệ chốt cho tầng pilot.}
+\label{tab:tech-versions} \\
+\hline
+\textbf{Thành phần} & \textbf{Phiên bản} & \textbf{Ghi chú} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Thành phần} & \textbf{Phiên bản} & \textbf{Ghi chú} \\
+\hline
+\endhead
+
+OS host & Ubuntu Server 22.04 LTS & Kernel HWE 6.x nếu cần GPU đời
+    mới. \\
+\hline
+Docker Engine & 25.0+ & API 1.44, BuildKit mặc định. \\
+\hline
+Docker Compose & v2.24+ & Hỗ trợ \texttt{deploy.resources} cho
+    non-swarm. \\
+\hline
+\texttt{nvidia-container-toolkit} & 1.15+ & GPU passthrough cho
+    \texttt{video-worker}. \\
+\hline
+Node.js & 20 LTS (Iron) & \texttt{web-bff} + \texttt{core-api}. \\
+\hline
+Next.js & 14.2+ & App Router + Server Actions + Streaming SSE. \\
+\hline
+NestJS & 10.3+ & Fastify adapter; module per bounded context. \\
+\hline
+Python & 3.11 & \texttt{document-worker},
+    \texttt{enrichment-worker}, \texttt{chat-service}. \\
+\hline
+FastAPI & 0.110+ & SSE streaming native qua
+    \texttt{StreamingResponse}. \\
+\hline
+Go & 1.22+ & \texttt{video-worker}; sử dụng \texttt{goroutine} cho
+    pipeline FFmpeg. \\
+\hline
+PostgreSQL & 16 (khuyến nghị 17) & \texttt{uuidv7()} native từ 17;
+    với 16 dùng extension \texttt{pg\_uuidv7}. \\
+\hline
+Redis & 7.2 & Stream + Pub/Sub cho BullMQ. \\
+\hline
+Qdrant & 1.10+ & Hybrid search (dense + sparse) + payload index. \\
+\hline
+Neo4j & 5.x Community & Range Index cho property-based
+    multi-tenancy. \\
+\hline
+MinIO & RELEASE.2024-Q3+ & S3 API compatibility, presigned URL. \\
+\hline
+BullMQ & 5.x & Queue + Worker + Sandbox processor. \\
+\hline
+BGE-M3 (embedding) & v1.0 & Multilingual + sparse + dense + ColBERT. \\
+\hline
+Whisper & \texttt{small}/\texttt{medium}/\texttt{large-v3} & Tuỳ
+    VRAM; fallback OpenAI Whisper API. \\
+\hline
+Gemini API & \texttt{gemini-1.5-pro},
+    \texttt{gemini-1.5-flash} & Pro cho card/quiz, Flash cho
+    curriculum extract. \\
+\hline
+Caddy & 2.7+ & Reverse proxy + ACME tự động. \\
+\hline
+Prometheus / Grafana / Loki / Tempo
+    & v2.x / v11.x / v3.x / v2.x & OpenTelemetry stack. \\
+\hline
+\end{longtable}
+
+\subsection{Yêu cầu mạng và tên miền}
+\label{subsec:network-req}
+
+\begin{itemize}
+    \item \textbf{Inbound:} cổng 443/tcp public cho LTI launch từ
+          Canvas và truy cập của giảng viên/học viên. Cổng 80 chỉ
+          redirect 301 sang HTTPS, không phục vụ traffic thực.
+    \item \textbf{Outbound:} cổng 443/tcp đến: Canvas (LTI AGS
+          callback, JWKS), Gemini API
+          (\texttt{generativelanguage.googleapis.com}), provider STT
+          fallback (OpenAI/AssemblyAI nếu cấu hình).
+    \item \textbf{Docker network nội bộ:} \texttt{ai\_internal} bridge,
+          \textit{không expose port của container database ra host}
+          trong production. Chỉ \texttt{caddy} bind vào host network.
+    \item \textbf{Tên miền:} cần một subdomain với chứng chỉ SSL hợp
+          lệ (Let's Encrypt qua Caddy tự động), vd.
+          \texttt{lvtn-ai.example.edu.vn}. Canvas chỉ chấp nhận LTI
+          Tool có HTTPS hợp lệ, không dùng được self-signed certificate.
+\end{itemize}
+
+\section{Cấu trúc mã nguồn}
+\label{sec:code-structure}
+
+\subsection{Tổ chức monorepo}
+
+Mã nguồn được tổ chức dưới dạng monorepo với pnpm workspace cho
+TypeScript và Poetry workspace cho Python, sống chung trong một
+repository để dễ refactor cross-language khi sửa contract gRPC hoặc
+event schema:
+
+\begin{verbatim}
+lvtn-ai/
+|-- apps/
+|   |-- web-bff/                # Next.js 14, App Router
+|   |-- core-api/               # NestJS, business logic
+|   |-- chat-service/           # FastAPI, RAG + SSE
+|   |-- document-worker/        # Python + BullMQ
+|   |-- enrichment-worker/      # Python + BullMQ
+|   `-- video-worker/           # Go + FFmpeg + Whisper
+|-- packages/
+|   |-- shared-contracts/       # Protobuf, OpenAPI, Zod schema
+|   |-- shared-domain-py/       # Python: Hexagonal Port (ABC)
+|   |-- shared-domain-ts/       # TypeScript: domain entity, DTO
+|   `-- shared-eslint-config/
+|-- infra/
+|   |-- docker-compose.yml      # Stack pilot
+|   |-- docker-compose.dev.yml  # Override cho dev
+|   |-- caddy/Caddyfile
+|   |-- prometheus/prometheus.yml
+|   |-- grafana/dashboards/
+|   |-- postgres/migrations/    # Atlas hoặc Liquibase
+|   `-- neo4j/cypher-init/
+|-- tools/
+|   |-- seed-data/
+|   |-- eval-retrieval/         # Recall@K, MRR script
+|   `-- benchmark/
+|-- docs/
+|   |-- ARCHITECTURE.md
+|   |-- RUNBOOK.md
+|   `-- ONBOARDING.md
+|-- .github/workflows/          # CI/CD pipeline
+|-- pnpm-workspace.yaml
+|-- pyproject.toml              # Root Poetry
+`-- README.md
+\end{verbatim}
+
+Lý do chọn monorepo thay vì polyrepo: contract giữa các runtime (event
+schema BullMQ, gRPC proto, JWT claim shape) thay đổi đồng thời với
+implementation; nếu tách repo thì mỗi lần sửa schema phải tạo PR ở
+nhiều nơi và lock version chéo. Với monorepo, một PR thay đổi cả
+producer và consumer của cùng một sự kiện, CI chạy integration test
+toàn cục.
+
+\subsection{Layout Hexagonal trong worker Python}
+
+Mỗi worker Python (\texttt{document-worker}, \texttt{enrichment-worker},
+\texttt{chat-service}) tuân thủ cùng một layout Hexagonal:
+
+\begin{verbatim}
+apps/document-worker/src/document_worker/
+|-- domain/                # Entity, Value Object, Port (ABC)
+|   |-- entities/
+|   |   |-- document.py
+|   |   `-- chunk.py
+|   |-- ports/
+|   |   |-- parser_port.py        # IParser
+|   |   |-- embedding_port.py     # IEmbeddingModel
+|   |   |-- vector_store_port.py  # IVectorStore
+|   |   `-- metadata_store_port.py
+|   `-- exceptions.py
+|-- application/           # Use case, orchestration
+|   |-- use_cases/
+|   |   |-- process_document.py
+|   |   `-- reindex_document.py
+|   `-- dto.py
+|-- infrastructure/        # Adapter implementations
+|   |-- adapters/
+|   |   |-- pymupdf_parser.py     # IParser -> PyMuPDF
+|   |   |-- docling_parser.py     # IParser -> Docling (OCR)
+|   |   |-- bge_m3_local.py       # IEmbeddingModel -> local
+|   |   |-- openai_embedding.py   # IEmbeddingModel -> API
+|   |   |-- qdrant_store.py       # IVectorStore -> Qdrant
+|   |   `-- postgres_metadata.py
+|   `-- config.py
+|-- delivery/              # Primary adapter
+|   |-- bullmq_consumer.py
+|   `-- grpc_server.py
+`-- main.py                # Dependency injection bootstrap
+\end{verbatim}
+
+Quy ước phụ thuộc: \texttt{domain} không import gì từ
+\texttt{application}/\texttt{infrastructure}/\texttt{delivery};
+\texttt{application} chỉ import từ \texttt{domain};
+\texttt{infrastructure} và \texttt{delivery} có thể import cả
+\texttt{domain} và \texttt{application}. Quy tắc này được enforce
+bằng \texttt{import-linter} trong CI.
+
+\subsection{Quy ước commit và branching}
+
+\begin{itemize}
+    \item \textbf{Conventional Commits} với scope per runtime:
+          \texttt{feat(chat-service): ...},
+          \texttt{fix(document-worker): ...},
+          \texttt{chore(infra): ...}.
+    \item \textbf{Trunk-based development:} branch ngắn (1--3 ngày),
+          merge vào \texttt{main} qua PR có review.
+    \item \textbf{Tag release:} \texttt{v1.0-pilot-w7},
+          \texttt{v1.0-defense} ở mốc quan trọng để có thể rollback
+          nếu pilot lỗi.
+\end{itemize}
+
+\section{Hiện thực các runtime}
+\label{sec:runtime-impl}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.95\textwidth]{diagrams/deployment_diagram.png}
-    \caption{Deployment diagram của hệ thống.}
+    \caption{Deployment diagram của hệ thống pilot.}
     \label{fig:deployment-implementation-lvtn}
 \end{figure}
 
-\section{Hiện thực Frontend và Backend}
+\subsection{\texttt{web-bff} (Next.js)}
 
-\subsection{Web-BFF Next.js}
+Frontend kiêm Backend-for-Frontend được hiện thực bằng Next.js 14 với
+App Router. Ba vai trò chính:
 
-Frontend/BFF được xây dựng bằng Next.js và TypeScript. Thành phần này đảm nhận
-ba vai trò chính:
 \begin{itemize}
-    \item Cung cấp giao diện giảng viên để upload, review và quản lý nội dung.
-    \item Cung cấp giao diện học viên để xem card, làm quiz và nhận phản hồi.
-    \item Xử lý LTI login/launch route để tích hợp với Canvas.
+    \item Render UI server-side cho giảng viên (\texttt{/manage/*})
+          và học viên (\texttt{/learn/*}).
+    \item Tiếp nhận LTI launch và phát hành phiên qua cookie
+          \texttt{HttpOnly}, \texttt{SameSite=None}, \texttt{Secure}
+          (bắt buộc do chạy trong iframe Canvas).
+    \item Proxy request từ UI sang \texttt{core-api} và
+          \texttt{chat-service}, kèm BFF-to-Core JWT ngắn hạn.
 \end{itemize}
 
-Cấu trúc route chính:
+Cấu trúc route chính (App Router):
+
 \begin{itemize}
-    \item \texttt{/lti/login}: khởi tạo OIDC login flow.
-    \item \texttt{/lti/launch}: nhận LTI launch request và tạo session.
-    \item \texttt{/manage/review}: màn hình giảng viên review nội dung AI.
-    \item \texttt{/learn/cards}: màn hình học card.
-    \item \texttt{/learn/quiz/[documentId]}: màn hình làm quiz theo tài liệu.
+    \item \texttt{app/lti/login/route.ts}: OIDC login init, lưu
+          \texttt{state} + \texttt{nonce} vào Redis (TTL 5 phút), redirect
+          về Canvas authorize endpoint.
+    \item \texttt{app/lti/launch/route.ts}: nhận form POST, verify JWT
+          \texttt{id\_token} qua Canvas JWKS, ánh xạ user, set cookie
+          phiên, redirect theo role.
+    \item \texttt{app/manage/review/page.tsx}: review inbox, list card/quiz
+          draft, action approve/reject/edit.
+    \item \texttt{app/manage/documents/page.tsx}: upload + danh sách tài liệu.
+    \item \texttt{app/learn/lessons/[id]/page.tsx}: card view + nav.
+    \item \texttt{app/learn/lessons/[id]/quiz/page.tsx}: làm quiz.
+    \item \texttt{app/learn/chat/page.tsx}: AI Tutor chatbot.
+    \item \texttt{app/api/sse-chat/route.ts}: proxy SSE từ
+          \texttt{chat-service} về browser, không buffer.
 \end{itemize}
 
-Session LTI được lưu phía server để giảm rủi ro lộ claim nhạy cảm trên client.
-Frontend không tự quyết định quyền truy cập quan trọng mà dựa trên context đã
-xác thực từ LTI/session và backend.
+Session LTI lưu phía server (Redis) thay vì cookie để giảm rủi ro lộ
+claim nhạy cảm và để có thể vô hiệu hoá tức thì khi logout. Frontend
+không tự quyết định phân quyền nghiệp vụ; mọi quyết định authorize
+chuyển về \texttt{core-api} qua JWT.
 
-\subsection{Core API}
+\subsection{\texttt{core-api} (NestJS)}
 
-\texttt{core-api} được hiện thực bằng NestJS, đóng vai trò trung tâm nghiệp vụ
-cho metadata, phân quyền, review/publish, quản lý trạng thái xử lý và điều
-phối job bất đồng bộ. Mọi request có tác động đến dữ liệu nghiệp vụ đều đi qua
-\texttt{core-api}; các worker và service AI chỉ xử lý tác vụ chuyên biệt theo
-command/event đã được cấp quyền.
+\texttt{core-api} hiện thực bằng NestJS 10 với Fastify adapter để
+giảm overhead so với Express, đóng vai trò trung tâm nghiệp vụ:
 
-\subsection{AI Services và Workers}
+\begin{itemize}
+    \item Quản lý metadata: \texttt{documents}, \texttt{videos},
+          \texttt{lesson\_cards}, \texttt{quiz\_items}, \texttt{courses}.
+    \item Phân quyền: kiểm tra role \texttt{Instructor}/\texttt{Learner}
+          theo course context trích từ JWT.
+    \item Review/Publish: state machine của card/quiz, ghi audit log.
+    \item Điều phối job: publish event vào BullMQ (gọi qua HTTP
+          \texttt{BullMQ Pro} hoặc trực tiếp Redis client).
+    \item Chứa Outbox Poller daemon chạy in-process.
+\end{itemize}
 
-Các thành phần AI được hiện thực bằng Python và tổ chức theo Hexagonal
-Architecture. Các use case chính nằm ở application layer, được gọi từ HTTP/gRPC
-delivery hoặc worker runner.
+Module structure (NestJS): mỗi bounded context một module
+(\texttt{CourseModule}, \texttt{DocumentModule}, \texttt{ContentModule},
+\texttt{ReviewModule}, \texttt{AnalyticsModule}, \texttt{OutboxModule}),
+mỗi module có
+\texttt{*.controller.ts}/\texttt{*.service.ts}/\texttt{*.repository.ts}/\texttt{*.dto.ts}.
+
+ORM: Prisma cho query và migration; lý do chọn Prisma thay vì TypeORM:
+generated type-safe client, schema khai báo single source, có CLI
+migrate tốt cho team.
+
+\subsection{\texttt{chat-service} (FastAPI)}
+
+\texttt{chat-service} hiện thực bằng FastAPI 0.110+ với Uvicorn (2
+worker process, không dùng Gunicorn để giữ async event loop). Hai
+endpoint chính:
+
+\begin{itemize}
+    \item \texttt{POST /chat/ticket}: cấp Single-Use Ticket cho client
+          mở SSE. Verify JWT BFF-to-Core, sinh ticket UUID lưu Redis
+          TTL 60s.
+    \item \texttt{GET /chat/stream?ticket=...\&q=...}: kiểm tra ticket,
+          consume ticket (chỉ dùng được 1 lần), thực thi RAG, stream
+          token qua \texttt{StreamingResponse} với MIME
+          \texttt{text/event-stream}.
+\end{itemize}
+
+Internal pipeline trong \texttt{stream}:
+
+\begin{enumerate}
+    \item Sinh dense+sparse embedding bằng BGE-M3.
+    \item Search Qdrant hybrid với filter cứng \texttt{course\_id}.
+    \item Reciprocal Rank Fusion.
+    \item Query Neo4j lấy LO context (graph-aware reranking).
+    \item Build prompt + gọi Gemini Pro streaming.
+    \item Yield từng token kèm citation marker.
+    \item Persist \texttt{chat\_messages} vào PostgreSQL sau khi
+          stream xong.
+\end{enumerate}
+
+\subsection{\texttt{document-worker}}
+
+\texttt{document-worker} hiện thực bằng Python 3.11 + BullMQ Python
+client (\texttt{bullmq-python}). Container có ba vai trò chính trong
+cùng tiến trình:
+
+\begin{itemize}
+    \item \textbf{Document processing consumer:} tải file từ MinIO,
+          parse (PyMuPDF cho text layer, Docling cho OCR), chunk theo
+          heading, embed bằng BGE-M3, upsert Qdrant.
+    \item \textbf{Graph sync consumer:} consume sự kiện Outbox từ
+          PostgreSQL (chuyển tiếp bởi \texttt{core-api}) để tạo node
+          và relationship trong Neo4j qua Cypher \texttt{MERGE}.
+    \item \textbf{Curriculum ingestion consumer:} consume
+          \texttt{CurriculumIngestionRequested}, dùng Gemini Flash
+          parse DCMH PDF thành Course/Chapter/LO/Assessment.
+\end{itemize}
+
+\texttt{BGE-M3} được load lazy ở lần job đầu tiên (giảm 10--15 giây
+startup nếu container restart liên tục) và giữ trong RAM cho mọi job
+sau. Mỗi job dùng Hexagonal use case
+\texttt{ProcessDocumentUseCase.execute(document\_id)} để cô lập logic
+khỏi framework BullMQ --- giúp test unit không cần spin up Redis.
+
+\subsection{\texttt{enrichment-worker}}
+
+\texttt{enrichment-worker} consume sự kiện
+\texttt{ContentGenerationRequested} (type=card hoặc quiz), gom chunk
+theo heading cấp 2 hoặc theo LO, build prompt với JSON schema strict,
+gọi Gemini Pro/Flash, validate output, persist artifact ở status
+\texttt{GENERATED\_DRAFT}.
+
+Đặc tính I/O-bound: mỗi LLM call có thể tốn 5--30 giây. Worker được
+cấu hình \texttt{concurrency=10} (10 job đồng thời) thay vì 1 như các
+worker CPU-bound. Khi gặp HTTP 429 (rate limit) từ Gemini, BullMQ
+exponential backoff retry 3 lần ($1s \to 2s \to 4s$); sau đó chuyển
+sang fallback model (Gemini Flash thay vì Pro) và retry thêm 1 lần.
+
+\subsection{\texttt{video-worker} (Go)}
+
+\texttt{video-worker} hiện thực bằng Go 1.22+ thay vì Python để: (i)
+tránh GIL khi điều phối FFmpeg subprocess song song qua goroutine,
+(ii) build static binary nhỏ ($\approx$ 20MB) so với image Python
+($\approx$ 1GB), (iii) handle stream lớn ổn định hơn với
+\texttt{io.Pipe} của Go.
+
+Pipeline mỗi job:
+
+\begin{enumerate}
+    \item Download video từ MinIO qua presigned URL stream (không tải
+          hết vào RAM).
+    \item \texttt{ffmpeg -i input.mp4 -vn -acodec pcm\_s16le -ar 16000}
+          để extract audio mono 16kHz cho Whisper.
+    \item Gọi Whisper qua \texttt{whisper.cpp} binding (cho local) hoặc
+          HTTP API (cho fallback). Output là transcript có timestamp
+          từng word.
+    \item Detect segment boundary: silence $\geq 1.5s$ + topic shift
+          (cosine similarity giữa các đoạn embedding $< 0.7$).
+    \item Cắt clip 30--90 giây bằng \texttt{ffmpeg -ss ... -t ... -c
+          copy} (không re-encode).
+    \item Upload clip về MinIO, insert
+          \texttt{video\_segments}/\texttt{transcript\_segments} vào
+          PostgreSQL.
+    \item Publish \texttt{TranscriptReady} cho
+          \texttt{document-worker} embed.
+\end{enumerate}
+
+Vì thời gian xử lý 1 video 60' có thể vượt 30 phút --- ngưỡng stalled
+job mặc định của BullMQ --- worker gọi \texttt{job.updateProgress()}
+mỗi 10 giây để xác nhận tiến độ.
+
+\section{Hiện thực Adapter của Hexagonal Port}
+\label{sec:adapter-impl}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.95\textwidth]{diagrams/grpc_service_design.png}
-    \caption{Hiện thực gRPC service và các use case tương ứng.}
+    \caption{Quan hệ giữa các Port (\textit{abstract}) và Adapter
+        (\textit{concrete}) trong stack.}
     \label{fig:grpc-implementation-lvtn}
 \end{figure}
 
-Các nhóm API/use case chính:
-\begin{itemize}
-    \item \textbf{Document:} enqueue, process, delete, get status.
-    \item \textbf{Search:} search chunks, search by learning outcome.
-    \item \textbf{Generated content:} get cards, get quiz, generate curriculum
-          quiz.
-    \item \textbf{Curriculum:} ingest curriculum, list LO/chapter/assessment.
-    \item \textbf{Chat/RAG:} tạo context token, retrieval, streaming response
-          có citation.
-    \item \textbf{Video:} xử lý transcript, segment và tìm video minh họa.
-\end{itemize}
+Bảy Port chính ở tầng Domain được hiện thực qua các Adapter có thể
+chọn theo môi trường (xem ma trận provider ở
+mục~\ref{tab:provider-matrix}). Adapter store
+(\texttt{IMetadataStore}, \texttt{IVectorStore}, \texttt{IGraphStore},
+\texttt{IObjectStorage}) gắn cứng với hạ tầng đã chốt; còn adapter
+provider (\texttt{ILLMClient}, \texttt{IEmbeddingModel},
+\texttt{ISpeechToText}) hỗ trợ nhiều backend để dev không cần GPU vẫn
+chạy đủ pipeline. Tất cả adapter đều được wire vào Use Case qua
+Dependency Injection ở bootstrap, không thay đổi tại runtime.
 
-Dependency injection container khởi tạo adapter theo cấu hình môi trường. Khi
-thiếu một dịch vụ hạ tầng trong môi trường test, hệ thống có thể dùng adapter
-noop hoặc mock để kiểm thử use case.
+\begin{longtable}{|p{3.3cm}|p{4cm}|p{6.2cm}|}
+\caption{Bảy Port chính và thư viện adapter tương ứng.}
+\label{tab:adapter-overview} \\
+\hline
+\textbf{Port} & \textbf{Adapter chính} & \textbf{Ghi chú hiện thực} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Port} & \textbf{Adapter chính} & \textbf{Ghi chú hiện thực} \\
+\hline
+\endhead
 
-\subsection{Internal API Gateway}
+\texttt{IMetadataStore}
+    & Prisma (TS) / SQLAlchemy 2.0 async (Python)
+    & Pool 20 cho core-api, 10 cho mỗi worker. \\
+\hline
+\texttt{IVectorStore}
+    & \texttt{qdrant-client} 1.10+
+    & Hybrid \texttt{query\_points} với \texttt{prefetch} dense+sparse
+      và \texttt{FusionQuery("rrf")}; filter cứng \texttt{course\_id}. \\
+\hline
+\texttt{IGraphStore}
+    & Neo4j Python driver 5.x
+    & Tách Read/Write session; mọi mutation dùng
+      Cypher \texttt{MERGE} để đảm bảo lũy đẳng. \\
+\hline
+\texttt{IObjectStorage}
+    & \texttt{minio-py} / \texttt{minio-go}
+    & Presigned URL upload + stream download cho worker. \\
+\hline
+\texttt{ILLMClient}
+    & \texttt{google-genai} / \texttt{openai}
+    & Switch qua \texttt{LLM\_PROVIDER}; JSON schema strict map sang
+      \texttt{response\_schema} (Gemini) hoặc
+      \texttt{response\_format} (OpenAI). \\
+\hline
+\texttt{IEmbeddingModel}
+    & \texttt{FlagEmbedding} (BGE-M3 local) / OpenAI
+      \texttt{text-embedding-3-large}
+    & Switch qua \texttt{EMBEDDING\_PROVIDER}; OpenAI chỉ có dense
+      nên RRF lùi về dense-only ở dev. \\
+\hline
+\texttt{ISpeechToText}
+    & \texttt{whisper.cpp} (local) / OpenAI Whisper API /
+      AssemblyAI
+    & Switch qua \texttt{STT\_PROVIDER}; local cần GPU 4--8GB VRAM. \\
+\hline
+\end{longtable}
 
-API Gateway trong \texttt{web-bff} đóng vai trò cầu nối giữa UI, LTI session,
-\texttt{core-api} và các service AI. Thành phần này kiểm tra session, chuyển
-đổi request từ giao diện sang contract backend và mapping lỗi kỹ thuật thành
-thông báo dễ hiểu cho người dùng. Với các endpoint cần streaming hoặc xử lý
-lâu, gateway chỉ khởi tạo job và trả về trạng thái để frontend polling hoặc
-subscribe tiến trình.
+\section{Hạ tầng bất đồng bộ và Outbox}
+\label{sec:async-impl}
 
-\section{Hiện thực luồng xử lý bất đồng bộ}
+\subsection{BullMQ queue layout}
 
-\subsection{Workers}
+Bốn queue chính trong Redis:
 
-Các worker giúp tách tác vụ nặng khỏi request/response trực tiếp:
-\begin{itemize}
-    \item \textbf{Document worker:} nhận job tài liệu, parse, chunk, embed và
-          lưu metadata.
-    \item \textbf{Enrichment worker:} sinh card/quiz bằng LLM và validate kết
-          quả.
-    \item \textbf{Video worker:} extract audio, speech-to-text, segment video
-          và lưu transcript/clip metadata.
-    \item \textbf{Outbox worker:} đọc sự kiện hoặc bảng outbox từ PostgreSQL
-          để đồng bộ sang Neo4j.
-\end{itemize}
+\begin{longtable}{|p{4cm}|p{2.5cm}|p{7cm}|}
+\caption{Bốn queue BullMQ chính.}
+\label{tab:bullmq-queues} \\
+\hline
+\textbf{Queue} & \textbf{Consumer} & \textbf{Loại job} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Queue} & \textbf{Consumer} & \textbf{Loại job} \\
+\hline
+\endhead
 
-Mô hình worker giúp frontend phản hồi nhanh sau khi upload, còn xử lý tài liệu
-diễn ra bất đồng bộ. Khi lỗi tạm thời xảy ra, job có thể retry mà không yêu
-cầu người dùng upload lại file.
+\texttt{document-processing-q} & \texttt{document-worker}
+    & Parse + chunk + embed PDF; reindex; graph sync. \\
+\hline
+\texttt{video-processing-q} & \texttt{video-worker}
+    & Extract audio + Whisper + segment + clip. \\
+\hline
+\texttt{content-enrichment-q} & \texttt{enrichment-worker}
+    & Sinh card; sinh quiz; curriculum extract. \\
+\hline
+\texttt{outbox-relay-q} & \texttt{document-worker} (graph) hoặc
+    \texttt{core-api} fanout
+    & Relay outbox events sang Neo4j hoặc downstream service. \\
+\hline
+\end{longtable}
 
-\subsection{Queue}
+\subsection{Outbox poller daemon}
 
-Queue lưu các job xử lý tài liệu, embedding và generation. Mỗi job cần có
-document ID, course context, số lần retry, trạng thái hiện tại và thông tin lỗi
-cuối cùng. Worker cập nhật trạng thái để frontend hiển thị tiến trình cho
-giảng viên.
+Outbox Poller chạy in-process trong \texttt{core-api} (NestJS module
+\texttt{OutboxModule}) với cron \texttt{*/5 * * * * *} (mỗi 5 giây):
 
-\subsection{Embedding Jobs}
-
-Embedding job nhận danh sách chunk đã được parse/chunk thành công. Worker gọi
-embedding provider, chuẩn hóa vector và upsert vào Qdrant cùng metadata. Nếu
-Qdrant hoặc provider tạm thời lỗi, job được retry có giới hạn; nếu hết retry,
-document chuyển sang trạng thái lỗi để người dùng có thể xử lý lại.
-
-\subsection{Quiz Generation Jobs}
-
-Quiz generation job nhận context chunk, Learning Outcome, Bloom level và cấu
-hình số lượng câu hỏi. Worker gọi LLM, validate structured output, lưu quiz
-item, options, correct answer, explanation và source chunk. Kết quả được lưu ở
-trạng thái draft để giảng viên review trước khi publish.
-
-\section{Tích hợp LMS}
-
-\subsection{Canvas LMS}
-
-Canvas LMS là nền tảng tích hợp chính của hệ thống. Hệ thống được đăng ký
-trong Canvas dưới dạng một External Tool thông qua LTI 1.3. Khi học viên hoặc
-giảng viên mở activity trong khóa học Canvas, Canvas khởi tạo OIDC login/LTI
-launch request đến frontend. Frontend xác thực JWT launch, ánh xạ người dùng
-Canvas sang người dùng nội bộ, tạo session và điều hướng đến màn hình học hoặc
-quản lý tương ứng với vai trò.
-
-Việc chọn Canvas giúp hệ thống tận dụng sẵn course, enrollment, role và
-gradebook của LMS mà không phải tự xây dựng các thành phần này. Đồng thời,
-Canvas hỗ trợ LTI Advantage nên các luồng như Deep Linking và Assignment and
-Grade Services có thể được bổ sung mà không cần chỉnh sửa mã nguồn Canvas.
-
-\subsection{LTI Configuration}
-
-Các thông tin cấu hình LTI gồm issuer, client ID, deployment ID, platform
-JWKS/keyset URL, tool redirect URI và public/private key của tool. Các endpoint
-xử lý LTI phải kiểm tra issuer, audience/client ID, deployment ID, nonce và
-chữ ký JWT. Session cần có TTL hợp lý và không nên lưu claim không cần thiết ở
-client.
-
-\section{Đóng gói và triển khai}
-
-\subsection{Docker Compose}
-
-Docker Compose được dùng để triển khai local/staging. Các service chính gồm
-frontend, backend gRPC, worker, PostgreSQL, Redis, MinIO, Qdrant và Neo4j.
-Compose giúp tái lập môi trường demo nhanh, phù hợp với luận văn và quá trình
-phát triển cá nhân.
-
-\begin{lstlisting}[language=bash, caption={Ví dụ chạy stack triển khai local}]
-docker compose up -d --build
-\end{lstlisting}
-
-\subsection{Deployment Architecture}
-
-Kịch bản demo end-to-end dự kiến:
 \begin{enumerate}
-    \item Giảng viên đăng nhập Canvas và mở công cụ AI từ khóa học qua LTI.
-    \item Giảng viên upload một tài liệu môn học.
-    \item Hệ thống hiển thị trạng thái xử lý.
-    \item Worker parse, chunk, embed và sinh card/quiz.
-    \item Giảng viên review, sửa một số card/quiz và publish.
-    \item Học viên mở bài học từ Canvas, xem card và làm quiz.
-    \item Hệ thống lưu kết quả, hiển thị phản hồi và có thể đẩy điểm về
-          Canvas gradebook qua LTI AGS.
+    \item Query \texttt{outbox\_events WHERE status='PENDING' ORDER BY
+          occurred\_at LIMIT 100 FOR UPDATE SKIP LOCKED}.
+    \item Mỗi event được chuyển thành BullMQ job với
+          \texttt{jobId = outbox\_id} (idempotent).
+    \item Khi BullMQ \texttt{add()} thành công, update
+          \texttt{status='PROCESSED'}, ghi
+          \texttt{processed\_at}.
+    \item Nếu \texttt{add()} fail, để \texttt{status='PENDING'}, tăng
+          \texttt{retry\_count}, sau 5 lần chuyển
+          \texttt{status='FAILED'} và ghi \texttt{last\_error}.
 \end{enumerate}
 
-Các thông tin nhạy cảm như LLM API key, database password, JWT/LTI secret và
-private key phải được cấu hình qua biến môi trường hoặc secret manager. Trong
-môi trường demo, có thể dùng file env cục bộ nhưng không commit giá trị thật
-lên repository.
+\subsection{Retry policy và Dead Letter Queue}
 
-\subsection{Định hướng Kubernetes}
+BullMQ cấu hình mỗi queue:
 
-Kubernetes chưa được trình bày như triển khai production hoàn chỉnh. Hướng
-chuyển đổi từ Docker Compose sang K8s gồm:
 \begin{itemize}
-    \item Mỗi service thành một Deployment hoặc StatefulSet phù hợp.
-    \item PostgreSQL, Qdrant, Neo4j cần persistent volume.
-    \item Secret quản lý LLM API key, LTI keypair và database password.
-    \item Worker scale độc lập theo số lượng job.
-    \item Ingress expose frontend và gRPC gateway nếu cần.
+    \item \texttt{attempts=3}, \texttt{backoff={type:'exponential',
+          delay:1000}} $\to$ retry sau 1s, 2s, 4s.
+    \item Sau khi vượt \texttt{attempts}, job chuyển sang
+          \texttt{failed} list của BullMQ. Có một queue dashboard
+          (\texttt{bull-board} hoặc Arena) để engineer requeue thủ
+          công.
+    \item Job lỗi do file corrupt được tag
+          \texttt{discardOnError=true} để không retry phí token LLM.
 \end{itemize}
 
-Phần này là định hướng triển khai, cần bổ sung manifest và kiểm thử vận hành
-nếu luận văn yêu cầu production-grade deployment.
+\subsection{Idempotency cho consumer}
+
+\begin{itemize}
+    \item Chunk dùng UUIDv7 làm khoá chính; \texttt{INSERT ... ON
+          CONFLICT (chunk\_id) DO UPDATE} để upsert.
+    \item Qdrant upsert theo \texttt{chunk\_id} $\to$ tự lũy đẳng.
+    \item Neo4j dùng \texttt{MERGE} thay vì \texttt{CREATE}.
+    \item BullMQ \texttt{jobId} ràng buộc duy nhất theo
+          \texttt{outbox\_id} $\to$ cùng một event không được enqueue 2
+          lần.
+\end{itemize}
+
+\section{Tích hợp Canvas LMS qua LTI 1.3}
+\label{sec:lti-impl}
+
+\subsection{Cấu hình Developer Key trên Canvas}
+
+Quy trình đăng ký Tool vào Canvas (Cloud sandbox cho dev/pilot):
+
+\begin{enumerate}
+    \item Tạo Developer Key dạng \textit{LTI Key} trong Canvas Admin.
+    \item Cấu hình \texttt{Target Link URI} =
+          \texttt{https://lvtn-ai.example/lti/launch},
+          \texttt{OIDC Initiation URL} =
+          \texttt{https://lvtn-ai.example/lti/login},
+          \texttt{JWKS URL} = \texttt{https://lvtn-ai.example/.well-known/jwks.json}.
+    \item Bật scope: \texttt{lineitem.readonly}, \texttt{lineitem},
+          \texttt{score} (cho AGS), \texttt{result.readonly},
+          \texttt{names\_and\_roles} (cho NRPS).
+    \item Lấy \texttt{Client ID} và \texttt{Deployment ID} $\to$ lưu vào
+          env của \texttt{web-bff}.
+\end{enumerate}
+
+\subsection{Endpoint OIDC login và launch}
+
+Cấu trúc handler trong \texttt{web-bff}:
+
+\begin{itemize}
+    \item \texttt{/lti/login}: nhận \texttt{iss}, \texttt{login\_hint},
+          \texttt{client\_id}, \texttt{target\_link\_uri}; sinh
+          \texttt{state} và \texttt{nonce} cryptographic random; lưu
+          Redis TTL 5 phút; redirect 302 đến
+          \texttt{{iss}/api/lti/authorize\_redirect}.
+    \item \texttt{/lti/launch}: nhận form POST có
+          \texttt{id\_token} (JWT) và \texttt{state}; verify state
+          khớp Redis, verify nonce chưa dùng, verify JWT signature qua
+          Canvas JWKS (cache 24h), verify \texttt{aud}, \texttt{exp},
+          \texttt{iss}; trích \texttt{sub} (LMS user ID),
+          \texttt{context.id} (course ID), \texttt{roles}; upsert
+          \texttt{lms\_user\_mappings} qua \texttt{core-api}; set
+          cookie session.
+\end{itemize}
+
+\subsection{BFF-to-Core JWT signing}
+
+\texttt{web-bff} có một cặp khóa Ed25519 sinh ở bootstrap. Mỗi request
+proxy sang \texttt{core-api} hoặc \texttt{chat-service} mang JWT mới
+TTL 60s với claim:
+
+\begin{itemize}
+    \item \texttt{sub}: internal user ID (UUID).
+    \item \texttt{course\_id}: course đang launch.
+    \item \texttt{roles}: \texttt{Instructor}/\texttt{Learner}.
+    \item \texttt{jti}: random UUID chống replay.
+    \item \texttt{exp}, \texttt{iat}.
+\end{itemize}
+
+\texttt{core-api} và \texttt{chat-service} verify JWT qua public key
+của BFF (load từ ConfigMap hoặc env). Public key có thể rotate khi
+cần.
+
+\subsection{Assignment and Grade Services (AGS)}
+
+Khi học viên submit quiz xong, \texttt{core-api} chấm điểm và gọi AGS
+passback:
+
+\begin{enumerate}
+    \item Xin OAuth 2.0 access token từ Canvas (\texttt{client\_credentials}
+          grant với private key JWT assertion).
+    \item POST đến \texttt{lineitems/{id}/scores} với payload
+          \texttt{{userId, scoreGiven, scoreMaximum, activityProgress,
+          gradingProgress}}.
+    \item Cache token TTL 50 phút (token Canvas TTL 1 giờ).
+\end{enumerate}
+
+\subsection{Deep Linking (cho instructor placement)}
+
+Giảng viên có thể chọn lesson cụ thể để gắn vào activity Canvas qua
+Deep Linking 2.0:
+
+\begin{itemize}
+    \item Canvas redirect đến \texttt{/lti/deep-link-select} với
+          \texttt{deep\_link\_return\_url}.
+    \item Giảng viên chọn lesson từ UI, BFF sinh
+          \texttt{LtiResourceLinkRequest} JWT và POST về
+          \texttt{deep\_link\_return\_url}.
+    \item Canvas tạo activity với \texttt{custom.lesson\_id} được
+          embed trong launch context tiếp theo.
+\end{itemize}
+
+\section{Đóng gói Docker Compose}
+\label{sec:docker-compose}
+
+\subsection{Tổ chức compose file}
+
+Stack được cấu hình qua 1 base file + 2 override:
+\texttt{docker-compose.yml} (pilot base), \texttt{docker-compose.dev.yml}
+(mount source code, expose port DB ra host) và
+\texttt{docker-compose.gpu.yml} (bật GPU cho \texttt{video-worker} và
+\texttt{document-worker}). Lệnh chạy theo từng cấu hình:
+
+\begin{lstlisting}[language=bash, caption={Chạy stack theo cấu hình.}]
+# Pilot without GPU
+docker compose -f infra/docker-compose.yml up -d --build
+
+# Pilot with GPU (gpu overlay file)
+docker compose -f infra/docker-compose.yml \
+  -f infra/docker-compose.gpu.yml up -d --build
+
+# Dev hot-reload (overlay file dev)
+docker compose -f infra/docker-compose.yml \
+  -f infra/docker-compose.dev.yml up
+\end{lstlisting}
+
+\subsection{Network và volume}
+
+\textbf{Network:}
+\begin{itemize}
+    \item \texttt{ai\_internal} (bridge): kết nối nội bộ tất cả
+          service. Không expose ra host trong pilot.
+    \item \texttt{public} (bridge): chỉ \texttt{caddy} bind cổng 80
+          và 443 vào host network.
+\end{itemize}
+
+\textbf{Volume:}
+\begin{itemize}
+    \item \texttt{pgdata}: PostgreSQL data; backup hàng ngày qua
+          \texttt{pg\_dump} cron.
+    \item \texttt{minio-data}: object storage.
+    \item \texttt{qdrant-storage}: vector data.
+    \item \texttt{neo4j-data}: graph data.
+    \item \texttt{redis-data}: AOF persistence.
+    \item \texttt{models} (bind mount \texttt{./models} read-only):
+          chứa BGE-M3 và Whisper model, share cho \texttt{document-worker}
+          và \texttt{video-worker}; tránh tải lại khi rebuild image.
+    \item \texttt{caddy-data}, \texttt{caddy-config}: chứng chỉ Let's
+          Encrypt.
+\end{itemize}
+
+\subsection{Resource limits cho container}
+
+Mỗi service khai báo \texttt{deploy.resources.limits} theo
+Bảng~\ref{tab:ram-allocation}. Ví dụ snippet cho \texttt{document-worker}:
+
+\begin{lstlisting}[caption={Resource limit cho \texttt{document-worker}.}]
+document-worker:
+  image: lvtn-ai/document-worker:${TAG}
+  deploy:
+    resources:
+      limits:
+        cpus: '2.0'
+        memory: 4G
+      reservations:
+        memory: 3G
+        devices:
+          - capabilities: [gpu]
+            count: 1
+            driver: nvidia
+  environment:
+    - EMBEDDING_PROVIDER=bge-m3-local
+    - LLM_PROVIDER=gemini
+\end{lstlisting}
+
+\subsection{Healthcheck và restart policy}
+
+Mọi service có healthcheck:
+
+\begin{itemize}
+    \item HTTP service (\texttt{web-bff}, \texttt{core-api},
+          \texttt{chat-service}): \texttt{GET /health} mỗi 30s.
+    \item Worker: gọi \texttt{redis-cli PING} hoặc tự expose port
+          metrics Prometheus với endpoint \texttt{/healthz}.
+    \item Database: dùng built-in healthcheck của image
+          (\texttt{pg\_isready}, \texttt{redis-cli ping},
+          \texttt{curl} qua Qdrant \texttt{/healthz}).
+\end{itemize}
+
+\texttt{restart: unless-stopped} cho mọi service trừ container
+one-shot (migration runner).
+
+\section{CI/CD và môi trường cấu hình}
+\label{sec:cicd-impl}
+
+\subsection{GitHub Actions workflow}
+
+Pipeline CI/CD chia bốn job song song khi có thể:
+
+\begin{enumerate}
+    \item \textbf{Lint + type check}: \texttt{ruff} + \texttt{mypy}
+          (Python), \texttt{eslint} + \texttt{tsc} (TS),
+          \texttt{golangci-lint} (Go).
+    \item \textbf{Unit test}: \texttt{pytest} (Python),
+          \texttt{vitest} hoặc \texttt{jest} (TS),
+          \texttt{go test} (Go).
+    \item \textbf{Integration test}: docker compose lên testcontainers
+          (Postgres + Redis + Qdrant + MinIO) và chạy integration test
+          gọi RPC/HTTP thật giữa service.
+    \item \textbf{Build + push image}: build Docker image cho mỗi
+          runtime với tag \texttt{$\{$ commit SHA $\}$}, push lên GHCR.
+\end{enumerate}
+
+Deploy staging tự động khi merge vào \texttt{main}; deploy production
+sau approve thủ công.
+
+\subsection{Quản lý secret và biến môi trường}
+
+\begin{itemize}
+    \item \textbf{Dev:} \texttt{.env.local} (gitignore), chứa LLM API
+          key dev tier.
+    \item \textbf{CI:} GitHub Actions Secrets, inject vào job qua
+          \texttt{secrets.*}.
+    \item \textbf{Pilot:} file \texttt{.env} trên host VPS với mode
+          \texttt{600}, không commit. Có thể chuyển sang
+          \texttt{docker secret} hoặc HashiCorp Vault khi production.
+\end{itemize}
+
+Bảng~\ref{tab:env-vars} gom các biến môi trường chính thành 5 nhóm
+chức năng:
+
+\begin{longtable}{|p{3cm}|p{10.5cm}|}
+\caption{Biến môi trường chính gom theo nhóm.}
+\label{tab:env-vars} \\
+\hline
+\textbf{Nhóm} & \textbf{Biến và mô tả} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Nhóm} & \textbf{Biến và mô tả} \\
+\hline
+\endhead
+
+Data store
+    & \texttt{POSTGRES\_URL}, \texttt{REDIS\_URL}, \texttt{QDRANT\_URL},
+      \texttt{NEO4J\_URI/USER/PASSWORD},
+      \texttt{MINIO\_ENDPOINT/ACCESS\_KEY/SECRET\_KEY}. \\
+\hline
+Provider switching
+    & \texttt{LLM\_PROVIDER} (\texttt{gemini}/\texttt{openai}),
+      \texttt{EMBEDDING\_PROVIDER}
+      (\texttt{bge-m3-local}/\texttt{openai}),
+      \texttt{STT\_PROVIDER}
+      (\texttt{whisper-local}/\texttt{openai}/\texttt{assemblyai}),
+      \texttt{GEMINI\_API\_KEY}, \texttt{OPENAI\_API\_KEY}. \\
+\hline
+LTI / Canvas
+    & \texttt{LTI\_CLIENT\_ID}, \texttt{LTI\_DEPLOYMENT\_ID},
+      \texttt{LTI\_ISSUER}, \texttt{LTI\_JWKS\_URL}. \\
+\hline
+Internal JWT
+    & \texttt{BFF\_JWT\_PRIVATE\_KEY}, \texttt{BFF\_JWT\_PUBLIC\_KEY}
+      (Ed25519 keypair cho BFF-to-Core JWT). \\
+\hline
+Observability
+    & \texttt{OTEL\_EXPORTER\_OTLP\_ENDPOINT}, \texttt{SENTRY\_DSN}. \\
+\hline
+\end{longtable}
+
+\subsection{Provider switching theo môi trường}
+
+Bảng~\ref{tab:provider-matrix} mô tả cấu hình provider mặc định theo
+tầng môi trường --- cho phép dev không cần GPU vẫn chạy được full
+pipeline.
+
+\begin{longtable}{|p{2.5cm}|p{3.5cm}|p{3.5cm}|p{3.5cm}|}
+\caption{Provider mặc định theo tầng.}
+\label{tab:provider-matrix} \\
+\hline
+\textbf{Tầng} & \textbf{Embedding} & \textbf{STT} & \textbf{LLM} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Tầng} & \textbf{Embedding} & \textbf{STT} & \textbf{LLM} \\
+\hline
+\endhead
+
+\texttt{dev} & OpenAI text-embedding-3 & OpenAI Whisper API &
+    Gemini Flash \\
+\hline
+\texttt{ci} & Mock & Mock & Mock \\
+\hline
+\texttt{pilot} (no GPU) & OpenAI text-embedding-3 & OpenAI Whisper API
+    & Gemini Pro \\
+\hline
+\texttt{pilot} (có GPU) & BGE-M3 local & Whisper local &
+    Gemini Pro \\
+\hline
+Production & BGE-M3 local & Whisper local + AssemblyAI fallback
+    & Gemini Pro + OpenAI fallback \\
+\hline
+\end{longtable}
+
+\section{Tổng kết chương}
+
+Chương này đã trình bày các quyết định hiện thực cụ thể:
+
+\begin{itemize}
+    \item \textbf{Môi trường mục tiêu:} Ubuntu Server 22.04 LTS cho
+          pilot; dev hỗ trợ macOS/Windows WSL2/Linux. Yêu cầu RAM
+          pilot tối thiểu 16GB (không GPU) đến 32GB (có GPU); tổng
+          phân bổ container khoảng 20GB.
+    \item \textbf{Cấu trúc mã nguồn:} monorepo pnpm + Poetry workspace
+          với 6 app runtime và shared packages; mỗi worker Python theo
+          layout Hexagonal nghiêm ngặt.
+    \item \textbf{6 runtime:} \texttt{web-bff} (Next.js),
+          \texttt{core-api} (NestJS), \texttt{chat-service} (FastAPI),
+          \texttt{document-worker} và \texttt{enrichment-worker}
+          (Python), \texttt{video-worker} (Go).
+    \item \textbf{Adapter switchable theo env:} embedding
+          (BGE-M3/OpenAI), STT (Whisper local/OpenAI/AssemblyAI), LLM
+          (Gemini/OpenAI) --- cho phép chạy dev không cần GPU.
+    \item \textbf{Outbox poller + BullMQ} đảm bảo eventual consistency
+          giữa PostgreSQL, Qdrant, Neo4j và downstream worker.
+    \item \textbf{Tích hợp Canvas LMS} qua LTI 1.3 OIDC, AGS grade
+          passback và Deep Linking; BFF-to-Core JWT Ed25519 cô lập
+          phiên Canvas khỏi service backend.
+    \item \textbf{Docker Compose} với 3 file (base + dev override +
+          gpu override) là cách đóng gói chính; Kubernetes là định
+          hướng tương lai sau bảo vệ.
+    \item \textbf{CI/CD:} GitHub Actions với 4 job song song (lint,
+          test, integration, build); secret quản lý qua env file mode
+          600 hoặc GitHub Actions Secrets.
+\end{itemize}
+
+Chương 6 tiếp theo trình bày phương pháp và kết quả đánh giá hệ thống
+dựa trên dữ liệu pilot thu thập theo kế hoạch ở
+mục~\ref{sec:plan-gd2} trong Chương~\ref{chap:ket-luan-huong-phat-trien}.

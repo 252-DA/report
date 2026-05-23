@@ -1,0 +1,497 @@
+% !TeX root = ../main.tex
+\chapter{Topic Overview}
+
+\section{Research Context and Motivation}
+
+\subsection{Limitations of Traditional E-learning}
+
+In recent years, online Learning Management Systems (LMS) have become a
+familiar infrastructure for higher education and online training. These
+platforms help instructors organize courses, distribute materials, assign
+homework, create quizzes, and monitor learner progress. As a result, teaching
+and learning are no longer completely limited by the traditional classroom
+space, while learning resources can be stored, updated, and accessed more
+flexibly.
+
+However, most current E-learning models still emphasize document distribution
+more than knowledge restructuring. In many technical courses, learning
+materials are uploaded to the LMS as PDF textbooks, lecture slides, reference
+documents, or recorded videos. Learners must read long materials, identify key
+sections, and self-check their understanding by themselves. The LMS may provide
+quizzes or assignments, but these items are usually created manually by
+instructors and rarely change with each document version.
+
+This approach leads to several limitations. First, long learning materials
+cause cognitive overload, especially for learners who need quick review or
+study by small knowledge units. Second, learning feedback is often slow because
+learners must wait for grading results or compare answers manually. Third,
+learning content, assessment questions, and course learning outcomes are not
+always tightly connected. Fourth, when materials change, instructors must
+manually update short lessons, questions, and answers, which increases the
+maintenance cost of a course.
+
+\subsection{Difficulties in Creating Digital Learning Materials}
+
+Creating high-quality digital learning materials is not simply converting
+paper documents or slides into electronic files. Instructors need to understand
+the source material, select key ideas, divide content into smaller units,
+rewrite it in language suitable for learners, create assessment questions,
+construct answers, and provide explanations. For courses with many chapters or
+frequently updated materials, this process is time-consuming and difficult to
+keep consistent.
+
+The difficulty also comes from heterogeneous input data. Academic materials may
+appear as PDF, DOCX, PPTX, tables, images, or lecture videos. Some documents
+have clear heading structures, while others are long text blocks or scanned
+files that require OCR. Lecture videos require additional steps such as audio
+extraction, speech recognition, time-based segmentation, and linking
+transcripts with learning content. Without a suitable processing pipeline, it
+is difficult for the system to produce concise content with clear and
+verifiable sources.
+
+In addition, digital learning materials in higher education should be connected
+to the course syllabus, Learning Outcomes (LOs), Bloom taxonomy levels, and
+assessment activities. A good quiz question must not only be correct in terms
+of content, but also measure the competence expected by the course. This is a
+point that simple automatic content-generation tools usually do not address
+adequately.
+
+\subsection{The Need for Micro-learning in Modern Education}
+
+Micro-learning organizes learning content into small units, each focusing on a
+specific idea or skill. Each unit may be presented as a lesson card,
+flashcard, short explanation, multiple-choice question, or short exercise. This
+characteristic fits modern learning habits: learners need quick access,
+section-by-section review, repeated study of weak areas, and immediate
+feedback.
+
+In higher education, Micro-learning does not replace complete textbooks or
+lectures. Instead, it acts as a support layer that helps learners approach
+knowledge through smaller steps. When designed well, Micro-learning reduces
+the feeling of overload when reading long materials, increases the frequency
+of self-assessment, and supports review before exams or major assignments.
+
+Nevertheless, Micro-learning is valuable only when short content still
+preserves academic context. If materials are merely split by word count, the
+system may lose relationships among concepts, examples, formulas, and learning
+objectives. Therefore, this thesis treats Micro-learning as a knowledge
+processing problem: chunking, semantic retrieval, learning outcomes, and
+instructor review must be combined to create small but accurate and
+pedagogically meaningful learning units.
+
+\subsection{The Development of Generative AI in EdTech}
+
+The development of Large Language Models (LLMs) and Generative AI opens the
+possibility of partially automating the learning-material creation process.
+Generative AI can summarize content, explain concepts, generate multiple-choice
+questions, explain answers, and support conversational question answering for
+learners. In EdTech, these capabilities are especially useful because many
+learning activities revolve around text, questions, feedback, and explanation.
+
+However, applying Generative AI to education cannot simply mean sending an
+entire document to a model and accepting the generated output. LLMs may produce
+content that is not grounded in the source, explain concepts incorrectly,
+create ambiguous questions, or provide unsupported answers. The problem becomes
+clearer when the input material is long, contains many chapters, uses
+specialized terminology, or must satisfy constraints from course learning
+outcomes.
+
+Therefore, AI systems in education need a controlled architecture. Rather than
+treating the generative model as the only component, the system should combine
+document preprocessing, segmentation, embedding, semantic retrieval, source
+traceability, context-grounded generation, and human review. This is the
+motivation for adopting Retrieval-Augmented Generation (RAG), curriculum-aware
+GraphRAG, and Human-in-the-Loop Review.
+
+\subsection{Research Problem}
+
+From the contexts above, this thesis defines the research problem as follows:
+to build an AI system integrated with an LMS that can transform academic
+documents and lecture videos into Micro-content, quizzes, and an AI tutor using
+Generative AI, while ensuring that generated content is source-grounded,
+reviewable by instructors, and connectable to course learning outcomes.
+
+Within this thesis, Canvas LMS is selected as the experimental platform because
+it supports LTI 1.3/OIDC, Developer Keys, and External Tools. This choice fits
+the model in which Canvas acts as the learning platform and the thesis system
+acts as an AI extension tool. It allows the thesis to focus on practical
+integration without modifying Canvas source code or installing a custom Canvas
+plugin.
+
+The problem includes the following main questions:
+\begin{itemize}
+    \item How can heterogeneous academic documents and lecture videos be
+          processed into structured, metadata-rich, and retrievable knowledge
+          units?
+    \item How can Micro-content and quizzes be generated so that they stay
+          grounded in the source material and align with Learning Outcomes and
+          desired cognitive levels?
+    \item How can an AI Tutor Chatbot answer within the scope of course
+          materials, reduce unsupported answers, and support source citation?
+    \item How can the system be integrated as an extension tool for Canvas LMS
+          through LTI 1.3/OIDC instead of requiring changes to the LMS core?
+    \item How can the system be evaluated not only by functional correctness,
+          but also by retrieval quality, generated-content quality,
+          performance, and user experience?
+\end{itemize}
+
+\section{Project Objectives}
+
+\subsection{General Objective}
+
+The general objective of this thesis is to build and evaluate a Generative AI
+system integrated with Canvas LMS to automatically create Micro-content and
+quizzes from academic materials, support lecture-video processing, provide an
+AI Tutor Chatbot, and allow instructors to review content before publishing it
+to learners. The system is intended to serve as an AI extension layer for
+Canvas, where Canvas is the LTI platform and the DA/Next.js application is the
+LTI tool launched from a course or assignment.
+
+\subsection{Technical Objectives}
+
+Technically, the thesis targets the following objectives:
+\begin{enumerate}
+    \item Design a system architecture consisting of a frontend, gRPC backend,
+          asynchronous workers, relational database, vector database, graph
+          database, object storage, and task queue.
+    \item Build a document-processing pipeline that includes upload, content
+          extraction, text normalization, chunking, embedding, metadata
+          storage, and semantic retrieval.
+    \item Design a lecture-video processing pipeline at the level of transcript
+          extraction, time-based segmentation, and linking transcripts with
+          learning materials or generated content.
+    \item Build mechanisms to generate Micro-content, flashcards/lesson cards,
+          multiple-choice questions, answers, and explanations from retrieved
+          context.
+    \item Design a Curriculum-Aware Layer to represent Course, Chapter,
+          Learning Outcome, Assessment, and their relationships with content
+          chunks.
+    \item Integrate RAG and a GraphRAG direction to retrieve content by
+          semantics, chapter structure, and learning outcomes.
+    \item Integrate the system with Canvas LMS through LTI 1.3/OIDC, verify
+          launch requests, map Canvas users, and create secure learning
+          sessions.
+    \item Propose evaluation methods for functionality, integration, retrieval,
+          generated-content quality, performance, and user experience.
+\end{enumerate}
+
+\subsection{Product Objectives}
+
+From a product perspective, the system targets two main user groups:
+instructors and learners. For instructors, the system should provide workflows
+to upload materials, monitor processing status, view AI-generated content,
+edit, approve, and publish Micro-content/quizzes. For learners, the system
+should provide card-based learning, quiz-taking, answer explanations, and AI
+Tutor Q\&A within the scope of course content.
+
+The product must also satisfy practical deployment requirements. It operates as
+an External Tool for Canvas, registered through an LTI Developer Key, and can
+be attached to a course or assignment. This approach does not require
+installing plugins into Canvas or changing Canvas source code. Docker Compose
+packaging supports local or staging deployment and provides a foundation for
+future production deployment.
+
+\section{System Scope}
+
+\subsection{Academic Document Processing}
+
+The first scope of the system is processing academic documents as the knowledge
+source for Micro-learning. The prioritized formats include PDF, DOCX, PPTX,
+and course syllabi in text or reasonably structured PDF form. The document
+pipeline includes storing the raw file, extracting text, identifying basic
+structure, splitting content into chunks, creating embeddings, storing
+metadata, and creating retrieval indexes.
+
+Each chunk must retain source information such as document, page, heading,
+position, or related passage for traceability. This information is important
+because AI-generated content must be traceable back to the original document
+when instructors review it or learners need verification.
+
+Within the scope of this thesis, the system focuses on digital documents with
+readable quality. OCR for low-quality scanned documents is treated as a future
+extension rather than the main evaluation focus.
+
+\subsection{Lecture Video Processing}
+
+Besides text documents, the system is oriented toward supporting lecture videos
+as a common learning resource in LMS environments. Videos may contain
+instructor explanations, illustrative examples, or slide presentations that are
+not fully captured by text documents. Therefore, video processing expands the
+knowledge source for both Micro-content and the AI Tutor Chatbot.
+
+The video pipeline focuses on receiving video or audio input, extracting
+audio, applying speech-to-text to create transcripts, splitting transcripts by
+time markers, and linking these segments with lesson content. Once transcripts
+are available, the system can embed and retrieve them similarly to text
+documents while retaining timestamps so learners can return to the relevant
+video segment.
+
+In the current scope, the system does not aim to become a complete video
+editing tool. Features such as advanced subtitle editing, production-quality
+automatic clipping, or visual analysis inside videos are considered future
+development directions.
+
+\subsection{Micro-content and Quiz Generation}
+
+The central function of the system is generating Micro-content and quizzes from
+processed knowledge sources. Micro-content refers to short learning units that
+can be read quickly and focus on a concept, definition, process, example, or
+important relationship in the lesson. These units may be displayed as lesson
+cards or flashcards.
+
+Quizzes in the system focus on multiple-choice questions, correct answers,
+distractors, and explanations. When Learning Outcomes are available, questions
+should be linked to the corresponding LO and cognitive level. The goal is not
+only to generate many questions, but to generate questions that correctly test
+learning content and help learners understand why an answer is right or wrong.
+
+Generated content is not published directly to learners. Before publishing,
+instructors must be able to view, edit, remove, or approve it. This approach
+uses the speed of AI while keeping academic control with humans.
+
+\subsection{AI Tutor Chatbot}
+
+The AI Tutor Chatbot supports learners in asking questions during learning.
+Unlike a general chatbot, the system's AI Tutor is restricted to the course
+context, uploaded materials, video transcripts, and approved content. When it
+receives a question, the chatbot retrieves relevant chunks, produces an answer
+grounded in the sources, and prioritizes concise and understandable
+explanations.
+
+The role of the AI Tutor is to support learning, not replace the instructor.
+The chatbot can re-explain concepts, suggest topics to review, link to related
+cards or document passages, and support self-checking. For questions outside
+the scope of available materials, the system should avoid speculation and
+respond that there is insufficient source evidence.
+
+\subsection{Curriculum-aware Learning}
+
+Curriculum-aware Learning in this thesis refers to organizing and retrieving
+content based on the course structure. Instead of storing isolated text
+passages, the system represents entities such as Course, Chapter, Learning
+Outcome, Assessment, Document, Chunk, Card, and Quiz. Relationships among these
+entities help the system understand which LO a chunk supports, which objective
+a quiz assesses, and which chapter a card belongs to.
+
+The curriculum-aware layer has two main roles. First, it helps instructors
+control content coverage by chapter and learning outcome. Second, it helps AI
+generate content with clearer pedagogical constraints, such as generating
+questions for a specific LO or retrieving chunks related to a topic in a
+chapter. This layer also provides the foundation for future directions such as
+adaptive learning, recommendation, and advanced GraphRAG.
+
+\subsection{Human-in-the-loop Review}
+
+In education, quality and academic responsibility are mandatory requirements.
+Therefore, the system applies Human-in-the-Loop Review: AI creates drafts, and
+instructors decide which content is officially used. The review workflow should
+allow instructors to view content sources, inspect cards/quizzes, edit wording,
+change answers, remove unsuitable questions, and publish content after it
+meets requirements.
+
+Human-in-the-Loop is not only a final approval step but also a feedback
+mechanism for improving the pipeline. States such as draft, reviewed,
+published, or rejected help the system manage the content lifecycle and clearly
+distinguish automatically generated AI content from instructor-confirmed
+content.
+
+\section{System Direction and Design Philosophy}
+
+\subsection{AI Extension Layer for LMS}
+
+This thesis does not aim to build a new LMS to replace Canvas. Instead, the
+system is designed as an AI Extension Layer for Canvas LMS. Canvas continues to
+handle core functions such as course management, learner rosters,
+authorization, assignments, gradebook, and classroom context. The AI system
+acts as an external tool that provides document processing, Micro-content
+generation, quiz generation, and Q\&A support.
+
+This direction reduces deployment risk in real environments. An institution
+can keep Canvas as the main learning platform while adding AI capabilities
+through the LTI 1.3/OIDC standard. In this architecture, Canvas initiates login
+and launch requests, while the DA/Next.js system verifies the id token, creates
+a learning session, and renders the corresponding experience. Other LMS
+platforms supporting LTI 1.3 are considered future extensions after the Canvas
+flow becomes stable.
+
+\subsection{AI-assisted Learning}
+
+The system philosophy is AI-assisted Learning, meaning that AI supports
+teaching and learning rather than replacing instructors. AI is used to reduce
+repetitive work such as summarizing documents, drafting cards, generating
+initial questions, or explaining answers. Instructors still design the course,
+define learning outcomes, review content, and adjust learning activities based
+on educational objectives.
+
+For learners, AI should not only provide quick answers but also encourage
+active learning. AI Tutor responses should guide learners back to source
+content, explain reasoning, support self-checking, and reveal weak areas.
+Therefore, the system prioritizes grounded explanations over long answers that
+are difficult to verify.
+
+\subsection{Hybrid Deployment Model and Data Sovereignty}
+
+In education, learning data, internal materials, and user information must be
+managed carefully. Therefore, the self-hosted direction of this thesis refers
+to the system infrastructure and processing pipeline, not necessarily to
+self-hosting every large language model. Services such as the backend, workers,
+relational database, vector database, graph database, object storage, and
+cache/queue can be deployed in infrastructure controlled by the institution or
+operations team.
+
+At the model layer, the system is designed for hybrid AI integration. Depending
+on cost, security, and operational capability, the system can call external
+model APIs or later switch to local models. Separating data processing,
+retrieval, and generation helps the system keep control over data, metadata,
+and knowledge sources while remaining flexible in model selection.
+
+API keys, LTI keypairs, Canvas client IDs, deployment IDs, database passwords,
+and sensitive information must be managed through environment variables or a
+secret-management mechanism in production deployments.
+
+\subsection{Retrieval-first AI Architecture}
+
+An important principle of this thesis is retrieval-first. Before asking an LLM
+to generate an answer, the system must retrieve relevant sources from
+documents, transcripts, cards, or the knowledge graph. The prompt sent to the
+model should contain selected context, metadata, and constraints such as
+Learning Outcome or Bloom level when available. This approach reduces the risk
+of ungrounded generation and improves verifiability.
+
+Retrieval-first also separates two responsibilities: the course knowledge base
+is managed by the system, while the LLM interprets and generates content based
+on that knowledge base. By combining vector search with relationships in the
+Knowledge Graph, the system can retrieve by both semantics and curriculum
+structure, forming the basis for GraphRAG and curriculum-aware retrieval.
+
+\section{Target Users}
+
+\subsection{Instructors}
+
+Instructors are responsible for creating, reviewing, and managing learning
+materials. In the system, instructors can upload documents or lecture videos,
+link materials to courses, inspect extracted or manually entered Learning
+Outcomes, monitor processing status, view AI-generated Micro-content and
+quizzes, edit content, and publish it to learners.
+
+The main benefit for instructors is reducing the time required to prepare short
+learning materials and initial assessment questions. Instead of starting from a
+blank page, instructors receive a source-grounded draft for review. This is
+especially useful for courses with many documents, many chapters, or frequent
+updates.
+
+\subsection{Learners}
+
+Learners receive content that has been published by instructors. Through
+Canvas, learners can open the learning tool, view lesson cards, review small
+knowledge units, take quizzes, and receive answer explanations. When they face
+difficulties, learners can ask the AI Tutor for explanations based on course
+materials.
+
+The learner experience should be simple, focused, and fast. The system does not
+require learners to understand the AI pipeline behind it. Instead, it should
+help them know which content they are studying, which part a question relates
+to, and which concept needs review when they answer incorrectly.
+
+\section{Practical and Academic Significance}
+
+Practically, the thesis helps reduce instructors' workload in preparing digital
+learning materials. The system can automatically create drafts of
+Micro-content and quizzes from academic materials while still maintaining a
+review mechanism for instructors to control quality. For learners, the system
+turns long documents into smaller learning units, increases opportunities for
+self-assessment, and provides immediate feedback. For educational
+institutions, LTI integration allows AI capabilities to be added to Canvas
+without changing the whole infrastructure or developing a Canvas-specific
+plugin.
+
+Academically, the thesis demonstrates how Micro-learning, Bloom taxonomy, RAG,
+Knowledge Graph, curriculum-aware GraphRAG, and Human-in-the-Loop Review can be
+combined in a complete EdTech system. Instead of studying question generation
+or chatbots in isolation, the thesis places these techniques into an
+end-to-end workflow: document ingestion, retrieval, content generation, review,
+Canvas integration, and system evaluation.
+
+\section{System Evaluation Criteria}
+
+To evaluate the system comprehensively, the thesis considers the following
+groups of criteria:
+\begin{itemize}
+    \item \textbf{Functional evaluation:} test the main flows such as document
+          upload, pipeline processing, card generation, quiz generation,
+          review/publish, card-based learning, quiz-taking, and AI Tutor Q\&A.
+    \item \textbf{Canvas integration evaluation:} test the LTI 1.3/OIDC flow,
+          launch-request verification, Canvas user mapping, course/assignment
+          context transfer, and learning-session creation.
+    \item \textbf{Retrieval evaluation:} evaluate the accuracy and relevance
+          of retrieved context based on user questions; use LLM-as-a-judge
+          automated evaluation frameworks to measure Context Recall and Context
+          Precision without depending on a large manually labeled dataset.
+    \item \textbf{Generated-content evaluation:} examine correctness, source
+          grounding, clarity, Learning Outcome alignment, distractor quality,
+          and answer explanations.
+    \item \textbf{Curriculum-aware evaluation:} check the ability to map
+          chunks, cards, and quizzes to Course, Chapter, and Learning Outcome;
+          also evaluate content coverage by learning outcome.
+    \item \textbf{Performance evaluation:} measure document-processing time,
+          content-generation time, retrieval latency, chatbot latency, and
+          asynchronous task throughput.
+    \item \textbf{User-experience evaluation:} examine the usability of the
+          instructor and learner interfaces, clarity of processing status,
+          review operations, and the learning/quiz-taking experience.
+    \item \textbf{Safety and operations evaluation:} check session management,
+          secret configuration, access control, error logging, and Docker
+          Compose deployment in local/staging environments.
+\end{itemize}
+
+Within the thesis scope, criteria with experimental data are presented clearly
+in the evaluation chapter. Criteria that cannot yet be measured at large scale
+are recorded as evaluation plans or future work, avoiding conclusions that
+exceed the collected evidence.
+
+\section{Thesis Structure}
+
+The thesis is organized into 7 chapters:
+\begin{itemize}
+    \item \textbf{Chapter 1 --- Topic Overview:} presents the context,
+          motivation, research problem, objectives, scope, target users,
+          significance, and system evaluation criteria.
+    \item \textbf{Chapter 2 --- Survey and System Analysis:} surveys
+          current E-learning practices, existing AI solutions in education,
+          analyzes actors, user stories, use cases, functional requirements,
+          and non-functional requirements.
+    \item \textbf{Chapter 3 --- Theoretical and Technological Foundations:}
+          presents Micro-learning, Bloom taxonomy, LLMs, Generative AI, RAG,
+          GraphRAG, LMS integration standards (LTI 1.3), knowledge graph,
+          speech-to-text, AI orchestration, and the core technologies used.
+    \item \textbf{Chapter 4 --- System Analysis and Design:} presents the
+          overall architecture, Canvas/LTI integration, AI pipelines, data
+          design, Knowledge Graph, internal communication, and main
+          processing flows.
+    \item \textbf{Chapter 5 --- Implementation and Deployment:} describes the
+          development environment, frontend, backend, workers, Canvas
+          integration, operational configuration, and deployment packaging.
+    \item \textbf{Chapter 6 --- System Evaluation:} presents methods and
+          results for functionality, integration, retrieval,
+          generated-content quality, performance, and user experience
+          evaluation.
+    \item \textbf{Chapter 7 --- Conclusion and Future Development:}
+          summarizes achieved results, remaining limitations, and future
+          development directions.
+\end{itemize}
+
+\section{Chapter Summary}
+
+This chapter presented the context that motivates the thesis, starting from
+limitations of traditional E-learning, difficulties in creating digital
+learning materials, the need for Micro-learning, and the potential of
+Generative AI in education. From this context, the chapter defined the research
+problem: building an AI system integrated with Canvas LMS that can process
+documents and lecture videos, generate Micro-content/quizzes, support an AI
+Tutor Chatbot, connect to Learning Outcomes, and maintain instructor review.
+
+The chapter also defined the system objectives, scope, design philosophy,
+target users, significance, and evaluation criteria. These points provide the
+foundation for the following chapters, which present the theoretical
+background, requirement analysis, system design, implementation, and evaluation
+in a systematic manner.

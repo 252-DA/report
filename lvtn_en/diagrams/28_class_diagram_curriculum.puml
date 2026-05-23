@@ -1,0 +1,117 @@
+@startuml class_diagram_curriculum
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+skinparam ClassBackgroundColor #F0F8FF
+skinparam ClassBorderColor #555555
+skinparam PackageBorderColor #888888
+
+title Class Diagram - Curriculum Bounded Context\n(Field names mirror the PostgreSQL schema in Appendix A)
+
+package "Course Structure" #D6EAF8 {
+    class Course {
+        + course_id : UUID <<PK>>
+        --
+        lms_id : VARCHAR
+        code : VARCHAR(50) UNIQUE
+        name : VARCHAR(255)
+        description : TEXT
+    }
+
+    class Chapter {
+        + chapter_id : UUID <<PK>>
+        --
+        course_id : UUID <<FK>>
+        title : VARCHAR(255)
+        sort_order : INT
+    }
+}
+
+package "Outcomes (CDIO + Bloom)" #FEF9E7 {
+    class LearningOutcome {
+        + lo_id : UUID <<PK>>
+        --
+        chapter_id : UUID <<FK>>
+        code : VARCHAR(50)
+        ~ e.g. L.O.X.Y
+        statement_vi : TEXT
+        statement_en : TEXT
+        bloom_level : INT(1..6)
+        cdio_level : ENUM(I, II, III)
+        academic_year : VARCHAR(10)
+        version : INT
+        is_current : BOOLEAN
+        --
+        UNIQUE (chapter_id, code,
+        ~ academic_year, version)
+    }
+
+    class Assessment {
+        + assessment_id : UUID <<PK>>
+        --
+        course_id : UUID <<FK>>
+        title : VARCHAR
+        max_points : NUMERIC
+        sort_order : INT
+        type : AssessmentType
+    }
+
+    class LOAssessment {
+        + lo_id : UUID <<FK, PK>>
+        + assessment_id : UUID <<FK, PK>>
+        --
+        weight : NUMERIC(0..1)
+    }
+
+    enum AssessmentType {
+        QUIZ
+        ASSIGNMENT
+        MIDTERM
+        FINAL_EXAM
+        PROJECT
+    }
+}
+
+package "Chunk Mapping" #E8F5E9 {
+    class ChunkLOMapping {
+        + chunk_id : UUID <<FK, PK>>
+        + lo_id : UUID <<FK, PK>>
+        --
+        confidence : NUMERIC(0..1)
+    }
+
+    class "Chunk" as ChunkRef <<external>> {
+        chunk_id : UUID
+        ~ (defined in Content Authoring)
+    }
+}
+
+' ===== Relationships =====
+Course "1" *-- "*" Chapter : has >
+Chapter "1" o-- "*" LearningOutcome : declares >
+Course "1" o-- "*" Assessment : has >
+
+LearningOutcome "*" -- "*" Assessment
+LearningOutcome "1" -- "*" LOAssessment
+Assessment "1" -- "*" LOAssessment
+
+ChunkRef "*" -- "*" LearningOutcome
+ChunkRef "1" -- "*" ChunkLOMapping
+LearningOutcome "1" -- "*" ChunkLOMapping
+
+Assessment ..> AssessmentType
+
+note bottom of LearningOutcome
+  Versioning by academic_year + version + is_current
+  is the novelty contribution of this thesis:
+  the Knowledge Graph evolves as the curriculum
+  changes year by year.
+end note
+
+note bottom of ChunkLOMapping
+  Populated by HeuristicLoMapper (embedding similarity
+  + heading-path heuristics) at curriculum ingestion
+  and on chunk re-index.
+end note
+
+@enduml

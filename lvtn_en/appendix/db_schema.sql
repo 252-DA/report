@@ -1,40 +1,40 @@
 -- ============================================================================
--- ĐẶC TẢ CƠ SỞ DỮ LIỆU TOÀN DIỆN
--- Hệ thống LMS tự động tạo Micro-Content & Quiz bằng Generative AI
--- Source of Truth: PostgreSQL (24 bảng)
+-- COMPLETE DATABASE SPECIFICATION
+-- LMS for Automatically Generating Micro-Content and Quizzes Using Generative AI
+-- Source of Truth: PostgreSQL (31 tables)
 -- ============================================================================
--- Yêu cầu môi trường:
---   - PostgreSQL 16+ (khuyến nghị 17+ để dùng uuidv7() native ở PG 18)
---   - Extension pg_uuidv7 (cho PG <= 17). Nếu PG 18+ thì dùng uuidv7() built-in.
---   - Extension pgcrypto (fallback cho gen_random_uuid khi không có pg_uuidv7)
+-- Environment requirements:
+--   - PostgreSQL 18+ (native uuidv7() function)
+--   - For PostgreSQL 16/17: install the pg_uuidv7 extension instead
+--   - Extension pgcrypto (gen_random_uuid fallback if pg_uuidv7 is missing)
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- CREATE EXTENSION IF NOT EXISTS pg_uuidv7;
--- Nếu chưa cài pg_uuidv7, dùng wrapper sau (UUIDv4 fallback) khi tạo bảng:
---   DEFAULT gen_random_uuid()
--- Khi triển khai production, thay tất cả default sang:
---   DEFAULT uuidv7()
--- để tận dụng B-Tree index sắp xếp tuần tự theo timestamp (nguyên tắc 4.1.2 #5).
+-- Without pg_uuidv7 installed, table defaults below use gen_random_uuid().
+-- For production on PG 18+, replace defaults with uuidv7() to take advantage
+-- of near-sequential B-Tree index insertion (principle 4.1.2 #5).
 
 -- ============================================================================
--- ENUM TYPES (CHECK constraints inline cho tính di động)
+-- ENUM TYPES (inline CHECK constraints for portability)
 -- ============================================================================
--- Vòng đời học liệu sinh bởi AI (đồng bộ với State Machine ở 4.11)
+-- AI-generated content lifecycle (aligned with the State Machine in 4.11):
 --   GENERATED_DRAFT -> REVIEWING -> CHANGES_REQUESTED -> APPROVED
 --                                                  |
 --                                              PUBLISHED -> UNPUBLISHED -> ARCHIVED
 
 -- ============================================================================
--- PHÂN HỆ 1: DANH TÍNH & TÍCH HỢP CANVAS LMS (LMS INTEGRATION)
+-- SUBSYSTEM 1: IDENTITY AND CANVAS LMS INTEGRATION
 -- ============================================================================
 
--- 1. Ánh xạ người dùng giữa hệ thống nội bộ và Canvas (LTI 1.3)
+-- 1. User mapping between the internal system and Canvas (LTI 1.3)
 CREATE TABLE lms_user_mappings (
     internal_user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     lms_type VARCHAR(50) NOT NULL DEFAULT 'canvas',
     lms_sub VARCHAR(255) NOT NULL,
     display_name VARCHAR(255) NOT NULL,
+    -- This is the user's default role at platform level (admin / instructor / learner).
+    -- Per-LTI-context (course) roles are tracked in course_memberships (#3d).
     role VARCHAR(50) NOT NULL CHECK (role IN ('instructor','learner','administrator')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -42,11 +42,11 @@ CREATE TABLE lms_user_mappings (
     CONSTRAINT uq_lms_user UNIQUE (lms_type, lms_sub)
 );
 
--- 2. Khóa học đồng bộ từ LMS
+-- 2. Courses synchronized from the LMS
 CREATE TABLE courses (
     course_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     lms_id VARCHAR(100) UNIQUE,
-    code VARCHAR(50) NOT NULL UNIQUE,            -- Ví dụ: CO2003
+    code VARCHAR(50) NOT NULL UNIQUE,            -- e.g. CO2003
     name VARCHAR(255) NOT NULL,
     description TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -54,7 +54,7 @@ CREATE TABLE courses (
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
--- 3. Tham chiếu ngữ cảnh và cấu hình tùy biến LTI
+-- 3. LTI context reference and custom settings
 CREATE TABLE lms_course_ref (
     course_ref_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
@@ -65,12 +65,51 @@ CREATE TABLE lms_course_ref (
     CONSTRAINT uq_course_context UNIQUE (course_id, lms_context_id)
 );
 
+-- 3b. LTI Resource Links (Deep Linking activities created in Canvas).
+--     Each activity points to a card / lesson on our side via custom claims.
+CREATE TABLE lti_resource_links (
+    resource_link_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_ref_id UUID NOT NULL REFERENCES lms_course_ref(course_ref_id) ON DELETE RESTRICT,
+    lms_resource_link_id VARCHAR(255) NOT NULL,   -- as sent by Canvas
+    target_kind VARCHAR(30) NOT NULL              -- 'lesson' | 'card' | 'quiz_set' | 'chat' | 'video'
+        CHECK (target_kind IN ('lesson','card','quiz_set','chat','video')),
+    target_id UUID,                               -- card_id / quiz batch id / segment_id
+    custom_claims JSONB DEFAULT '{}'::jsonb,      -- e.g. {"lesson_id":"..."}
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT uq_resource_link UNIQUE (course_ref_id, lms_resource_link_id)
+);
+
+-- 3c. LTI Line Items (AGS grade sync). One row per gradable activity.
+CREATE TABLE lti_line_items (
+    line_item_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    resource_link_id UUID NOT NULL REFERENCES lti_resource_links(resource_link_id) ON DELETE RESTRICT,
+    lms_line_item_url VARCHAR(512) NOT NULL,      -- AGS endpoint for posting scores
+    score_maximum NUMERIC(7,2) NOT NULL DEFAULT 100.00,
+    label VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT uq_line_item UNIQUE (resource_link_id)
+);
+
+-- 3d. Course memberships (per-LTI-context role).
+--     LTI 1.3 sends roles per launch; a user can be Instructor in course A and
+--     Learner in course B. This table is the authoritative source for course-scoped
+--     authorization, populated/refreshed on every LTI launch.
+CREATE TABLE course_memberships (
+    user_id UUID NOT NULL REFERENCES lms_user_mappings(internal_user_id) ON DELETE RESTRICT,
+    course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
+    role VARCHAR(30) NOT NULL CHECK (role IN ('instructor','learner','ta','observer')),
+    last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, course_id, role)
+);
+
 
 -- ============================================================================
--- PHÂN HỆ 2: ĐỀ CƯƠNG MÔN HỌC & ĐÁNH GIÁ CDIO (CURRICULUM SCHEMA)
+-- SUBSYSTEM 2: COURSE SYLLABUS AND CDIO ASSESSMENT (CURRICULUM SCHEMA)
 -- ============================================================================
 
--- 4. Chương học
+-- 4. Chapters
 CREATE TABLE chapters (
     chapter_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
@@ -80,8 +119,8 @@ CREATE TABLE chapters (
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
--- 5. Learning Outcomes (LO) ánh xạ theo CDIO -- có versioning theo năm học
---    Novelty: track LO thay đổi theo năm (Knowledge Graph evolves)
+-- 5. Learning Outcomes (LO) mapped to CDIO -- versioned by academic year
+--    Novelty: track LO changes per year (Knowledge Graph evolves)
 CREATE TABLE learning_outcomes (
     lo_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     chapter_id UUID NOT NULL REFERENCES chapters(chapter_id) ON DELETE RESTRICT,
@@ -90,15 +129,15 @@ CREATE TABLE learning_outcomes (
     statement_en TEXT,
     bloom_level INT NOT NULL CHECK (bloom_level BETWEEN 1 AND 6),
     cdio_level VARCHAR(5) NOT NULL CHECK (cdio_level IN ('I','II','III')),
-    academic_year VARCHAR(10),                   -- VD: '2024-2025'
+    academic_year VARCHAR(10),                   -- e.g. '2024-2025'
     version INT NOT NULL DEFAULT 1,
-    is_current BOOLEAN NOT NULL DEFAULT TRUE,    -- chỉ 1 version active per (chapter, code)
+    is_current BOOLEAN NOT NULL DEFAULT TRUE,    -- only one active version per (chapter, code)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE,
     CONSTRAINT uq_lo_code_versioned UNIQUE (chapter_id, code, academic_year, version)
 );
 
--- 6. Đầu điểm đánh giá
+-- 6. Assessment items
 CREATE TABLE assessments (
     assessment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
@@ -110,7 +149,7 @@ CREATE TABLE assessments (
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
--- 7. Ánh xạ trọng số LO ↔ Assessment
+-- 7. LO <-> Assessment weighted mapping
 CREATE TABLE lo_assessments (
     lo_id UUID NOT NULL REFERENCES learning_outcomes(lo_id) ON DELETE RESTRICT,
     assessment_id UUID NOT NULL REFERENCES assessments(assessment_id) ON DELETE RESTRICT,
@@ -120,17 +159,17 @@ CREATE TABLE lo_assessments (
 
 
 -- ============================================================================
--- PHÂN HỆ 3: TÀI LIỆU VÀ PHÂN ĐOẠN VĂN BẢN (DOCUMENT INGESTION)
+-- SUBSYSTEM 3: DOCUMENTS AND TEXT CHUNKING (DOCUMENT INGESTION)
 -- ============================================================================
 
--- 8. Tài liệu thô
+-- 8. Raw documents
 CREATE TABLE documents (
     document_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
     title VARCHAR(255) NOT NULL,
     file_path VARCHAR(512) NOT NULL,
     mime_type VARCHAR(100),
-    checksum VARCHAR(64),                        -- SHA-256 chống upload trùng
+    checksum VARCHAR(64),                        -- SHA-256 to prevent duplicate uploads
     status VARCHAR(50) NOT NULL DEFAULT 'PENDING'
         CHECK (status IN ('PENDING','UPLOADING','UPLOADED','QUEUED','PARSING','CHUNKING','EMBEDDING','INDEXED','ENRICHING','GENERATED_DRAFT','ERROR')),
     created_by UUID REFERENCES lms_user_mappings(internal_user_id) ON DELETE RESTRICT,
@@ -138,22 +177,22 @@ CREATE TABLE documents (
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
--- 9. Chunks văn bản (high-write, dùng UUIDv7 để giảm fragmentation B-Tree)
+-- 9. Text chunks (high-write; UUIDv7 reduces B-Tree fragmentation)
 CREATE TABLE chunks (
     chunk_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id UUID NOT NULL REFERENCES documents(document_id) ON DELETE RESTRICT,
-    course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,  -- denormalized cho RAG filter
+    course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,  -- denormalized for RAG filter
     content TEXT NOT NULL,
-    heading_path TEXT[],                         -- {"Chương 1","Mục 1.2"}
+    heading_path TEXT[],                         -- e.g. {"Chapter 1","Section 1.2"}
     page_number INT,
     sort_order INT NOT NULL,
-    language VARCHAR(10) NOT NULL DEFAULT 'vi'   -- sync với Qdrant payload
+    language VARCHAR(10) NOT NULL DEFAULT 'vi'   -- mirrored into Qdrant payload
         CHECK (language IN ('vi','en','mixed')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
--- 10. Chunk ↔ LO mapping
+-- 10. Chunk <-> LO mapping
 CREATE TABLE chunk_lo_mappings (
     chunk_id UUID NOT NULL REFERENCES chunks(chunk_id) ON DELETE RESTRICT,
     lo_id UUID NOT NULL REFERENCES learning_outcomes(lo_id) ON DELETE RESTRICT,
@@ -163,10 +202,10 @@ CREATE TABLE chunk_lo_mappings (
 
 
 -- ============================================================================
--- PHÂN HỆ 4: VIDEO VÀ PHÂN TÁCH ĐA PHƯƠNG TIỆN (VIDEO PIPELINE)
+-- SUBSYSTEM 4: VIDEO AND MULTIMEDIA SEGMENTATION (VIDEO PIPELINE)
 -- ============================================================================
 
--- 11. Video bài giảng
+-- 11. Lecture videos
 CREATE TABLE videos (
     video_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
@@ -175,13 +214,13 @@ CREATE TABLE videos (
     is_youtube BOOLEAN DEFAULT FALSE,
     external_url VARCHAR(512),
     language VARCHAR(10) DEFAULT 'vi' CHECK (language IN ('vi','en','mixed')),
-    status VARCHAR(50) NOT NULL DEFAULT 'PENDING'
-        CHECK (status IN ('PENDING','PROCESSING','TRANSCRIBED','SEGMENTED','INDEXED','ERROR')),
+    status VARCHAR(50) NOT NULL DEFAULT 'UPLOADING'
+        CHECK (status IN ('UPLOADING','UPLOADED','QUEUED','TRANSCRIBING','SEGMENTING','EMBEDDING','INDEXED','ERROR')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
--- 12. Phân đoạn video (clip cắt 30-90s)
+-- 12. Video segments (30-90s clips)
 CREATE TABLE video_segments (
     segment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     video_id UUID NOT NULL REFERENCES videos(video_id) ON DELETE RESTRICT,
@@ -196,7 +235,7 @@ CREATE TABLE video_segments (
     CHECK (end_ms > start_ms)
 );
 
--- 13. Transcript có timestamp (granularity nhỏ hơn segment, 1-n với segment)
+-- 13. Timestamped transcript (finer than a segment, 1-n with segment)
 CREATE TABLE transcript_segments (
     transcript_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     segment_id UUID NOT NULL REFERENCES video_segments(segment_id) ON DELETE RESTRICT,
@@ -210,13 +249,30 @@ CREATE TABLE transcript_segments (
 
 
 -- ============================================================================
--- PHÂN HỆ 5: HỌC LIỆU VI MÔ AI & QUIZ (GENERATED CONTENT)
+-- SUBSYSTEM 5: AI MICRO-CONTENT AND QUIZZES (GENERATED CONTENT)
 -- ============================================================================
--- Vòng đời status thống nhất với State Machine ở 4.11
+-- Status lifecycle aligned with the State Machine in 4.11
 
--- 14. Lesson Cards
+-- 14. Lessons (a curated grouping of cards + quizzes for one Learning Outcome,
+--     used as the unit of Deep Linking and the lesson_id surfaced in LTI custom claims)
+CREATE TABLE lessons (
+    lesson_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
+    lo_id UUID NOT NULL REFERENCES learning_outcomes(lo_id) ON DELETE RESTRICT,
+    title VARCHAR(255) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'DRAFT'
+        CHECK (status IN ('DRAFT','PUBLISHED','UNPUBLISHED','ARCHIVED')),
+    published_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT uq_lesson_per_lo UNIQUE (course_id, lo_id)
+);
+
+-- 15. Lesson Cards
 CREATE TABLE lesson_cards (
     card_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lesson_id UUID NOT NULL REFERENCES lessons(lesson_id) ON DELETE RESTRICT,
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,  -- denormalized
     lo_id UUID REFERENCES learning_outcomes(lo_id) ON DELETE RESTRICT,
     title VARCHAR(255) NOT NULL,
@@ -230,7 +286,7 @@ CREATE TABLE lesson_cards (
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
--- 15. Card ↔ Video Segment attachment
+-- 16. Card <-> Video Segment attachment
 CREATE TABLE card_video_attachments (
     card_id UUID NOT NULL REFERENCES lesson_cards(card_id) ON DELETE RESTRICT,
     segment_id UUID NOT NULL REFERENCES video_segments(segment_id) ON DELETE RESTRICT,
@@ -238,15 +294,17 @@ CREATE TABLE card_video_attachments (
     PRIMARY KEY (card_id, segment_id)
 );
 
--- 16. Quiz Items
+-- 17. Quiz Items
 CREATE TABLE quiz_items (
     quiz_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lesson_id UUID NOT NULL REFERENCES lessons(lesson_id) ON DELETE RESTRICT,
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,  -- denormalized
     lo_id UUID REFERENCES learning_outcomes(lo_id) ON DELETE RESTRICT,
-    type VARCHAR(30) NOT NULL CHECK (type IN ('MCQ','SHORT_ANSWER','TRUE_FALSE')),
+    -- Four question types matched to FR-SL-03 and US-IN-07:
+    type VARCHAR(30) NOT NULL CHECK (type IN ('MCQ_SINGLE','MCQ_MULTI','TRUE_FALSE','FILL_BLANK')),
     question TEXT NOT NULL,
-    options JSONB,                               -- MCQ choices
-    correct_answer TEXT NOT NULL,
+    options JSONB,                               -- MCQ choices or fill-blank slot definitions
+    correct_answer JSONB NOT NULL,               -- string for SINGLE/T-F/FILL, array for MULTI
     explanation TEXT,
     bloom_level INT CHECK (bloom_level BETWEEN 1 AND 6),
     source_chunk_ids UUID[],
@@ -258,27 +316,49 @@ CREATE TABLE quiz_items (
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
+-- 18. Per-learner flashcard review state (FR-SL-02, US-LE-03)
+--     A flashcard is the "flip" presentation of a lesson_card (front=title,
+--     back=key_insight). This table stores spaced-repetition state per learner.
+CREATE TABLE flashcard_reviews (
+    review_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES lms_user_mappings(internal_user_id) ON DELETE RESTRICT,
+    card_id UUID NOT NULL REFERENCES lesson_cards(card_id) ON DELETE RESTRICT,
+    state VARCHAR(20) NOT NULL DEFAULT 'NEW'
+        CHECK (state IN ('NEW','MASTERED','REVIEW_AGAIN')),
+    last_seen_at TIMESTAMP WITH TIME ZONE,
+    next_due_at TIMESTAMP WITH TIME ZONE,
+    review_count INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_user_card UNIQUE (user_id, card_id)
+);
+
 
 -- ============================================================================
--- PHÂN HỆ 6: PHÂN TÍCH HỌC TẬP & NHẬT KÝ KIỂM DUYỆT (ANALYTICS & AUDIT)
+-- SUBSYSTEM 6: LEARNING ANALYTICS AND AUDIT LOGS
 -- ============================================================================
 
--- 17. Quiz attempts
+-- 19. Quiz attempts
+--     resource_link_id is filled in only when the attempt is reached via an
+--     LTI launch; it provides the key to look up the AGS line_item for grade passback.
 CREATE TABLE quiz_attempts (
     attempt_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES lms_user_mappings(internal_user_id) ON DELETE RESTRICT,
     quiz_id UUID NOT NULL REFERENCES quiz_items(quiz_id) ON DELETE RESTRICT,
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
+    resource_link_id UUID REFERENCES lti_resource_links(resource_link_id) ON DELETE RESTRICT,
     score NUMERIC(5,2) NOT NULL,
-    chosen_answer TEXT NOT NULL,
+    chosen_answer JSONB NOT NULL,                -- matches quiz_items.correct_answer JSONB
     is_correct BOOLEAN NOT NULL,
     response_time_ms INT,
     feedback TEXT,
+    ags_status VARCHAR(20) NOT NULL DEFAULT 'PENDING'
+        CHECK (ags_status IN ('NOT_REQUIRED','PENDING','POSTED','FAILED')),
+    ags_posted_at TIMESTAMP WITH TIME ZONE,
     attempted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
--- 18. Chat messages (high-write, UUIDv7)
+-- 20. Chat messages (high-write, UUIDv7)
 CREATE TABLE chat_messages (
     message_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID NOT NULL,
@@ -291,7 +371,7 @@ CREATE TABLE chat_messages (
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
--- 19. Learning events (append-only stream, không soft delete)
+-- 21. Learning events (append-only stream, no soft delete)
 CREATE TABLE learning_events (
     event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES lms_user_mappings(internal_user_id) ON DELETE RESTRICT,
@@ -304,7 +384,7 @@ CREATE TABLE learning_events (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 20. Review audit logs (append-only, không soft delete)
+-- 22. Review audit logs (append-only, no soft delete)
 CREATE TABLE review_audit_logs (
     log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     action VARCHAR(100) NOT NULL,                -- EDIT_CARD, DELETE_QUIZ, PUBLISH_CONTENT
@@ -315,9 +395,9 @@ CREATE TABLE review_audit_logs (
     logged_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 21. LLM usage logs (high-write audit cho cost monitoring, UUIDv7)
---     Mỗi lượt gọi LLM/embedding được ghi nhận để hỗ trợ AI Cost Monitoring
---     (mục 4.10.4) và breakdown chi phí per-user/per-course/per-day.
+-- 23. LLM usage logs (high-write audit for cost monitoring, UUIDv7)
+--     Each LLM/embedding call is recorded to support AI Cost Monitoring
+--     (Section 4.10.4) and to break down spend per user / course / day.
 CREATE TABLE llm_usage_logs (
     usage_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES lms_user_mappings(internal_user_id) ON DELETE SET NULL,
@@ -328,19 +408,19 @@ CREATE TABLE llm_usage_logs (
     prompt_tokens INT NOT NULL DEFAULT 0,
     completion_tokens INT NOT NULL DEFAULT 0,
     total_tokens INT GENERATED ALWAYS AS (prompt_tokens + completion_tokens) STORED,
-    cost_usd NUMERIC(10,6) NOT NULL DEFAULT 0,   -- tính theo bảng giá provider tại thời điểm gọi
+    cost_usd NUMERIC(10,6) NOT NULL DEFAULT 0,   -- priced from the provider rate card at call time
     latency_ms INT,
     status VARCHAR(20) NOT NULL CHECK (status IN ('OK','RATE_LIMITED','ERROR')),
-    trace_id VARCHAR(64),                        -- OpenTelemetry trace_id để cross-reference log
+    trace_id VARCHAR(64),                        -- OpenTelemetry trace_id for log cross-reference
     called_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 22. User LLM quota (per-user rate/quota state, mục 4.4.5)
---     Track tiêu thụ daily/monthly để enforce limit ở Rate Limiting layer.
+-- 24. Per-user LLM quota state (Section 4.4.5).
+--     Tracks daily/monthly consumption to enforce limits at the Rate Limiting layer.
 CREATE TABLE user_llm_quota (
     user_id UUID PRIMARY KEY REFERENCES lms_user_mappings(internal_user_id) ON DELETE CASCADE,
     daily_tokens_used INT NOT NULL DEFAULT 0,
-    daily_limit INT NOT NULL DEFAULT 100000,     -- 100K token/ngày mặc định
+    daily_limit INT NOT NULL DEFAULT 100000,     -- 100K tokens/day by default
     monthly_tokens_used INT NOT NULL DEFAULT 0,
     monthly_limit INT NOT NULL DEFAULT 2000000,
     daily_reset_at DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -348,12 +428,45 @@ CREATE TABLE user_llm_quota (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 25. Per-scope LLM quota (US-AD-02: quota by course or by instructor).
+--     scope='course'  -> scope_id = course_id, applies to all generation in that course.
+--     scope='instructor' -> scope_id = lms_user_mappings.internal_user_id (instructor's id).
+--     Rate Limiting checks the per-user quota AND the relevant scope quota; the
+--     stricter wins. Course quota lets admins cap shared courses without per-user setup.
+CREATE TABLE scope_llm_quota (
+    scope VARCHAR(20) NOT NULL CHECK (scope IN ('course','instructor')),
+    scope_id UUID NOT NULL,
+    monthly_tokens_used INT NOT NULL DEFAULT 0,
+    monthly_limit INT NOT NULL DEFAULT 10000000,
+    monthly_reset_at DATE NOT NULL DEFAULT (date_trunc('month', CURRENT_DATE)::DATE),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (scope, scope_id)
+);
+
 
 -- ============================================================================
--- PHÂN HỆ 7: OUTBOX & BỘ ĐỆM (ASYNC OUTBOX & ENGINE CACHE)
+-- SUBSYSTEM 7: ASYNC OUTBOX, REQUESTS, AND ENGINE CACHE
 -- ============================================================================
 
--- 21. Outbox events (đồng bộ sang Neo4j/Qdrant qua poller daemon)
+-- 26. AI content generation requests (Micro-Content / Quiz)
+--     Surfaced to the instructor as a single request_id with progress.
+--     Workers update status as they consume the corresponding outbox event.
+CREATE TABLE content_generation_requests (
+    request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
+    requested_by UUID REFERENCES lms_user_mappings(internal_user_id) ON DELETE RESTRICT,
+    type VARCHAR(20) NOT NULL CHECK (type IN ('card','quiz')),
+    scope JSONB NOT NULL,                        -- {chapter_id, lo_id, count, bloom, difficulty}
+    status VARCHAR(50) NOT NULL DEFAULT 'QUEUED'
+        CHECK (status IN ('QUEUED','RUNNING','SUCCEEDED','FAILED','CANCELLED')),
+    generated_count INT NOT NULL DEFAULT 0,
+    last_error TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 27. Outbox events (synced to Neo4j via the poller daemon in core-api;
+--     Qdrant upserts happen inline in the worker job and do NOT use Outbox)
 CREATE TABLE outbox_events (
     event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_type VARCHAR(100) NOT NULL,            -- CARD_PUBLISHED, CHUNK_INDEXED, LO_CREATED, ...
@@ -363,23 +476,23 @@ CREATE TABLE outbox_events (
     status VARCHAR(50) NOT NULL DEFAULT 'PENDING'
         CHECK (status IN ('PENDING','PROCESSING','PROCESSED','FAILED','DEAD_LETTER')),
     retry_count INT DEFAULT 0,
-    last_error TEXT,                             -- debug khi FAILED
+    last_error TEXT,                             -- debug message on FAILED
     occurred_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    processed_at TIMESTAMP WITH TIME ZONE        -- để monitoring latency
+    processed_at TIMESTAMP WITH TIME ZONE        -- for latency monitoring
 );
 
--- 22. YouTube search cache
+-- 28. YouTube search cache
 CREATE TABLE youtube_search_cache (
     query_hash VARCHAR(64) PRIMARY KEY,          -- SHA-256
     search_query TEXT NOT NULL,
     search_results JSONB NOT NULL,
     cached_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP WITH TIME ZONE          -- TTL explicit để cleanup job
+    expires_at TIMESTAMP WITH TIME ZONE          -- explicit TTL for the cleanup job
 );
 
 
 -- ============================================================================
--- INDEXES — TỐI ƯU HÓA TRUY VẤN
+-- INDEXES - QUERY OPTIMIZATION
 -- ============================================================================
 
 -- LMS / Course
@@ -393,7 +506,7 @@ CREATE INDEX idx_lo_current ON learning_outcomes(chapter_id, code) WHERE is_curr
 
 -- Document / Chunk
 CREATE INDEX idx_chunks_document ON chunks(document_id, sort_order) WHERE deleted_at IS NULL;
-CREATE INDEX idx_chunks_course ON chunks(course_id) WHERE deleted_at IS NULL;   -- RAG filter chính
+CREATE INDEX idx_chunks_course ON chunks(course_id) WHERE deleted_at IS NULL;   -- primary RAG filter
 CREATE INDEX idx_chunk_lo_ref ON chunk_lo_mappings(lo_id);
 CREATE INDEX idx_documents_course_status ON documents(course_id, status) WHERE deleted_at IS NULL;
 
@@ -403,7 +516,7 @@ CREATE INDEX idx_segments_video ON video_segments(video_id) WHERE deleted_at IS 
 CREATE INDEX idx_segments_course ON video_segments(course_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_transcript_segment ON transcript_segments(segment_id) WHERE deleted_at IS NULL;
 
--- Generated content (chỉ index khi đã publish hoặc chờ review)
+-- Generated content (indexed only for PUBLISHED or REVIEWING states)
 CREATE INDEX idx_lesson_cards_lo_published
     ON lesson_cards(lo_id, course_id)
     WHERE status = 'PUBLISHED' AND deleted_at IS NULL;
@@ -424,16 +537,16 @@ CREATE INDEX idx_event_user_course ON learning_events(user_id, course_id, event_
 CREATE INDEX idx_event_target ON learning_events(target_entity_type, target_entity_id);
 CREATE INDEX idx_quiz_attempts_user_lo ON quiz_attempts(user_id, quiz_id) WHERE deleted_at IS NULL;
 
--- Outbox poller (partial index quan trọng cho daemon scan)
+-- Outbox poller (partial index, critical for the daemon scan)
 CREATE INDEX idx_outbox_pending_poller ON outbox_events(occurred_at) WHERE status = 'PENDING';
 CREATE INDEX idx_outbox_failed ON outbox_events(occurred_at) WHERE status = 'FAILED';
 
 
 -- ============================================================================
--- VIEWS HỖ TRỢ NGHIỆP VỤ
+-- BUSINESS VIEWS
 -- ============================================================================
 
--- View liệt kê LO version hiện hành cho mỗi chapter
+-- Lists the current LO version for each chapter
 CREATE OR REPLACE VIEW v_current_learning_outcomes AS
 SELECT lo.*, ch.course_id, ch.title AS chapter_title
 FROM learning_outcomes lo
