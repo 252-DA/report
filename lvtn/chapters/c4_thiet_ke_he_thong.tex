@@ -1,3 +1,4 @@
+% !TeX root = ../main.tex
 \chapter{Phân tích và thiết kế hệ thống}
 \label{chap:phan-tich-thiet-ke}
 
@@ -368,7 +369,7 @@ tập sinh ra ngay tại request làm quiz hoặc xem card đến \texttt{core-a
 Xử lý trong cùng runtime tránh được round-trip qua broker đối với sự
 kiện cần feedback ngay --- ví dụ AGS grade passback phải hoàn thành
 trước khi học viên thấy điểm trên Canvas. Tách thành worker riêng chỉ
-hợp lý khi mở rộng sang Bayesian Knowledge Tracing nặng tính toán
+hợp lý khi mở rộng sang các mô hình ước lượng năng lực nặng tính toán
 (hướng phát triển tương lai).
 
 \textbf{Điểm thiết kế đáng chú ý.} Sự kiện học tập ghi vào
@@ -685,15 +686,14 @@ nghiêm ngặt (human-in-the-loop) với cơ chế đồng bộ hóa bất đồ
 \subsection{PostgreSQL Schema}
 
 PostgreSQL là source of truth cho toàn bộ dữ liệu nghiệp vụ. Schema được
-phân thành tám phân hệ logic gồm \textbf{24 bảng phục vụ GĐ1} (ingestion,
-generated content, analytics, cost tracking) và \textbf{03 bảng mở rộng
-cho GĐ2} (adaptive learning với BKT mastery, bandit recommendation,
-learning paths). Toàn bộ DDL chi tiết được liệt kê ở
-Phụ lục~\ref{appendix:db-schema}; phần này tóm tắt cấu trúc tổng quan.
+phân thành bảy phân hệ logic với tổng cộng \textbf{24 bảng} bao phủ
+ingestion, generated content, analytics và cost tracking. Toàn bộ DDL
+chi tiết được liệt kê ở Phụ lục~\ref{appendix:db-schema}; phần này tóm
+tắt cấu trúc tổng quan.
 
 \begin{table}[H]
     \centering
-    \caption{Tám phân hệ logic trong PostgreSQL (24 bảng GĐ1 + 3 bảng GĐ2).}
+    \caption{Bảy phân hệ logic trong PostgreSQL (24 bảng).}
     \label{tab:postgres-tables}
     \begin{tabular}{|p{4cm}|p{9.5cm}|}
         \hline
@@ -727,10 +727,6 @@ Phụ lục~\ref{appendix:db-schema}; phần này tóm tắt cấu trúc tổng 
         7. Async / Cache
             & \texttt{outbox\_events}, \texttt{youtube\_search\_cache} \\
         \hline
-        8. Adaptive (GĐ2)
-            & \texttt{lo\_mastery\_states}, \texttt{recommendation\_logs},
-              \texttt{learning\_paths} \\
-        \hline
     \end{tabular}
 \end{table}
 
@@ -739,7 +735,7 @@ thêm trường \texttt{academic\_year} và \texttt{version} để theo dõi s�
 đổi của LO theo năm học --- đây là yêu cầu novelty cho phép Knowledge Graph
 biểu diễn được tiến hóa chương trình đào tạo. Cờ \texttt{is\_current} đánh
 dấu phiên bản đang được dùng trong RAG retrieval; các phiên bản cũ vẫn được
-giữ lại để truy vết lịch sử mastery.
+giữ lại để truy vết lịch sử học tập theo từng khoá.
 
 \textbf{Denormalized \texttt{course\_id}.} Các bảng có tần suất filter theo
 khóa học cao --- \texttt{chunks}, \texttt{video\_segments},
@@ -779,17 +775,6 @@ Neo4j hoặc gửi event ra ngoài, đảm bảo eventual consistency.
 authentication được delegate sang Canvas qua LTI 1.3. Internal user chỉ là
 \texttt{(internal\_user\_id, display\_name, role)} ánh xạ từ
 \texttt{lms\_user\_mappings}.
-
-\textbf{Phân hệ Adaptive (GĐ2).} Ba bảng mới phục vụ pipeline ba tầng
-được mô tả ở
-mục~\ref{subsec:adaptive-learning-future}, Chương~\ref{chap:ket-luan-huong-phat-trien}:
-\texttt{lo\_mastery\_states} lưu bốn tham số BKT (\texttt{p\_known},
-\texttt{p\_learn}, \texttt{p\_guess}, \texttt{p\_slip}) per (user, LO);
-\texttt{recommendation\_logs} ghi nhận lượt sinh đề xuất của bộ chọn
-bandit (Thompson sampling hoặc LinUCB) kèm \texttt{posterior\_params} và
-\texttt{reward} để cập nhật phân phối hậu nghiệm;
-\texttt{learning\_paths} persist các chuỗi LO được beam search chọn làm
-lộ trình cá nhân hóa cho từng học viên.
 
 \subsection{Qdrant Vector Schema}
 
@@ -2341,12 +2326,8 @@ Chương này trình bày toàn bộ thiết kế hệ thống ở cấp kiến 
           Micro-Content, quiz, review/publish) với event-driven
           orchestration qua Redis + BullMQ.
     \item \textbf{Năm store dữ liệu} (Postgres, Qdrant, Neo4j, Redis,
-          MinIO) với PostgreSQL là source of truth, các store khác là
-          derived và đồng bộ qua outbox pattern. Schema PostgreSQL gồm
-          24 bảng phục vụ GĐ1 và 3 bảng đã được chuẩn bị sẵn cho GĐ2
-          (\texttt{lo\_mastery\_states}, \texttt{recommendation\_logs},
-          \texttt{learning\_paths}) phục vụ pipeline Adaptive Learning
-          mô tả ở Chương~\ref{chap:ket-luan-huong-phat-trien}.
+          MinIO) với PostgreSQL là source of truth (24 bảng), các store
+          khác là derived và đồng bộ qua outbox pattern.
     \item \textbf{Bảo mật} áp dụng OWASP Top 10 for LLM Applications với
           10 biện pháp cụ thể từ prompt injection đến supply chain.
     \item \textbf{UI/UX} theo triết lý Calm UI, Minimal Distraction,

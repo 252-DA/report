@@ -1,7 +1,7 @@
 -- ============================================================================
 -- ĐẶC TẢ CƠ SỞ DỮ LIỆU TOÀN DIỆN
 -- Hệ thống LMS tự động tạo Micro-Content & Quiz bằng Generative AI
--- Source of Truth: PostgreSQL (24 bảng GĐ1 + 3 bảng GĐ2)
+-- Source of Truth: PostgreSQL (24 bảng)
 -- ============================================================================
 -- Yêu cầu môi trường:
 --   - PostgreSQL 16+ (khuyến nghị 17+ để dùng uuidv7() native ở PG 18)
@@ -379,58 +379,6 @@ CREATE TABLE youtube_search_cache (
 
 
 -- ============================================================================
--- PHÂN HỆ 8: ADAPTIVE LEARNING (GĐ2 EXTENSION — BKT + BANDIT)
--- ============================================================================
--- Theo memory project_adaptive_learning_architecture.md:
---   tracer (BKT 4-param) → recommender (Thompson/LinUCB) → dashboard
---   Pilot ≥10 SV từ tuần 22
-
--- 23. BKT mastery state per (user, LO)
-CREATE TABLE lo_mastery_states (
-    user_id UUID NOT NULL REFERENCES lms_user_mappings(internal_user_id) ON DELETE RESTRICT,
-    lo_id UUID NOT NULL REFERENCES learning_outcomes(lo_id) ON DELETE RESTRICT,
-    p_known NUMERIC(6,5) NOT NULL DEFAULT 0.10000 CHECK (p_known BETWEEN 0 AND 1),     -- p(L)
-    p_learn NUMERIC(6,5) NOT NULL DEFAULT 0.20000 CHECK (p_learn BETWEEN 0 AND 1),     -- p(T)
-    p_guess NUMERIC(6,5) NOT NULL DEFAULT 0.25000 CHECK (p_guess BETWEEN 0 AND 1),     -- p(G)
-    p_slip  NUMERIC(6,5) NOT NULL DEFAULT 0.10000 CHECK (p_slip  BETWEEN 0 AND 1),     -- p(S)
-    n_attempts INT NOT NULL DEFAULT 0,
-    n_correct INT NOT NULL DEFAULT 0,
-    last_attempt_at TIMESTAMP WITH TIME ZONE,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (user_id, lo_id)
-);
-
--- 24. Recommendation logs (Thompson sampling / LinUCB bandit history)
-CREATE TABLE recommendation_logs (
-    rec_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES lms_user_mappings(internal_user_id) ON DELETE RESTRICT,
-    course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
-    algorithm VARCHAR(30) NOT NULL CHECK (algorithm IN ('THOMPSON','LIN_UCB','BEAM_SEARCH','EPSILON_GREEDY')),
-    candidate_lo_ids UUID[] NOT NULL,
-    chosen_lo_id UUID REFERENCES learning_outcomes(lo_id) ON DELETE RESTRICT,
-    context_vector JSONB,                        -- LinUCB context features
-    posterior_params JSONB,                      -- Beta(α,β) cho Thompson; ridge weights cho LinUCB
-    reward NUMERIC(5,4),                         -- click/correct outcome (null khi chưa observed)
-    rewarded_at TIMESTAMP WITH TIME ZONE,
-    recommended_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- 25. Learning path nodes (beam search path persistence)
-CREATE TABLE learning_paths (
-    path_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES lms_user_mappings(internal_user_id) ON DELETE RESTRICT,
-    course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
-    lo_sequence UUID[] NOT NULL,                 -- thứ tự LO trong beam đã chọn
-    path_score NUMERIC(8,5),                     -- điểm beam
-    generation_method VARCHAR(30) CHECK (generation_method IN ('BEAM_SEARCH','DIJKSTRA','GREEDY')),
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP WITH TIME ZONE,
-    deleted_at TIMESTAMP WITH TIME ZONE
-);
-
-
--- ============================================================================
 -- INDEXES — TỐI ƯU HÓA TRUY VẤN
 -- ============================================================================
 
@@ -480,15 +428,6 @@ CREATE INDEX idx_quiz_attempts_user_lo ON quiz_attempts(user_id, quiz_id) WHERE 
 CREATE INDEX idx_outbox_pending_poller ON outbox_events(occurred_at) WHERE status = 'PENDING';
 CREATE INDEX idx_outbox_failed ON outbox_events(occurred_at) WHERE status = 'FAILED';
 
--- GĐ2 Adaptive
-CREATE INDEX idx_mastery_user ON lo_mastery_states(user_id, p_known);
-CREATE INDEX idx_mastery_lo ON lo_mastery_states(lo_id);
-CREATE INDEX idx_recommendation_user ON recommendation_logs(user_id, recommended_at DESC);
-CREATE INDEX idx_recommendation_pending_reward
-    ON recommendation_logs(recommended_at)
-    WHERE reward IS NULL;
-CREATE INDEX idx_path_active ON learning_paths(user_id, course_id) WHERE is_active = TRUE AND deleted_at IS NULL;
-
 
 -- ============================================================================
 -- VIEWS HỖ TRỢ NGHIỆP VỤ
@@ -503,17 +442,3 @@ WHERE lo.is_current = TRUE
   AND lo.deleted_at IS NULL
   AND ch.deleted_at IS NULL;
 
--- View tổng hợp mastery cho dashboard giảng viên (GĐ2)
-CREATE OR REPLACE VIEW v_lo_mastery_summary AS
-SELECT
-    ms.lo_id,
-    lo.code AS lo_code,
-    ch.course_id,
-    COUNT(*) AS n_learners,
-    AVG(ms.p_known) AS avg_mastery,
-    SUM(CASE WHEN ms.p_known < 0.5 THEN 1 ELSE 0 END) AS n_struggling
-FROM lo_mastery_states ms
-JOIN learning_outcomes lo ON lo.lo_id = ms.lo_id
-JOIN chapters ch ON ch.chapter_id = lo.chapter_id
-WHERE lo.deleted_at IS NULL
-GROUP BY ms.lo_id, lo.code, ch.course_id;

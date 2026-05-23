@@ -1,3 +1,4 @@
+% !TeX root = ../main.tex
 \chapter{Kết luận và hướng phát triển}
 \label{chap:ket-luan-huong-phat-trien}
 
@@ -45,88 +46,630 @@ Dù hệ thống đã có nền tảng kỹ thuật tương đối đầy đủ,
           và autoscaling.
 \end{itemize}
 
-\section{Định hướng phát triển tương lai}
+\section{Kế hoạch triển khai 15 tuần giai đoạn 2 (LVTN)}
+\label{sec:plan-gd2}
 
-\subsection{Adaptive Learning}
-\label{subsec:adaptive-learning-future}
+Giai đoạn 2 của đồ án kéo dài 15 tuần với 4 thành viên. Theo định hướng
+của giáo viên hướng dẫn, nhóm \textbf{không bắt buộc phải hoàn thành toàn
+bộ danh mục} dưới đây --- mục tiêu tối thiểu là chốt được luồng
+end-to-end ổn định cùng pilot tối thiểu 10 sinh viên trên một môn học,
+kèm dữ liệu đánh giá thực nghiệm cho retrieval và chất lượng quiz. Các
+hạng mục mở rộng (advanced GraphRAG benchmark, dashboard nâng cao,
+multimodal ingestion) được phân loại \textbf{NICE-TO-HAVE}, có thể giữ
+ở mức thiết kế hoặc prototype nếu thiếu thời gian mà không ảnh hưởng
+đến điều kiện bảo vệ.
 
-Khi có dữ liệu quiz submission đủ lớn, hệ thống có thể ước lượng mức độ nắm
-vững từng LO của học viên. Hướng GĐ2 dự kiến triển khai pipeline ba tầng:
-(i) \textit{Knowledge Tracer} ước lượng mastery theo Learning Outcome bằng
-Bayesian Knowledge Tracing 4 tham số (\texttt{p\_known}, \texttt{p\_learn},
-\texttt{p\_guess}, \texttt{p\_slip}); (ii) \textit{Recommender} chọn nội
-dung tiếp theo bằng bandit (Thompson sampling hoặc LinUCB) để cân bằng
-exploration/exploitation; (iii) \textit{Instructor Dashboard} hiển thị
-phân bố mastery và LO mà cả lớp đang gặp khó khăn. Các bảng schema
-chuẩn bị cho pipeline này (\texttt{lo\_mastery\_states},
-\texttt{recommendation\_logs}, \texttt{learning\_paths}) đã được khai
-báo sẵn ở GĐ1 (xem
-mục~\ref{tab:postgres-tables} trong Chương~\ref{chap:phan-tich-thiet-ke}).
+\subsection{Phân chia vai trò 4 thành viên}
+\label{subsec:roles-gd2}
 
-\subsection{Recommendation System}
+Vai trò được phân theo \textit{runtime} chính mà thành viên phụ trách,
+ánh xạ trực tiếp với 6 runtime vật lý ở Bảng~\ref{tab:runtimes}. Mỗi
+thành viên kiêm vai trò DRI (Directly Responsible Individual) cho phần
+của mình nhưng vẫn cross-review code của thành viên khác để chia sẻ
+kiến thức.
 
-Recommendation system có thể đề xuất nội dung ôn tập dựa trên lịch sử học,
-kết quả quiz, độ khó câu hỏi và quan hệ prerequisite giữa các Learning
-Outcome. Ở giai đoạn đầu, hệ thống có thể dùng rule-based recommendation; khi
-có dữ liệu đủ lớn, có thể nghiên cứu mô hình học máy phù hợp hơn.
-
-\subsection{Advanced GraphRAG}
-
-GraphRAG có thể được mở rộng bằng cách rerank chunk dựa trên đường đi graph
-giữa LO, chapter và assessment; khai thác quan hệ prerequisite giữa các LO;
-sinh giải thích vì sao một câu hỏi đo một LO cụ thể; và so sánh RAG thuần,
-metadata-filtered RAG với GraphRAG bằng nDCG/MRR.
-
-\subsection{Multimodal Learning}
-
-Trong tương lai, hệ thống có thể xử lý thêm hình ảnh, slide có sơ đồ, bảng
-biểu phức tạp, video bài giảng hoặc transcript. Multimodal learning giúp hệ
-thống phù hợp hơn với tài liệu STEM, nơi kiến thức thường nằm trong hình vẽ,
-công thức hoặc biểu đồ chứ không chỉ trong văn bản.
-
-\subsection{Production-scale Deployment}
-
-Các bước cần bổ sung để tiến tới production gồm Kubernetes manifest hoặc Helm
-chart cho frontend/backend/worker, monitoring với metrics/log/tracing,
-backup/restore cho PostgreSQL/Qdrant/Neo4j, secret management cho LTI keypair
-và LLM API key, rate limit và quota theo course hoặc tenant.
-
-\section{Kế hoạch triển khai giai đoạn Luận văn tốt nghiệp}
-
-\subsection{Roadmap triển khai}
-
-\begin{longtable}{|p{2.5cm}|p{5cm}|p{6.5cm}|}
-    \caption{Kế hoạch triển khai tiếp theo.} \label{tab:future-plan-lvtn} \\
+\begin{longtable}{|p{1.2cm}|p{3.4cm}|p{9.5cm}|}
+    \caption{Phân chia vai trò và phạm vi phụ trách 4 thành viên.}
+    \label{tab:roles-gd2} \\
     \hline
-    \textbf{Giai đoạn} & \textbf{Mục tiêu} & \textbf{Kết quả kỳ vọng} \\
+    \textbf{ID} & \textbf{Vai trò chính} & \textbf{Phạm vi phụ trách} \\
     \hline
     \endfirsthead
     \hline
-    \textbf{Giai đoạn} & \textbf{Mục tiêu} & \textbf{Kết quả kỳ vọng} \\
+    \textbf{ID} & \textbf{Vai trò chính} & \textbf{Phạm vi phụ trách} \\
     \hline
     \endhead
 
-    P1 & Hoàn thiện E2E demo & Upload tài liệu, review, publish, học card và làm quiz chạy ổn định. \\ \hline
-    P2 & Đánh giá retrieval/quiz & Có bộ query ground truth, bảng Recall@K/MRR và rubric quiz. \\ \hline
-    P3 & Pilot trong lớp nhỏ & Thu thập feedback giảng viên/học viên và dữ liệu learning progress. \\ \hline
-    P4 & Dashboard phân tích & Hiển thị tiến độ, điểm quiz và LO yếu theo lớp/học viên. \\ \hline
-    P5 & Production hardening & Monitoring, backup, secret management và kế hoạch Kubernetes. \\ \hline
+    M1 & Backend AI (Python)
+       & \texttt{document-worker}, \texttt{enrichment-worker},
+         \texttt{chat-service}. Phụ trách pipeline parse $\to$ chunk
+         $\to$ embed, sinh Micro-Content/Quiz, RAG hybrid retrieval, SSE
+         streaming. Owner của Hexagonal port \texttt{IParser},
+         \texttt{IEmbeddingModel}, \texttt{ILLMClient},
+         \texttt{IVectorStore}. \\
+    \hline
+    M2 & Backend Core (NestJS) + Media (Go)
+       & \texttt{core-api} (metadata, RBAC, Outbox poller),
+         \texttt{video-worker} (FFmpeg, Whisper, segmentation), Neo4j
+         sync, Curriculum ingestion, LTI AGS grade passback. Owner của
+         giao diện gRPC giữa các runtime. \\
+    \hline
+    M3 & Frontend / BFF (Next.js)
+       & \texttt{web-bff}, UI giảng viên (review, dashboard,
+         curriculum), UI học viên (card, quiz, chatbot, video learning),
+         LTI launch flow, mobile responsive. Owner của trải nghiệm
+         người dùng và accessibility. \\
+    \hline
+    M4 & Data \& DevOps
+       & Hạ tầng (Docker Compose, secret management, backup), CI/CD,
+         OpenTelemetry stack (Tempo, Loki, Grafana, Prometheus), schema
+         migration, evaluation pipeline (Recall@K, MRR, rubric quiz),
+         cost monitoring. Owner của môi trường chạy và đánh giá. \\
+    \hline
 \end{longtable}
 
-\subsection{Kế hoạch phát triển theo giai đoạn}
+Hai vai trò cross-cutting được luân phiên hàng tuần:
+\begin{itemize}
+    \item \textbf{Scrum Master:} điều phối daily standup, gỡ blocker,
+          cập nhật burndown. Luân phiên giữa M1--M4.
+    \item \textbf{On-call pilot support:} trực hỗ trợ giảng viên/sinh
+          viên trong giai đoạn pilot (Tuần 7--14). Luân phiên 24h theo
+          chu kỳ 4 ngày.
+\end{itemize}
 
-Trong giai đoạn luận văn tốt nghiệp, ưu tiên triển khai nên đi theo thứ tự:
-hoàn thiện luồng chính end-to-end, chốt schema dữ liệu đánh giá, chạy thử trên
-một số tài liệu thật, sau đó mới mở rộng dashboard và tối ưu GraphRAG. Cách
-chia này giúp luận văn có kết quả demo rõ ràng, đồng thời vẫn giữ được hướng
-nghiên cứu sâu cho phần đánh giá.
+\subsection{Phân loại ưu tiên và tiêu chí thành công tối thiểu}
+\label{subsec:priority-gd2}
 
-\subsection{Các chức năng mở rộng dự kiến}
+Ba mức ưu tiên áp dụng xuyên suốt roadmap:
+\begin{itemize}
+    \item \textbf{[M] MUST:} bắt buộc hoàn thành để đủ điều kiện bảo vệ
+          --- luồng end-to-end ổn định, pilot tối thiểu, đánh giá cơ
+          bản.
+    \item \textbf{[S] SHOULD:} nên hoàn thành để báo cáo đầy đủ ---
+          đánh giá retrieval/quiz, dashboard giảng viên cơ bản, cost
+          monitoring.
+    \item \textbf{[N] NICE-TO-HAVE:} làm nếu còn thời gian --- advanced
+          GraphRAG benchmark, dashboard giảng viên nâng cao, multimodal
+          ingestion, Kubernetes manifest.
+\end{itemize}
 
-Các chức năng mở rộng dự kiến gồm RAG chatbot nhiều lượt, adaptive learning
-theo Learning Outcome, recommendation card/quiz, dashboard cho giảng viên,
-GraphRAG nâng cao, OCR/multimodal ingestion và triển khai production trên
-Kubernetes.
+\textbf{Tiêu chí thành công tối thiểu (Definition of Done cho luận
+văn):}
+\begin{enumerate}
+    \item LTI launch từ Canvas vào hệ thống hoạt động cho cả vai trò
+          \texttt{Instructor} và \texttt{Learner}.
+    \item Upload PDF $\to$ parse $\to$ chunk $\to$ embed $\to$ search
+          Qdrant trả về top-K liên quan (đo Recall@5 trên bộ ground
+          truth $\geq 50$ query).
+    \item Sinh Micro-Content card và Quiz item từ chunk, giảng viên
+          review và publish được.
+    \item Chatbot trả lời câu hỏi với citation chunk gốc, stream SSE
+          hoạt động trong iframe Canvas.
+    \item Video upload $\to$ STT $\to$ segment $\to$ index Qdrant, học
+          viên xem được video kèm transcript có timestamp.
+    \item Pilot $\geq 10$ sinh viên trên ít nhất 1 môn, thu thập
+          $\geq 30$ quiz attempts và $\geq 50$ chat session.
+    \item Báo cáo cập nhật C5 (hiện thực chi tiết) và C6 (số liệu pilot
+          thật, không còn \texttt{TODO: đo thực nghiệm}).
+\end{enumerate}
+
+\subsection{Tổng quan 15 tuần và 8 Sprint}
+\label{subsec:overview-gd2}
+
+\begin{longtable}{|p{1.2cm}|p{1.5cm}|p{4cm}|p{6cm}|}
+    \caption{Tổng quan 15 tuần GĐ2 chia thành 8 Sprint.}
+    \label{tab:overview-gd2} \\
+    \hline
+    \textbf{Sprint} & \textbf{Tuần} & \textbf{Theme} & \textbf{Mốc đầu
+    Sprint} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{Sprint} & \textbf{Tuần} & \textbf{Theme} & \textbf{Mốc đầu
+    Sprint} \\
+    \hline
+    \endhead
+
+    1 & 1--2 & Foundation, infra, LTI launch
+      & Docker Compose chạy được toàn stack; LTI launch demo trên Canvas
+        sandbox. \\
+    \hline
+    2 & 3--4 & Document Pipeline + Micro-Content + Quiz
+      & Upload PDF $\to$ chunk $\to$ Qdrant; sinh card/quiz draft. \\
+    \hline
+    3 & 5--6 & Video Pipeline + RAG Chatbot + Video Search
+      & Upload video $\to$ transcript; chatbot stream SSE với citation;
+        Video Search trả YouTube + internal. \\
+    \hline
+    4 & 7 & Hardening + Pilot kick-off
+      & E2E ổn định 48h; recruit pilot $\geq 10$ SV; training giảng
+        viên. \\
+    \hline
+    5 & 8--9 & Pilot iteration + prompt tuning
+      & Bug fix theo feedback hàng ngày; prompt iteration; performance
+        profiling. \\
+    \hline
+    6 & 10--12 & Evaluation, security, polish
+      & Recall@K/MRR có số liệu; OWASP scan pass; UI polish. \\
+    \hline
+    7 & 13--14 & Pilot wrap-up + Data analysis
+      & Export dataset; survey giảng viên/SV; phân tích chất lượng
+        quiz/chat. \\
+    \hline
+    8 & 15 & Báo cáo cuối + Demo
+      & C5/C6 cập nhật; demo video; defense rehearsal. \\
+    \hline
+\end{longtable}
+
+\subsection{Sơ đồ Gantt tổng thể}
+\label{subsec:gantt-gd2}
+
+Hình~\ref{fig:gantt-sprints-gd2} biểu diễn timeline 8 Sprint trên 15 tuần
+kèm ba mốc chính (Pilot bắt đầu --- tuần 7, Pilot kết thúc --- tuần 14,
+Submit + Defense --- tuần 15). Hình~\ref{fig:gantt-workstream-gd2} chi
+tiết hóa theo workstream và ánh xạ owner chính (M1--M4) cho từng phần
+việc, cho phép nhìn rõ điểm dừng tải của mỗi thành viên và các giai
+đoạn cần phối hợp chéo.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{ganttchart}[
+    hgrid,
+    vgrid={*{1}{draw=black!15}},
+    x unit=0.95cm,
+    y unit chart=0.55cm,
+    y unit title=0.65cm,
+    bar height=0.65,
+    bar/.style={fill=blue!55, draw=blue!70},
+    bar label font=\footnotesize,
+    group/.style={fill=blue!80, draw=blue!90},
+    group label font=\footnotesize\bfseries,
+    milestone/.style={fill=red!80, draw=red!90},
+    milestone label font=\footnotesize\itshape,
+    title label font=\small\bfseries,
+    title/.style={fill=gray!25, draw=gray!50},
+    canvas/.style={draw=black!40}
+]{1}{15}
+\gantttitle{Tuần GĐ2}{15} \\
+\gantttitlelist{1,...,15}{1} \\
+\ganttgroup{S1 Foundation + LTI}{1}{2} \\
+\ganttgroup{S2 Document + Micro-Content}{3}{4} \\
+\ganttgroup{S3 Video + RAG Chatbot}{5}{6} \\
+\ganttgroup{S4 Hardening + Pilot kick-off}{7}{7} \\
+\ganttgroup{S5 Pilot iter + Prompt tuning}{8}{9} \\
+\ganttgroup{S6 Evaluation + Polish}{10}{12} \\
+\ganttgroup{S7 Pilot wrap-up}{13}{14} \\
+\ganttgroup{S8 Báo cáo + Demo}{15}{15} \\
+\ganttmilestone{Pilot bắt đầu ($\geq$10 SV)}{7} \\
+\ganttmilestone{Pilot kết thúc + freeze}{14} \\
+\ganttmilestone{Submit + Defense}{15}
+\end{ganttchart}%
+}
+\caption{Sơ đồ Gantt cấp Sprint của 15 tuần GĐ2 kèm 3 mốc chính.}
+\label{fig:gantt-sprints-gd2}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{ganttchart}[
+    hgrid,
+    vgrid={*{1}{draw=black!15}},
+    x unit=0.85cm,
+    y unit chart=0.48cm,
+    y unit title=0.6cm,
+    bar height=0.65,
+    bar/.style={fill=teal!55, draw=teal!70},
+    bar label font=\scriptsize,
+    group/.style={fill=teal!80, draw=teal!90},
+    group label font=\scriptsize\bfseries,
+    milestone/.style={fill=red!80, draw=red!90},
+    milestone label font=\scriptsize\itshape,
+    title label font=\small\bfseries,
+    title/.style={fill=gray!25, draw=gray!50},
+    canvas/.style={draw=black!40},
+    progress label text={}
+]{1}{15}
+\gantttitle{Tuần}{15} \\
+\gantttitlelist{1,...,15}{1} \\
+% ===== M1: Backend AI (Python) =====
+\ganttgroup{M1 Backend AI}{1}{15} \\
+\ganttbar{Skeleton workers + Hexagonal Port}{1}{2} \\
+\ganttbar{Parse + chunk + embed BGE-M3}{3}{4} \\
+\ganttbar{Micro-Content + Quiz prompts}{3}{4} \\
+\ganttbar{chat-service + RAG hybrid + RRF}{5}{6} \\
+\ganttbar{Video Search MCP module}{5}{6} \\
+\ganttbar{E2E smoke + bug fix}{7}{7} \\
+\ganttbar{Prompt iteration theo pilot}{8}{9} \\
+\ganttbar{Retrieval eval (Recall@K, MRR)}{10}{12} \\
+\ganttbar{Quiz/chat quality analysis}{13}{14} \\
+\ganttbar{Update C5/C6 phần AI}{15}{15} \\
+% ===== M2: Backend Core + Media =====
+\ganttgroup{M2 Backend Core + Media}{1}{15} \\
+\ganttbar{core-api NestJS + JWT verify}{1}{2} \\
+\ganttbar{Outbox + Poller daemon}{3}{4} \\
+\ganttbar{Neo4j sync + Curriculum extract}{3}{4} \\
+\ganttbar{video-worker Go + FFmpeg + Whisper}{5}{6} \\
+\ganttbar{LTI AGS + Rate limit}{7}{7} \\
+\ganttbar{Curriculum versioning + LO migrate}{8}{9} \\
+\ganttbar{Bug fix + hardening}{10}{12} \\
+\ganttbar{Class diagram + C5 phần Core}{13}{15} \\
+% ===== M3: Frontend / BFF =====
+\ganttgroup{M3 Frontend / BFF}{1}{15} \\
+\ganttbar{web-bff + LTI login/launch + Canvas key}{1}{2} \\
+\ganttbar{Upload UI + progress SSE + Review UI v1}{3}{4} \\
+\ganttbar{Chat UI + Video learning + Card/Quiz}{5}{6} \\
+\ganttbar{Onboarding flow + mobile QA}{7}{7} \\
+\ganttbar{Dashboard giảng viên v1}{8}{9} \\
+\ganttbar{UI polish + accessibility WCAG}{10}{12} \\
+\ganttbar{Survey + final UI polish}{13}{14} \\
+\ganttbar{Demo video + slide bảo vệ}{15}{15} \\
+% ===== M4: Data \& DevOps =====
+\ganttgroup{M4 Data + DevOps}{1}{15} \\
+\ganttbar{Docker Compose + CI + Schema migrate}{1}{2} \\
+\ganttbar{OpenTelemetry stack + integration test}{1}{4} \\
+\ganttbar{Backup + Cost monitoring + Production env}{7}{7} \\
+\ganttbar{Performance profiling}{8}{9} \\
+\ganttbar{OWASP scan + Load test + Cost report}{10}{12} \\
+\ganttbar{Export dataset + Cost aggregation}{13}{14} \\
+\ganttbar{Phụ lục + RUNBOOK + tag release}{15}{15} \\
+% ===== Cross-cutting =====
+\ganttgroup{Cross-cutting}{1}{15} \\
+\ganttbar{Daily standup + sprint review}{1}{15} \\
+\ganttbar{Pilot operations (on-call rotation)}{7}{14} \\
+\ganttbar{Documentation incremental}{2}{15} \\
+\ganttmilestone{Pilot start}{7} \\
+\ganttmilestone{Pilot stop}{14}
+\end{ganttchart}%
+}
+\caption{Sơ đồ Gantt chi tiết theo workstream và owner (M1--M4).
+Mỗi nhóm tương ứng một thành viên; hàng \emph{Cross-cutting} là việc
+toàn nhóm cùng tham gia.}
+\label{fig:gantt-workstream-gd2}
+\end{figure}
+
+Quan sát từ sơ đồ Gantt:
+\begin{itemize}
+    \item Tuần 1--2 \textbf{tải cao đồng đều} cả 4 thành viên vì phải
+          dựng song song scaffolding. Pair programming tuần 1 được
+          khuyến nghị để chia sẻ context Hexagonal Port giữa M1--M2.
+    \item Tuần 5--6 M1 và M2 cùng pháp tải nặng (RAG + video-worker)
+          --- cần đảm bảo M3 đã hoàn thành các UI base ở tuần 4 để
+          không tạo blocker.
+    \item Tuần 7 là \textbf{điểm thắt nút}: vừa hardening, vừa pilot
+          kick-off, vừa training giảng viên/SV. Đây là tuần có rủi ro
+          cao nhất, không nên schedule task mới.
+    \item Tuần 8--9 \textbf{M4 nhẹ tải} --- có thể assist M1/M2 với
+          curriculum versioning hoặc chạy thử evaluation pipeline sớm.
+    \item Tuần 10--12 sprint dài nhất, \textbf{tải dồn về M1 và M4} cho
+          evaluation. M2 chuyển sang hardening, M3 polish UI.
+    \item Tuần 13--15 toàn nhóm chuyển trọng tâm sang \textbf{báo cáo +
+          demo}; không có feature mới.
+\end{itemize}
+
+\subsection{Sprint 1 (Tuần 1--2) --- Foundation và LTI launch}
+\label{subsec:sprint1-gd2}
+
+Mục tiêu: dựng đủ scaffolding để các thành viên làm việc song song từ
+Sprint 2. Cuối sprint phải demo được LTI launch từ Canvas sandbox vào
+trang \texttt{/manage/review} (giảng viên) hoặc \texttt{/learn/courses}
+(học viên).
+
+\begin{longtable}{|p{0.7cm}|p{6.3cm}|p{1.2cm}|p{1cm}|p{3cm}|}
+    \caption{Sprint 1 --- Tuần 1--2.}
+    \label{tab:sprint1-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    1.1 & Setup monorepo + Docker Compose (15 container) & M4 & M & \texttt{docker compose up} pass health-check. \\ \hline
+    1.2 & Migrate PostgreSQL schema (24 + 3 bảng từ phụ lục) & M4 & M & \texttt{migrate up} chạy clean trên DB rỗng. \\ \hline
+    1.3 & CI workflow (GitHub Actions): lint + unit test & M4 & M & PR mở pass CI dưới 10 phút. \\ \hline
+    1.4 & OpenTelemetry collector + Tempo + Loki + Grafana & M4 & S & Trace từ \texttt{web-bff} đi đến worker hiển thị end-to-end trong Grafana. \\ \hline
+    1.5 & \texttt{core-api} skeleton (NestJS) + auth middleware (JWT verify) & M2 & M & \texttt{GET /health} và \texttt{GET /me} hoạt động sau LTI launch. \\ \hline
+    1.6 & \texttt{web-bff} skeleton + Next.js App Router & M3 & M & Trang chủ render; route \texttt{/lti/login}, \texttt{/lti/launch} reachable. \\ \hline
+    1.7 & Canvas Developer Key + Cloud sandbox account & M3 & M & Tool đăng ký được trong Canvas, launch test pass. \\ \hline
+    1.8 & LTI 1.3 OIDC login + launch verify (JWKS) & M3 & M & Click activity trong Canvas $\to$ vào hệ thống đúng role/context. \\ \hline
+    1.9 & UPSERT \texttt{lms\_user\_mappings} + \texttt{lms\_course\_ref} sau launch & M2 & M & Bảng có record sau launch đầu tiên. \\ \hline
+    1.10 & BFF-to-Core JWT signing (Ed25519 keypair) & M3, M2 & M & \texttt{core-api} reject request không có JWT hợp lệ. \\ \hline
+    1.11 & \texttt{document-worker} skeleton + BGE-M3 model load & M1 & M & Container start lên load model dưới 30s. \\ \hline
+    1.12 & \texttt{enrichment-worker} skeleton + Gemini SDK adapter & M1 & M & Gọi prompt mẫu, parse JSON schema strict. \\ \hline
+    1.13 & MinIO presigned URL upload flow (PDF mẫu) & M2, M3 & M & Browser upload file $\to$ MinIO trực tiếp pass. \\ \hline
+    1.14 & Hexagonal Port định nghĩa: \texttt{IParser}, \texttt{IEmbeddingModel}, \texttt{ILLMClient}, \texttt{IVectorStore}, \texttt{IGraphStore}, \texttt{IObjectStorage} & M1, M2 & M & ABC class có trong codebase, có 2 adapter (real + mock). \\ \hline
+\end{longtable}
+
+\subsection{Sprint 2 (Tuần 3--4) --- Document Pipeline và Micro-Content}
+\label{subsec:sprint2-gd2}
+
+Mục tiêu: hoàn thiện luồng tài liệu từ upload đến sinh card/quiz draft.
+Cuối sprint giảng viên có thể upload 1 PDF mẫu, xem được chunk trên
+Qdrant và review card/quiz được sinh ra (chưa cần publish).
+
+\begin{longtable}{|p{0.7cm}|p{6.3cm}|p{1.2cm}|p{1cm}|p{3cm}|}
+    \caption{Sprint 2 --- Tuần 3--4.}
+    \label{tab:sprint2-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    2.1 & PDF parser adapter (PyMuPDF) + OCR fallback (Tesseract/Docling) & M1 & M & Parse PDF text layer pass; PDF scan trigger OCR. \\ \hline
+    2.2 & Chunker heading-based + size fallback (max 1500 token) & M1 & M & Chunk có \texttt{heading\_path} và \texttt{page\_range} đúng. \\ \hline
+    2.3 & BGE-M3 embed dense + sparse + Qdrant upsert (Named Vectors) & M1 & M & Search Qdrant trả top-K với cả 2 vector. \\ \hline
+    2.4 & Hybrid retrieval + RRF (chuẩn bị cho Sprint 3) & M1 & S & Unit test RRF gộp 2 ranking đúng. \\ \hline
+    2.5 & Document upload UI + progress SSE & M3 & M & Upload PDF $\to$ thấy progress bar realtime. \\ \hline
+    2.6 & Outbox table + Outbox Poller daemon trong \texttt{core-api} & M2 & M & Insert outbox event $\to$ poll $\to$ enqueue BullMQ. \\ \hline
+    2.7 & Neo4j sync worker: tạo \texttt{Chunk}, \texttt{SUPPORTS} & M2 & S & Sau ingest 1 doc, Neo4j có node \texttt{Chunk}. \\ \hline
+    2.8 & Curriculum ingestion (DCMH PDF $\to$ Course, Chapter, LO, Assessment) bằng Gemini Flash JSON schema & M1, M2 & S & Ingest DCMH mẫu trả về cấu trúc đúng, insert PostgreSQL. \\ \hline
+    2.9 & \texttt{HeuristicLoMapper}: ánh xạ chunk $\to$ LO theo embedding similarity & M1 & S & 1 chunk gắn được $\geq 1$ \texttt{lo\_id} với confidence. \\ \hline
+    2.10 & Micro-Content generation prompt + JSON schema strict & M1 & M & Card có \texttt{title}, \texttt{bullets}, \texttt{key\_insight}, \texttt{source\_chunk\_ids}. \\ \hline
+    2.11 & Quiz generation prompt (Bloom level, 4-MCQ + 1 short) + validator & M1 & M & Quiz pass schema, không có ``All of the above''. \\ \hline
+    2.12 & Review UI v1: list draft, view detail, approve/reject & M3 & M & Giảng viên duyệt được 10 card/quiz draft. \\ \hline
+    2.13 & State machine \texttt{GENERATED\_DRAFT} $\to$ \texttt{REVIEWING} $\to$ \texttt{APPROVED} & M2, M3 & M & Transition đúng, audit log ghi nhận. \\ \hline
+    2.14 & Integration test setup (testcontainers Postgres + Qdrant + Redis) & M4 & S & Test pipeline document chạy CI dưới 5 phút. \\ \hline
+\end{longtable}
+
+\subsection{Sprint 3 (Tuần 5--6) --- Video Pipeline và RAG Chatbot}
+\label{subsec:sprint3-gd2}
+
+Mục tiêu: hoàn thiện hai phân hệ AI lớn còn lại --- video processing và
+chatbot. Cuối sprint sinh viên có thể upload 1 video bài giảng và đặt
+câu hỏi qua chatbot AI Tutor với citation đến cả tài liệu lẫn video
+segment.
+
+\begin{longtable}{|p{0.7cm}|p{6.3cm}|p{1.2cm}|p{1cm}|p{3cm}|}
+    \caption{Sprint 3 --- Tuần 5--6.}
+    \label{tab:sprint3-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    3.1 & \texttt{video-worker} (Go) skeleton + BullMQ Go client & M2 & M & Container consume \texttt{VideoUploaded} event được. \\ \hline
+    3.2 & FFmpeg audio extraction subprocess + progress reporting & M2 & M & Extract WAV 16kHz từ MP4/MOV. \\ \hline
+    3.3 & Whisper STT integration (local CUDA + API fallback adapter) & M2 & M & Transcript có timestamp đúng cho video 5 phút. \\ \hline
+    3.4 & Silence + topic shift segmentation, clip cut 30--90s & M2 & S & Video 60' tạo $\geq 30$ segment. \\ \hline
+    3.5 & Insert \texttt{video\_segments}, \texttt{transcript\_segments} + publish \texttt{TranscriptReady} & M2 & M & Event nhận được ở \texttt{document-worker}. \\ \hline
+    3.6 & Embed transcript segment vào Qdrant cùng collection \texttt{learning\_chunks} & M1 & M & Search Qdrant trả về cả document chunk và video segment. \\ \hline
+    3.7 & \texttt{chat-service} (FastAPI) skeleton + SSE endpoint & M1 & M & \texttt{/chat/stream} nhận query, trả token stream. \\ \hline
+    3.8 & RAG hybrid retrieval (dense+sparse + RRF) + filter cứng \texttt{course\_id} & M1 & M & Câu hỏi course A không trả chunk course B. \\ \hline
+    3.9 & Graph-aware reranking (boost chunk có \texttt{SUPPORTS} LO trọng tâm) & M1 & S & Có ablation: tắt graph $\to$ bật graph, ghi nhận sự khác biệt. \\ \hline
+    3.10 & Single-Use Ticket cho SSE handshake & M2, M1 & M & Token chỉ valid 1 lần, expire sau 60s. \\ \hline
+    3.11 & Citation extraction + format \texttt{[1]}, \texttt{[2]} trong response & M1 & M & Click citation $\to$ mở chunk gốc. \\ \hline
+    3.12 & Lưu \texttt{chat\_messages} (UUIDv7) với metadata citation & M1 & M & Lịch sử chat reload đúng thứ tự. \\ \hline
+    3.13 & Video Search module: YouTube MCP + internal Qdrant transcript & M1 & S & Hỏi ``Giải thích B-tree bằng video'' $\to$ trả 3 video. \\ \hline
+    3.14 & Chat UI: bubble + citation + streaming caret & M3 & M & Stream token mượt, không lag. \\ \hline
+    3.15 & Video learning UI: player + transcript click-to-jump + related card panel & M3 & S & Click timestamp trong transcript $\to$ player nhảy đúng. \\ \hline
+    3.16 & Card view + Quiz view (mobile-first) & M3 & M & Swipe gesture, touch target $\geq 44$px. \\ \hline
+\end{longtable}
+
+\subsection{Sprint 4 (Tuần 7) --- Hardening và Pilot kick-off}
+\label{subsec:sprint4-gd2}
+
+Mục tiêu: ổn định hệ thống 48h liên tục và khởi động pilot với một lớp
+thực tế. Đây là sprint ngắn (1 tuần) nhưng rủi ro cao --- cần freeze
+feature, chỉ bug fix.
+
+\begin{longtable}{|p{0.7cm}|p{6.3cm}|p{1.2cm}|p{1cm}|p{3cm}|}
+    \caption{Sprint 4 --- Tuần 7.}
+    \label{tab:sprint4-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    4.1 & E2E smoke test: upload doc + video + sinh card/quiz + chat + làm quiz & All & M & 1 luồng end-to-end pass trong 30 phút. \\ \hline
+    4.2 & Backup script PostgreSQL + Qdrant + Neo4j + MinIO & M4 & M & Restore drill: drop DB $\to$ restore $\to$ pass smoke test. \\ \hline
+    4.3 & Cost monitoring dashboard (Prometheus rule + Grafana panel) & M4 & S & Hiển thị token tiêu thụ realtime theo provider/use case. \\ \hline
+    4.4 & Rate limit + quota enforcement (\texttt{user\_llm\_quota}) & M2 & M & User vượt 100K token/ngày bị reject 429. \\ \hline
+    4.5 & LTI AGS grade passback (score quiz $\to$ Canvas Gradebook) & M2 & M & Học viên submit quiz $\to$ Canvas hiển thị điểm. \\ \hline
+    4.6 & Onboarding flow giảng viên (3 bước: connect Canvas, upload doc, review card) & M3 & M & Giảng viên mới hoàn thành setup dưới 15 phút. \\ \hline
+    4.7 & Mobile responsive QA pass (test trên Android + iOS) & M3 & S & Card, quiz, chat dùng được trên màn hình $\leq 375$px. \\ \hline
+    4.8 & Recruit pilot: 1 môn, 1 giảng viên, $\geq 10$ SV & All & M & Có danh sách + commitment ký nhận. \\ \hline
+    4.9 & Pilot user training session (1h, ghi video) & M3, M1 & M & Giảng viên + SV biết cách upload, review, học, chat. \\ \hline
+    4.10 & Production env (VPS hoặc cloud nhỏ) với HTTPS Caddy & M4 & M & Domain HTTPS valid, Canvas có thể launch. \\ \hline
+    4.11 & Alert rule cơ bản (error rate, queue depth, disk usage) & M4 & S & Discord/Email alert khi rule fire. \\ \hline
+    4.12 & On-call rotation lịch (4 ngày/người) & All & M & Lịch share với GVHD. \\ \hline
+\end{longtable}
+
+\subsection{Sprint 5 (Tuần 8--9) --- Pilot iteration và prompt tuning}
+\label{subsec:sprint5-gd2}
+
+Mục tiêu: pilot chạy ổn định 2 tuần, thu thập đủ dữ liệu để đánh giá ở
+Sprint 6. Trọng tâm là bug fix theo feedback và tinh chỉnh prompt để
+tăng chất lượng card/quiz.
+
+\begin{longtable}{|p{0.7cm}|p{6.3cm}|p{1.2cm}|p{1cm}|p{3cm}|}
+    \caption{Sprint 5 --- Tuần 8--9.}
+    \label{tab:sprint5-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    5.1 & Daily standup + bug triage (15 phút mỗi sáng) & All & M & Bug-free SLA 24h cho lỗi blocker. \\ \hline
+    5.2 & Pilot bug fix theo feedback (rolling) & All & M & Burn-down chart bug pilot giảm tuyến tính. \\ \hline
+    5.3 & Prompt iteration dựa trên quiz quality feedback từ giảng viên & M1 & S & V2 prompt giảm reject rate xuống dưới 30\%. \\ \hline
+    5.4 & Chat session quality audit (sample 20 session) & M1 & S & Hallucination rate đo được; có biện pháp giảm thiểu. \\ \hline
+    5.5 & Performance profiling: tìm bottleneck (Qdrant search, LLM call, parsing) & M4 & S & Báo cáo top-3 bottleneck + plan tune. \\ \hline
+    5.6 & Curriculum versioning (track LO thay đổi theo \texttt{academic\_year}) & M2 & S & Tạo LO v2 không làm vỡ liên kết chunk cũ. \\ \hline
+    5.7 & Dashboard giảng viên v1 (LO coverage, top quiz wrong, hoạt động lớp) & M3 & S & Có dashboard cơ bản, không cần real-time. \\ \hline
+    5.8 & Test trên môn thứ 2 (nếu có giảng viên tự nguyện) & All & N & Có 1 môn mở rộng thử nghiệm. \\ \hline
+\end{longtable}
+
+\subsection{Sprint 6 (Tuần 10--12) --- Evaluation, security và polish}
+\label{subsec:sprint6-gd2}
+
+Mục tiêu: thu thập số liệu thực nghiệm chuẩn để báo cáo C6 ---
+\textbf{thay tất cả} \texttt{TODO: đo thực nghiệm} bằng số liệu thật.
+Song song hardening security và polish UI.
+
+\begin{longtable}{|p{0.7cm}|p{6.3cm}|p{1.2cm}|p{1cm}|p{3cm}|}
+    \caption{Sprint 6 --- Tuần 10--12.}
+    \label{tab:sprint6-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    6.1 & Tạo bộ ground truth retrieval: $\geq 50$ query có đáp án chunk đúng & M1 & M & File JSONL ground truth được commit. \\ \hline
+    6.2 & Đo Recall@1, Recall@5, Recall@10, MRR cho 3 retrieval mode (dense, sparse, hybrid+RRF) & M1, M4 & M & Bảng Recall/MRR trong C6. \\ \hline
+    6.3 & Đo nDCG cho Graph-aware rerank (ablation on/off) & M1 & S & Có số liệu so sánh có/không Neo4j boost. \\ \hline
+    6.4 & Rubric quiz: 5 tiêu chí, giảng viên chấm $\geq 100$ quiz item & M1, GVHD & M & Bảng phân bố điểm rubric trong C6. \\ \hline
+    6.5 & Chat quality: hallucination rate, citation hit rate, helpfulness Likert 5 & M1 & S & Bảng kết quả trong C6. \\ \hline
+    6.6 & OWASP scan: \texttt{trivy}, \texttt{pip-audit}, \texttt{npm audit} & M4 & S & Vulnerability cao bị patch hoặc whitelist có lý do. \\ \hline
+    6.7 & Prompt injection test set ($\geq 20$ kịch bản) & M1 & S & Tỷ lệ bypass dưới 10\%. \\ \hline
+    6.8 & Load test (k6 hoặc Locust) 50 user concurrent & M4 & S & p95 latency chatbot dưới 5s, error rate dưới 1\%. \\ \hline
+    6.9 & UI polish: accessibility (WCAG AA), dark mode optional & M3 & S & Lighthouse accessibility $\geq 90$. \\ \hline
+    6.10 & Cost report: token tiêu thụ tổng + cost per pilot user & M4 & M & Bảng chi phí trong C6. \\ \hline
+    6.11 & Documentation: \texttt{README.md}, \texttt{ARCHITECTURE.md}, \texttt{RUNBOOK.md} & All & S & Onboarding dev mới dưới 1h. \\ \hline
+    6.12 & GraphRAG ablation: so sánh có/không Neo4j boost (nDCG, MRR) & M1 & N & Có bảng so sánh trong C6. \\ \hline
+\end{longtable}
+
+\subsection{Sprint 7 (Tuần 13--14) --- Pilot wrap-up và data analysis}
+\label{subsec:sprint7-gd2}
+
+Mục tiêu: chốt pilot, phân tích dữ liệu cuối cùng và viết kết quả vào
+báo cáo.
+
+\begin{longtable}{|p{0.7cm}|p{6.3cm}|p{1.2cm}|p{1cm}|p{3cm}|}
+    \caption{Sprint 7 --- Tuần 13--14.}
+    \label{tab:sprint7-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    7.1 & Stop pilot, export dataset (PostgreSQL dump + chat log JSONL + quiz attempt CSV) & M4 & M & Dataset có timestamp, anonymized. \\ \hline
+    7.2 & Survey giảng viên (10 câu Likert + 3 open) & M3 & M & $\geq 1$ giảng viên trả lời đầy đủ. \\ \hline
+    7.3 & Survey học viên ($\geq 7$/10 SV trả lời) & M3 & M & Có dữ liệu định lượng + định tính. \\ \hline
+    7.4 & Phân tích chất lượng quiz: manual scoring + LLM judge (Gemini Pro) so sánh & M1 & S & Inter-annotator agreement Cohen's $\kappa$ tính được. \\ \hline
+    7.5 & Phân tích chat session: top câu hỏi, top citation, fail cases & M1 & S & Bảng pattern phân tích trong C6. \\ \hline
+    7.6 & Aggregate cost (LLM token + Whisper + storage) & M4 & M & Cost per active user/tháng. \\ \hline
+    7.7 & Bug list cuối cùng + known issue cho C6 mục Hạn chế & All & M & Danh sách rõ ràng trong report. \\ \hline
+    7.8 & Final UI polish (typo, copy, loading state) & M3 & M & Walkthrough không gặp lỗi UI nào. \\ \hline
+    7.9 & Sao lưu code freeze, tag \texttt{v1.0-defense} & M4 & M & Tag có trên GitHub. \\ \hline
+\end{longtable}
+
+\subsection{Sprint 8 (Tuần 15) --- Báo cáo cuối và Demo}
+\label{subsec:sprint8-gd2}
+
+Mục tiêu: hoàn thiện báo cáo và chuẩn bị bảo vệ. Không thêm feature mới.
+
+\begin{longtable}{|p{0.7cm}|p{6.3cm}|p{1.2cm}|p{1cm}|p{3cm}|}
+    \caption{Sprint 8 --- Tuần 15.}
+    \label{tab:sprint8-gd2} \\
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{\#} & \textbf{Task} & \textbf{Owner} & \textbf{Prio} & \textbf{Acceptance} \\
+    \hline
+    \endhead
+
+    8.1 & Cập nhật C5 (Hiện thực): cấu trúc thư mục, snippet adapter, DDL/Cypher mẫu, Compose file & M1, M2, M3, M4 & M & C5 dài $\geq 700$ dòng, có code snippet thật. \\ \hline
+    8.2 & Cập nhật C6 (Đánh giá): thay \texttt{TODO} bằng số liệu pilot, bảng Recall/MRR/Rubric & M1, M4 & M & C6 không còn \texttt{TODO}. \\ \hline
+    8.3 & Cập nhật phụ lục: schema cuối, env config, prompt template & M4 & M & Phụ lục đầy đủ. \\ \hline
+    8.4 & Vẽ class diagram thật (\texttt{class\_diagram\_*.png}) & M2, M3 & S & C4 mục 4.9 có hình. \\ \hline
+    8.5 & Quay demo video 8--10 phút (full journey giảng viên + học viên) & M3 & M & Video upload YouTube unlisted. \\ \hline
+    8.6 & Slide bảo vệ (15--20 slide, 20 phút trình bày) & All & M & Rehearsal pass trước GVHD. \\ \hline
+    8.7 & Defense rehearsal nội bộ ($\geq 2$ lần) & All & M & Q\&A tối thiểu 10 câu chuẩn bị sẵn. \\ \hline
+    8.8 & Submit báo cáo theo deadline khoa & All & M & Có biên nhận. \\ \hline
+\end{longtable}
+
+\subsection{Rủi ro chính và biện pháp giảm thiểu}
+\label{subsec:risks-gd2}
+
+\begin{longtable}{|p{4.5cm}|p{1.5cm}|p{8.5cm}|}
+    \caption{Rủi ro và biện pháp giảm thiểu.}
+    \label{tab:risks-gd2} \\
+    \hline
+    \textbf{Rủi ro} & \textbf{Mức} & \textbf{Biện pháp} \\
+    \hline
+    \endfirsthead
+    \hline
+    \textbf{Rủi ro} & \textbf{Mức} & \textbf{Biện pháp} \\
+    \hline
+    \endhead
+
+    Canvas Cloud sandbox bị giới hạn rate hoặc bị khóa
+        & Cao
+        & Backup bằng Canvas Open Source self-host trong Docker Compose; lưu credential và sample course trước. \\ \hline
+    GPU lab không sẵn để chạy Whisper local
+        & Cao
+        & Dùng adapter Whisper API (OpenAI hoặc AssemblyAI) làm fallback; chuyển bằng env var \texttt{STT\_PROVIDER}. \\ \hline
+    Gemini API rate limit hoặc hết quota
+        & Trung bình
+        & Cấu hình fallback Gemini Flash; cache prompt deterministic; cấp $\geq 2$ key dự phòng. \\ \hline
+    Pilot không đủ 10 SV
+        & Cao
+        & Outreach từ tuần 1; chuẩn bị $\geq 2$ giảng viên dự phòng; có thể ghép 2 lớp nhỏ. \\ \hline
+    Bug pilot lan rộng làm SV mất niềm tin
+        & Cao
+        & Feature flag để rollback nhanh; on-call 24h trong 2 tuần đầu pilot; reset môi trường mỗi đêm nếu cần. \\ \hline
+    Chi phí LLM vượt budget
+        & Trung bình
+        & Cost cap per user; alert Prometheus; chuyển sang Gemini Flash cho task không cần Pro. \\ \hline
+    Privacy: dữ liệu tài liệu nội bộ gửi sang API ngoài
+        & Trung bình
+        & Hard filter PII trước khi embed; ký DPA với provider; có option chạy fully local cho môn nhạy cảm. \\ \hline
+    Thành viên ốm/bận đột xuất
+        & Trung bình
+        & Cross-review code từ Sprint 1; pair programming tuần 1--2 để chia sẻ context. \\ \hline
+    Báo cáo bị reject vì thiếu số liệu thực nghiệm
+        & Cao
+        & Sprint 6 là sprint dài nhất (3 tuần) dành riêng cho evaluation; thay tất cả TODO trước Sprint 8. \\ \hline
+\end{longtable}
+
+\subsection{Lưu ý vận hành kế hoạch}
+\label{subsec:plan-notes-gd2}
+
+\begin{itemize}
+    \item \textbf{Daily standup} 15 phút mỗi sáng, online qua Discord
+          hoặc trực tiếp, ghi nhận blocker và assign hành động trong
+          24h.
+    \item \textbf{Sprint review + retro} cuối mỗi sprint với GVHD, demo
+          các task MUST đã đạt và điều chỉnh ưu tiên Sprint tiếp theo.
+    \item \textbf{Code review bắt buộc:} mọi PR cần $\geq 1$ reviewer
+          khác chủ branch. Không self-merge trừ hot-fix có log lý do.
+    \item \textbf{Cắt scope linh hoạt:} nếu cuối Sprint 4 chưa pilot
+          được, lùi sang Sprint 5; nếu cuối Sprint 6 chưa có Recall@K
+          thì drop toàn bộ task NICE-TO-HAVE để bảo vệ tiêu chí MUST.
+    \item \textbf{Báo cáo song song code:} từ Sprint 2 trở đi, mỗi
+          feature MUST hoàn thành phải kèm 1--2 đoạn cập nhật cho C5
+          hoặc C6 trong cùng PR --- tránh dồn viết báo cáo vào Sprint 8.
+\end{itemize}
 
 Tóm lại, Generative AI có thể hỗ trợ đáng kể quá trình chuyển đổi tài liệu học
 thuật thành nội dung học tập ngắn và câu hỏi kiểm tra, nhưng cần được đặt

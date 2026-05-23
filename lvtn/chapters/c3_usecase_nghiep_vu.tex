@@ -1,3 +1,4 @@
+% !TeX root = ../main.tex
 \chapter{Cơ sở lý thuyết và công nghệ}
 \label{chap:co-so-ly-thuyet-cong-nghe}
 
@@ -39,20 +40,16 @@ review của giảng viên.
     \centering
     \caption{Đặc điểm của micro-learning trong hệ thống đề xuất}
     \label{tab:microlearning-characteristics}
-    \begin{tabular}{|p{4cm}|p{9.5cm}|}
-        \hline
+    \begin{tabular}{p{4cm}p{9.5cm}}
+        \toprule
         \textbf{Đặc điểm} & \textbf{Ý nghĩa trong hệ thống} \\
-        \hline
+        \midrule
         Ngắn gọn & Mỗi đơn vị nội dung tập trung vào một ý chính, giảm tải nhận thức cho học viên. \\
-        \hline
         Có ngữ cảnh nguồn & Card / quiz cần liên kết đến document, page, heading hoặc timestamp video để kiểm chứng. \\
-        \hline
         Có thể kiểm tra nhanh & Mỗi cụm nội dung có thể gắn flashcard hoặc quiz nhằm củng cố ghi nhớ. \\
-        \hline
         Có metadata sư phạm & Nội dung được gắn Learning Outcome, mức Bloom, độ khó và trạng thái review. \\
-        \hline
         Phù hợp cá nhân hóa & Dữ liệu hoàn thành từng card / quiz có thể dùng để đề xuất nội dung ôn tập. \\
-        \hline
+        \bottomrule
     \end{tabular}
 \end{table}
 
@@ -228,20 +225,16 @@ Một prompt sinh quiz trong hệ thống thường gồm các phần:
     \centering
     \caption{Các kỹ thuật prompt engineering áp dụng trong hệ thống}
     \label{tab:prompt-engineering-techniques}
-    \begin{tabular}{|p{3.4cm}|p{4.6cm}|p{5.5cm}|}
-        \hline
+    \begin{tabular}{p{3.4cm}p{4.6cm}p{5.5cm}}
+        \toprule
         \textbf{Kỹ thuật} & \textbf{Mô tả} & \textbf{Ứng dụng trong đề tài} \\
-        \hline
+        \midrule
         Role Prompting & Gán vai trò chuyên môn cho mô hình. & ``Bạn là giảng viên đại học đang soạn quiz cho học viên''. \\
-        \hline
         Constraint Prompting & Đặt ràng buộc về số lượng, độ dài, độ khó và ngôn ngữ. & Sinh đúng 5 câu hỏi, mỗi câu có 4 đáp án và giải thích ngắn. \\
-        \hline
         Context Grounding & Cung cấp ngữ cảnh truy xuất từ tài liệu. & Yêu cầu câu trả lời chỉ dựa trên chunk được đưa vào. \\
-        \hline
         Few-shot Example & Cung cấp ví dụ đầu ra mong muốn. & Minh họa một quiz item đạt schema và Bloom level. \\
-        \hline
         Self-check Instruction & Yêu cầu mô hình tự kiểm tra trước khi trả lời. & Kiểm tra đáp án đúng duy nhất, không lộ đáp án, có citation. \\
-        \hline
+        \bottomrule
     \end{tabular}
 \end{table}
 
@@ -464,20 +457,16 @@ quan trọng gồm:
     \centering
     \caption{So sánh RAG truyền thống và GraphRAG trong hệ thống giáo dục}
     \label{tab:rag-vs-graphrag-c3}
-    \begin{tabular}{|p{3.8cm}|p{4.8cm}|p{5.2cm}|}
-        \hline
+    \begin{tabular}{p{3.8cm}p{4.8cm}p{5.2cm}}
+        \toprule
         \textbf{Tiêu chí} & \textbf{RAG truyền thống} & \textbf{GraphRAG / Curriculum-aware RAG} \\
-        \hline
+        \midrule
         Đơn vị truy xuất & Chunk văn bản & Chunk kết hợp node/edge như LO, Chapter, Concept \\
-        \hline
         Cách tìm kiếm & Vector similarity & Vector similarity + metadata filter + graph traversal \\
-        \hline
         Bám chuẩn đầu ra & Phụ thuộc metadata đơn giản & Có quan hệ tường minh giữa Chunk và Learning Outcome \\
-        \hline
         Sinh quiz theo LO & Có thể lệch nếu query mơ hồ & Ưu tiên chunk hỗ trợ LO mục tiêu \\
-        \hline
         Độ phức tạp triển khai & Thấp hơn & Cao hơn do cần graph schema và đồng bộ dữ liệu \\
-        \hline
+        \bottomrule
     \end{tabular}
 \end{table}
 
@@ -602,3 +591,689 @@ tối thiểu gồm \texttt{document\_id}, \texttt{chunk\_id},
 \texttt{heading\_path}, vị trí trang hoặc timestamp, ngôn ngữ và trạng thái
 publish/review. Các metadata này là nền tảng cho RAG, GraphRAG,
 curriculum-aware retrieval và human-in-the-loop review.
+
+
+\section{Vector Embedding và Semantic Search}
+\label{sec:vector-embedding-semantic-search}
+
+Vector embedding là kỹ thuật biểu diễn văn bản dưới dạng vector số trong không
+gian nhiều chiều. Thay vì so khớp từ khóa trực tiếp, hệ thống so sánh ý nghĩa
+giữa câu hỏi của người dùng và các chunk tài liệu thông qua khoảng cách hoặc độ
+tương đồng giữa vector. Cách tiếp cận này là nền tảng của semantic search, dense
+retrieval và nhiều kiến trúc RAG hiện đại \cite{karpukhin2020dpr,lewis2020rag}.
+
+Trong hệ thống LMS đề xuất, embedding được tạo cho các chunk tài liệu, transcript
+video, flashcard/quiz đã publish và truy vấn của người dùng. Khi học viên tìm
+kiếm hoặc hỏi AI Tutor Chatbot, hệ thống chuyển truy vấn thành vector, truy xuất
+các chunk liên quan nhất, sau đó dùng chúng làm căn cứ để hiển thị kết quả hoặc
+cung cấp context cho LLM. Vì vậy, chất lượng embedding ảnh hưởng trực tiếp đến
+độ chính xác của semantic search, citation, chatbot và sinh quiz theo nguồn.
+
+\subsection{Embedding Models}
+\label{subsec:embedding-models}
+
+Embedding model nhận văn bản đầu vào và ánh xạ văn bản đó thành một vector có
+số chiều cố định. Các mô hình biểu diễn ngữ nghĩa hiện đại thường dựa trên
+Transformer, kế thừa ý tưởng học biểu diễn ngữ cảnh từ BERT và được tối ưu thêm
+cho bài toán so sánh câu, truy xuất đoạn văn hoặc tìm kiếm tài liệu
+\cite{devlin2019bert,reimers2019sbert}.
+
+Với bài toán semantic search, mô hình embedding cần tạo ra vector sao cho các
+đoạn có ý nghĩa gần nhau nằm gần nhau trong không gian vector, kể cả khi chúng
+không dùng cùng từ khóa. Ví dụ, truy vấn ``cách hệ thống sinh câu hỏi theo chuẩn
+đầu ra'' cần truy xuất được chunk nói về Learning Outcome, Bloom level và quiz
+generation, dù tài liệu không chứa chính xác toàn bộ cụm từ trong truy vấn.
+
+Có hai nhóm mô hình thường gặp. Nhóm thứ nhất là bi-encoder, trong đó query và
+document được mã hóa độc lập thành vector; nhóm này phù hợp cho tìm kiếm quy mô
+lớn vì vector tài liệu có thể tính trước và lưu trong vector database. Nhóm thứ
+hai là cross-encoder, trong đó query và document được đưa vào mô hình cùng lúc
+để chấm điểm mức liên quan; nhóm này thường chính xác hơn nhưng chậm hơn, nên
+phù hợp cho bước rerank một số kết quả top-K thay vì tìm kiếm toàn bộ corpus.
+
+Trong phạm vi hệ thống đề xuất, bi-encoder là lựa chọn chính cho MVP vì phù hợp
+với pipeline bất đồng bộ: khi tài liệu hoặc transcript được chunk, hệ thống tạo
+embedding một lần và lưu vào Qdrant. Cross-encoder hoặc LLM reranker có thể được
+bổ sung ở giai đoạn sau để cải thiện chất lượng kết quả cho chatbot hoặc sinh
+quiz theo Learning Outcome.
+
+\subsection{Similarity Search}
+\label{subsec:similarity-search}
+
+Similarity search là quá trình tìm các vector gần nhất với vector truy vấn. Với
+mỗi query, hệ thống tạo embedding, so sánh với các vector chunk đã lưu và trả về
+top-K kết quả có điểm tương đồng cao nhất. Các độ đo phổ biến gồm cosine
+similarity, dot product và Euclidean distance. Trong thực tế, việc chọn độ đo
+phụ thuộc vào cách mô hình embedding được huấn luyện và cách vector được chuẩn
+hóa.
+
+Cosine similarity đo góc giữa hai vector, phù hợp khi cần so sánh hướng ngữ
+nghĩa hơn là độ lớn vector. Dot product thường được dùng khi vector đã được
+chuẩn hóa hoặc mô hình được huấn luyện trực tiếp cho scoring bằng tích vô hướng.
+Euclidean distance đo khoảng cách hình học giữa hai điểm trong không gian vector.
+Dù công thức khác nhau, mục tiêu chung là xếp hạng chunk theo mức liên quan với
+truy vấn.
+
+Trong hệ thống LMS, similarity search không nên chỉ dựa vào điểm vector. Kết quả
+cần kết hợp metadata filter như course, chapter, trạng thái publish, vai trò
+người dùng và Learning Outcome. Ví dụ, học viên chỉ được truy xuất nội dung đã
+publish trong khóa học của mình; giảng viên có thể tìm cả nội dung draft để
+review. Cách kết hợp vector similarity và metadata filter giúp semantic search
+vừa chính xác về ngữ nghĩa vừa tuân thủ nghiệp vụ.
+
+\subsection{Approximate Nearest Neighbor}
+\label{subsec:approximate-nearest-neighbor}
+
+Khi số lượng chunk nhỏ, hệ thống có thể tìm kiếm chính xác bằng cách so sánh
+query vector với toàn bộ vector trong cơ sở dữ liệu. Tuy nhiên, khi số lượng
+chunk tăng lên hàng trăm nghìn hoặc hàng triệu, tìm kiếm tuyến tính trở nên tốn
+thời gian và khó đáp ứng yêu cầu latency. Approximate Nearest Neighbor (ANN) ra
+đời để giải quyết vấn đề này bằng cách tìm gần đúng các vector gần nhất với chi
+phí thấp hơn so với tìm kiếm chính xác.
+
+Các hướng ANN phổ biến gồm inverted file index, product quantization và đồ thị
+láng giềng như HNSW. HNSW xây dựng một đồ thị nhiều lớp, trong đó việc tìm kiếm
+được thực hiện bằng cách di chuyển qua các node gần dần với query vector. Nhiều
+hệ thống vector database hiện đại sử dụng hoặc hỗ trợ HNSW vì nó cân bằng tốt
+giữa tốc độ truy vấn, độ chính xác truy xuất và khả năng mở rộng
+\cite{malkov2018hnsw,johnson2019faiss}.
+
+ANN luôn có trade-off giữa tốc độ và độ chính xác. Nếu cấu hình ưu tiên tốc độ,
+hệ thống có thể bỏ sót một số chunk liên quan; nếu ưu tiên độ chính xác, latency
+và chi phí tính toán tăng lên. Vì vậy, trong hệ thống đề xuất, tham số top-K,
+index type và cấu hình tìm kiếm cần được đánh giá bằng tập query kiểm thử thay
+vì chọn cảm tính. Với MVP, Qdrant đóng vai trò vector database lưu embedding,
+metadata và thực hiện truy xuất ANN cho tài liệu và transcript video.
+
+\subsection{Retrieval Metrics}
+\label{subsec:retrieval-metrics}
+
+Retrieval metrics dùng để đánh giá hệ thống semantic search có truy xuất đúng
+nguồn hay không. Đây là bước quan trọng vì nếu retrieval sai, LLM trong RAG có
+thể trả lời thiếu căn cứ hoặc sinh quiz dựa trên chunk không phù hợp. Các bộ
+benchmark như BEIR và MTEB cho thấy đánh giá retrieval cần xét nhiều tác vụ,
+nhiều miền dữ liệu và nhiều loại truy vấn khác nhau \cite{thakur2021beir,muennighoff2023mteb}.
+
+Các chỉ số thường dùng gồm Recall@K, Precision@K, MRR và nDCG. Recall@K đo tỷ lệ
+truy vấn mà tài liệu đúng xuất hiện trong K kết quả đầu; chỉ số này phù hợp với
+RAG vì LLM chỉ cần nhận được ít nhất một vài chunk đúng trong context. Precision@K
+đo tỷ lệ kết quả trong top-K thật sự liên quan, giúp phát hiện tình trạng context
+bị nhiễu. MRR chú trọng vị trí xuất hiện đầu tiên của kết quả đúng, còn nDCG xét
+cả thứ hạng và mức độ liên quan nhiều cấp.
+
+\begin{longtable}{|p{3cm}|p{4.2cm}|p{6.8cm}|}
+\caption{Các chỉ số đánh giá retrieval trong semantic search}
+\label{tab:retrieval-metrics}\\
+\hline
+\textbf{Chỉ số} & \textbf{Ý nghĩa} & \textbf{Ứng dụng trong hệ thống} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Chỉ số} & \textbf{Ý nghĩa} & \textbf{Ứng dụng trong hệ thống} \\
+\hline
+\endhead
+Recall@K & Kiểm tra tài liệu/chunk đúng có nằm trong top-K hay không. & Đánh giá liệu chatbot hoặc quiz generator có nhận đủ nguồn liên quan. \\
+\hline
+Precision@K & Đo tỷ lệ kết quả top-K thật sự liên quan. & Giảm nhiễu context và hạn chế đưa chunk sai vào prompt. \\
+\hline
+MRR & Đo thứ hạng của kết quả đúng đầu tiên. & Ưu tiên đưa nguồn tốt nhất lên đầu giao diện search hoặc context RAG. \\
+\hline
+nDCG@K & Đánh giá thứ hạng khi kết quả có nhiều mức độ liên quan. & Phù hợp khi giảng viên chấm relevance theo mức cao, trung bình, thấp. \\
+\hline
+\end{longtable}
+
+Đối với đề tài, bộ đánh giá retrieval nên gồm các câu hỏi mẫu theo từng khóa
+học, danh sách chunk đúng do giảng viên hoặc người phát triển gán nhãn, cấu
+hình embedding/index/top-K và kết quả đo Recall@K, Precision@K, MRR. Các chỉ số
+này không chỉ dùng để đánh giá semantic search độc lập mà còn làm cơ sở so sánh
+khi thay đổi chunking strategy, embedding model, reranker hoặc cấu hình vector
+database.
+
+\section{Learning Management System Integration Standards}
+\label{sec:lms-integration-standards}
+
+Trong hệ sinh thái giáo dục số, một công cụ học tập hiếm khi hoạt động độc lập.
+Hệ thống thường cần tích hợp với LMS như Moodle, Canvas hoặc Open edX để nhận
+thông tin khóa học, người dùng, vai trò, bài tập và điểm số. Nếu mỗi LMS yêu cầu
+một cơ chế tích hợp riêng, chi phí phát triển và bảo trì sẽ tăng cao. Vì vậy,
+các chuẩn tích hợp như Learning Tools Interoperability (LTI), OAuth2 và OpenID
+Connect được sử dụng để chuẩn hóa cách LMS kết nối với công cụ học tập bên ngoài
+\cite{lti-advantage,openedx-lti}.
+
+Đối với đề tài, hệ thống sinh micro-content, quiz và AI Tutor Chatbot được xem
+như một external learning tool. LMS đóng vai trò nền tảng chính để quản lý khóa
+học và người học, còn hệ thống đề xuất cung cấp chức năng AI chuyên biệt. Cách
+tiếp cận này giúp hệ thống không phụ thuộc vào một LMS duy nhất, đồng thời vẫn
+có thể nhận context khóa học, phân quyền người dùng và trả kết quả học tập về
+LMS khi cần.
+
+\subsection{Learning Tools Interoperability (LTI)}
+\label{subsec:lti}
+
+Learning Tools Interoperability (LTI) là chuẩn do 1EdTech phát triển nhằm cho
+phép LMS kết nối với các công cụ học tập bên ngoài. Trong mô hình LTI, LMS
+thường được gọi là platform, còn ứng dụng bên ngoài được gọi là tool. Khi người
+dùng bấm vào một liên kết trong LMS, platform khởi tạo quá trình launch và gửi
+cho tool các thông tin cần thiết như định danh người dùng, khóa học, vai trò và
+resource link.
+
+LTI giải quyết ba vấn đề chính. Thứ nhất, nó cung cấp cơ chế single sign-on để
+người dùng không cần đăng nhập lại vào tool. Thứ hai, nó truyền context học tập
+để tool biết người dùng đang ở khóa học, bài học hoặc hoạt động nào. Thứ ba, nó
+chuẩn hóa giao tiếp giữa LMS và tool, giúp cùng một công cụ có thể tích hợp với
+nhiều LMS khác nhau nếu các LMS đó hỗ trợ chuẩn LTI.
+
+Trong hệ thống đề xuất, LTI launch được dùng để mở giao diện học tập hoặc giao
+diện giảng viên từ LMS. Sau khi launch hợp lệ, hệ thống tạo session nội bộ,
+ánh xạ người dùng LMS sang tài khoản trong hệ thống và xác định quyền truy cập.
+Ví dụ, giảng viên có thể upload tài liệu, review và publish nội dung; học viên
+chỉ được xem nội dung đã publish, làm quiz và tương tác với chatbot trong phạm
+vi khóa học.
+
+\subsection{LTI 1.3 và Advantage Services}
+\label{subsec:lti13-advantage-services}
+
+LTI 1.3 là phiên bản hiện đại của LTI, sử dụng các cơ chế bảo mật dựa trên
+OAuth2, OpenID Connect và JSON Web Token. So với các phiên bản LTI cũ dựa trên
+OAuth 1.0, LTI 1.3 chuẩn hóa tốt hơn quy trình đăng nhập, chữ ký, claim trong
+ID token và đăng ký thông tin giữa platform và tool.
+
+LTI Advantage là tập các dịch vụ mở rộng trên nền LTI 1.3. Các dịch vụ này giúp
+tool không chỉ được mở từ LMS mà còn có thể tương tác sâu hơn với LMS. Ba nhóm
+khả năng quan trọng gồm Deep Linking để tool tạo hoặc chọn nội dung đưa vào LMS,
+Assignment and Grade Services để ghi điểm và trạng thái bài làm, và Names and
+Role Provisioning Services để lấy danh sách thành viên cùng vai trò trong một
+context học tập.
+
+\begin{longtable}{|p{3.5cm}|p{4.2cm}|p{6.3cm}|}
+\caption{Các thành phần LTI Advantage liên quan đến hệ thống}
+\label{tab:lti-advantage-services}\\
+\hline
+\textbf{Dịch vụ} & \textbf{Mục đích} & \textbf{Ứng dụng trong đề tài} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Dịch vụ} & \textbf{Mục đích} & \textbf{Ứng dụng trong đề tài} \\
+\hline
+\endhead
+Deep Linking & Chọn hoặc tạo nội dung từ tool để gắn vào LMS. & Giảng viên chèn bộ flashcard, quiz hoặc chatbot activity vào khóa học. \\
+\hline
+Assignment and Grade Services & Đồng bộ bài tập, điểm số và trạng thái kết quả. & Gửi điểm quiz hoặc trạng thái hoàn thành micro-learning về LMS. \\
+\hline
+Names and Role Provisioning Services & Truy xuất danh sách người học và vai trò trong context. & Hỗ trợ phân quyền, analytics theo lớp và đồng bộ danh sách học viên. \\
+\hline
+\end{longtable}
+
+Trong MVP, hệ thống có thể ưu tiên LTI launch và Deep Linking để tích hợp luồng
+học tập cơ bản. AGS và NRPS có thể được triển khai theo từng giai đoạn khi cần
+đồng bộ điểm số, danh sách lớp hoặc dashboard học tập với LMS.
+
+\subsection{OAuth2 và OpenID Connect trong LMS}
+\label{subsec:oauth2-oidc-lms}
+
+OAuth2 là framework ủy quyền cho phép một ứng dụng truy cập tài nguyên thay mặt
+người dùng hoặc hệ thống theo phạm vi được cấp quyền. OpenID Connect (OIDC) mở
+rộng OAuth2 để hỗ trợ xác thực danh tính, trong đó kết quả xác thực thường được
+trả về dưới dạng ID token. LTI 1.3 sử dụng OIDC để thực hiện login flow giữa LMS
+và tool, đồng thời dùng JWT để truyền các claim đã ký.
+
+Trong quá trình LTI launch, tool không nên tin trực tiếp vào dữ liệu gửi từ
+trình duyệt nếu chưa xác minh. Tool cần kiểm tra issuer, audience, nonce,
+message type, deployment id, chữ ký JWT và thời hạn token. Các kiểm tra này bảo
+đảm rằng yêu cầu launch thật sự đến từ LMS đã đăng ký, chưa bị phát lại và dành
+cho đúng tool.
+
+Đối với hệ thống đề xuất, sau khi xác thực OIDC thành công, backend tạo session
+nội bộ phía server. Session này lưu các thông tin cần thiết như user id, role,
+course id, resource link id và thời hạn hiệu lực. Các API nghiệp vụ như upload,
+review, publish, search, chatbot và quiz submission đều dựa vào session này để
+kiểm tra quyền truy cập thay vì phụ thuộc vào dữ liệu client gửi lên.
+
+\subsection{Deep Linking}
+\label{subsec:deep-linking}
+
+Deep Linking là dịch vụ LTI Advantage cho phép giảng viên chọn hoặc tạo nội dung
+trong tool rồi đưa nội dung đó trở lại LMS dưới dạng một liên kết học tập. Thay
+vì giảng viên phải sao chép thủ công URL hoặc cấu hình resource, LMS có thể mở
+tool ở chế độ chọn nội dung; sau đó tool trả về một hoặc nhiều content item để
+LMS gắn vào khóa học.
+
+Trong hệ thống đề xuất, Deep Linking phù hợp với luồng giảng viên tạo học liệu
+AI. Sau khi upload tài liệu và review nội dung, giảng viên có thể chọn một bộ
+flashcard, một quiz, một lesson card set hoặc một chatbot activity để chèn vào
+module của LMS. Khi học viên mở activity đó, LMS thực hiện LTI launch với
+resource link tương ứng, giúp hệ thống biết cần hiển thị nội dung nào.
+
+Deep Linking cũng giúp giảm phụ thuộc giao diện. LMS vẫn là nơi tổ chức khóa học
+và điều hướng chính, còn hệ thống AI chỉ chịu trách nhiệm tạo, quản lý và phân
+phối nội dung chuyên biệt. Điều này phù hợp với mục tiêu của đề tài là xây dựng
+một công cụ AI có khả năng tích hợp, thay vì thay thế toàn bộ LMS.
+
+\subsection{Assignment and Grade Services (AGS)}
+\label{subsec:assignment-grade-services}
+
+Assignment and Grade Services (AGS) là nhóm dịch vụ cho phép tool trao đổi thông
+tin điểm số và trạng thái bài làm với LMS. Về phía LMS, một activity có thể có
+line item tương ứng trong gradebook. Về phía tool, sau khi học viên hoàn thành
+quiz hoặc một hoạt động học tập, tool có thể gửi score về LMS theo line item đó.
+
+Trong đề tài, AGS có thể được dùng cho các quiz sinh tự động hoặc hoạt động
+micro-learning có điểm hoàn thành. Ví dụ, khi học viên làm quiz, hệ thống lưu
+submission nội bộ gồm đáp án, điểm, thời gian và nguồn câu hỏi. Sau đó, nếu
+activity được liên kết với LMS gradebook, backend gửi score về LMS thông qua AGS.
+Như vậy, giảng viên vẫn có thể theo dõi điểm trong LMS quen thuộc, trong khi hệ
+thống AI giữ dữ liệu chi tiết hơn để phục vụ analytics.
+
+Cần phân biệt dữ liệu phục vụ chấm điểm và dữ liệu phục vụ phân tích học tập.
+LMS thường chỉ cần điểm cuối cùng, trạng thái hoàn thành hoặc thời điểm nộp bài.
+Trong khi đó, hệ thống đề xuất cần lưu thêm câu hỏi, Bloom level, Learning
+Outcome, số lần làm, thời gian phản hồi và giải thích đáp án để đánh giá chất
+lượng học tập. Do đó, AGS là kênh đồng bộ điểm chính thức, không thay thế cơ sở
+dữ liệu analytics nội bộ.
+
+\subsection{LMS Interoperability Architecture}
+\label{subsec:lms-interoperability-architecture}
+
+Kiến trúc tích hợp LMS cần tách rõ phần chuẩn giao tiếp với LMS khỏi phần nghiệp
+vụ cốt lõi. Nếu logic upload, review, semantic search hoặc quiz phụ thuộc trực
+tiếp vào API của một LMS cụ thể, hệ thống sẽ khó mở rộng sang Moodle, Canvas,
+Open edX hoặc các platform khác. Vì vậy, hệ thống nên đặt LTI/OIDC/AGS ở lớp
+adapter, còn domain/application core chỉ làm việc với các khái niệm trừu tượng
+như user, role, course, activity và grade result.
+
+Một kiến trúc tích hợp phù hợp cho đề tài gồm các thành phần sau:
+
+\begin{itemize}
+    \item \textbf{LMS Platform:} Moodle, Canvas hoặc Open edX, nơi quản lý khóa
+          học, người dùng và điều hướng học tập.
+    \item \textbf{LTI/OIDC Adapter:} xử lý login initiation, launch validation,
+          JWT claims, deployment configuration và session mapping.
+    \item \textbf{Deep Linking Adapter:} tạo content item để LMS chèn flashcard,
+          quiz hoặc chatbot activity vào khóa học.
+    \item \textbf{AGS Adapter:} đồng bộ điểm quiz, trạng thái hoàn thành hoặc
+          score về LMS gradebook.
+    \item \textbf{Application Core:} chứa use case upload, processing, review,
+          publish, semantic search, chatbot, quiz và analytics.
+\end{itemize}
+
+\begin{table}[H]
+    \centering
+    \caption{Ánh xạ dữ liệu giữa LMS và hệ thống đề xuất}
+    \label{tab:lms-data-mapping}
+    \begin{tabular}{p{4cm}p{4.2cm}p{5.3cm}}
+        \toprule
+        \textbf{Dữ liệu từ LMS} & \textbf{Đối tượng trong hệ thống} & \textbf{Mục đích sử dụng} \\
+        \midrule
+        User claim & User / Account & Xác định danh tính và tạo session. \\
+        Role claim & Role / Permission & Phân quyền giảng viên, học viên, quản trị viên. \\
+        Context claim & Course / Class context & Giới hạn nội dung theo khóa học. \\
+        Resource link & Learning activity & Mở đúng flashcard, quiz hoặc chatbot activity. \\
+        Line item & Grade mapping & Gửi điểm hoặc trạng thái hoàn thành qua AGS. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Với cách tổ chức này, LMS integration trở thành một lớp biên của hệ thống. Khi
+thay đổi LMS hoặc bổ sung platform mới, nhóm phát triển chủ yếu cập nhật adapter
+và cấu hình deployment, trong khi các use case AI cốt lõi vẫn được giữ ổn định.
+Đây là điều kiện quan trọng để hệ thống có thể triển khai trong nhiều môi trường
+đào tạo khác nhau mà không phải viết lại pipeline xử lý tài liệu, semantic search
+hoặc AI Tutor Chatbot.
+
+\section{Knowledge Graph và Curriculum Mapping}
+\label{sec:knowledge-graph-curriculum-mapping}
+
+Trong hệ thống học tập dựa trên AI, nội dung không chỉ tồn tại dưới dạng các
+chunk văn bản rời rạc. Mỗi đoạn tài liệu, transcript video, flashcard hoặc câu
+hỏi quiz thường liên quan đến một chương học, một khái niệm, một Learning
+Outcome và một hoạt động đánh giá cụ thể. Knowledge Graph giúp mô hình hóa các
+thực thể này cùng quan hệ giữa chúng dưới dạng node và edge, từ đó hỗ trợ truy
+xuất, giải thích nguồn và phân tích tiến độ học tập có cấu trúc
+\cite{hogan2021knowledgegraphs}.
+
+Curriculum Mapping là quá trình liên kết nội dung học tập với cấu trúc chương
+trình đào tạo, đặc biệt là Learning Outcome, chủ đề và assessment. Trong đề tài,
+Curriculum Mapping giúp hệ thống biết một chunk đang hỗ trợ chuẩn đầu ra nào,
+quiz đang đo năng lực nào và học viên còn yếu ở nhóm kiến thức nào. Đây là nền
+tảng để sinh quiz theo Bloom level, xây dựng dashboard learning analytics và mở
+rộng sang adaptive learning trong các giai đoạn sau. Cách tiếp cận này phù hợp
+với nguyên lý constructive alignment và curriculum mapping trong thiết kế giáo
+dục, nơi mục tiêu học tập, hoạt động học và đánh giá cần được liên kết rõ ràng
+\cite{biggs1996constructive,harden2001curriculum}.
+
+\subsection{Learning Outcome Graph}
+\label{subsec:learning-outcome-graph}
+
+Learning Outcome Graph là đồ thị biểu diễn quan hệ giữa khóa học, chương, chuẩn
+đầu ra, khái niệm, chunk tài liệu và câu hỏi đánh giá. Thay vì lưu Learning
+Outcome như một trường văn bản độc lập, hệ thống mô hình hóa nó như một node có
+quan hệ với các node khác. Cách biểu diễn này phù hợp với đặc thù giáo dục vì
+nội dung học tập thường có cấu trúc phân cấp và có nhiều quan hệ chéo.
+
+Trong hệ thống đề xuất, các node quan trọng gồm \texttt{Course},
+\texttt{Chapter}, \texttt{LearningOutcome}, \texttt{Concept}, \texttt{Chunk},
+\texttt{Flashcard}, \texttt{QuizQuestion} và \texttt{Assessment}. Các edge thể
+hiện quan hệ như course chứa chapter, chapter có Learning Outcome, chunk hỗ trợ
+Learning Outcome, quiz đo Learning Outcome, hoặc concept xuất hiện trong chunk.
+Những quan hệ này có thể được tạo từ đề cương môn học, heading tài liệu, metadata
+người dùng nhập và kết quả trích xuất tự động.
+
+\begin{longtable}{|p{3.2cm}|p{4.2cm}|p{6.6cm}|}
+\caption{Các quan hệ chính trong Learning Outcome Graph}
+\label{tab:learning-outcome-graph-relations}\\
+\hline
+\textbf{Quan hệ} & \textbf{Ý nghĩa} & \textbf{Ứng dụng trong hệ thống} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Quan hệ} & \textbf{Ý nghĩa} & \textbf{Ứng dụng trong hệ thống} \\
+\hline
+\endhead
+Course--Chapter & Khóa học gồm nhiều chương hoặc module. & Lọc nội dung theo cấu trúc khóa học trong LMS. \\
+\hline
+Chapter--LearningOutcome & Mỗi chương hỗ trợ một hoặc nhiều chuẩn đầu ra. & Sinh quiz và thống kê kết quả theo LO. \\
+\hline
+Chunk--LearningOutcome & Chunk tài liệu cung cấp bằng chứng cho một LO. & Truy xuất nguồn đúng khi chatbot trả lời hoặc sinh quiz. \\
+\hline
+QuizQuestion--LearningOutcome & Câu hỏi đánh giá một hoặc nhiều LO. & Phân tích điểm yếu của học viên theo chuẩn đầu ra. \\
+\hline
+Concept--Chunk & Khái niệm xuất hiện trong một hoặc nhiều chunk. & Hỗ trợ tìm kiếm, gợi ý ôn tập và mở rộng GraphRAG. \\
+\hline
+\end{longtable}
+
+Learning Outcome Graph không nhất thiết phải hoàn chỉnh ngay trong MVP. Giai
+đoạn đầu có thể bắt đầu bằng các quan hệ cơ bản giữa course, chapter, LO và
+chunk. Khi hệ thống có thêm dữ liệu quiz submission, chatbot interaction và
+feedback từ giảng viên, graph có thể được làm giàu để phản ánh chính xác hơn cấu
+trúc tri thức và mức độ thành thạo của người học.
+
+\subsection{Curriculum-aware Learning}
+\label{subsec:curriculum-aware-learning}
+
+Curriculum-aware Learning là cách tổ chức trải nghiệm học tập dựa trên cấu trúc
+chương trình và Learning Outcome, thay vì chỉ dựa trên danh sách tài liệu hoặc
+thứ tự upload. Khi hệ thống biết nội dung nào liên quan đến LO nào, nó có thể
+hỗ trợ học viên học theo mục tiêu cụ thể và giúp giảng viên đánh giá mức độ đạt
+chuẩn đầu ra.
+
+Trong hệ thống đề xuất, Curriculum-aware Learning được thể hiện ở ba luồng chính.
+Thứ nhất, khi sinh flashcard và quiz, prompt có thể đưa thêm LO, Bloom level và
+chapter để LLM tạo nội dung đúng mục tiêu sư phạm. Thứ hai, khi học viên tìm
+kiếm hoặc hỏi chatbot, retrieval có thể ưu tiên các chunk thuộc LO hoặc chapter
+đang học. Thứ ba, learning analytics có thể tổng hợp kết quả quiz theo LO để
+xác định nhóm kiến thức mà học viên hoặc cả lớp cần ôn tập.
+
+Một ví dụ điển hình là luồng sinh quiz theo chuẩn đầu ra. Giảng viên chọn một LO
+trong đề cương, hệ thống truy xuất các chunk hỗ trợ LO đó, sau đó yêu cầu LLM
+sinh câu hỏi ở mức Bloom phù hợp. Mỗi câu hỏi được lưu lại với \texttt{lo\_id},
+\texttt{bloom\_level}, \texttt{source\_chunk\_id} và trạng thái review. Khi học
+viên làm quiz, điểm số có thể được tổng hợp theo LO để tạo dashboard tiến độ.
+
+Cách tiếp cận curriculum-aware cũng giúp giảm rủi ro sinh nội dung lệch mục tiêu.
+Nếu hệ thống chỉ dựa vào similarity search chung, một truy vấn ngắn có thể lấy
+nhầm chunk cùng chủ đề nhưng không phục vụ đúng chuẩn đầu ra. Khi kết hợp thêm
+metadata chương trình học, hệ thống có thể giới hạn hoặc tăng trọng số các nguồn
+phù hợp hơn với mục tiêu giảng dạy.
+
+\subsection{Metadata Strategy}
+\label{subsec:metadata-strategy}
+
+Metadata Strategy xác định hệ thống cần lưu những thông tin nào để truy vết,
+retrieval, review, publish và đánh giá chất lượng AI. Với pipeline RAG và
+curriculum mapping, metadata quan trọng không kém nội dung văn bản, vì nó cho
+biết chunk đến từ đâu, thuộc khóa học nào, liên quan đến LO nào và có được phép
+hiển thị cho học viên hay không.
+
+Trong hệ thống đề xuất, metadata nên được tổ chức theo nhiều lớp. Lớp nguồn gồm
+\texttt{document\_id}, \texttt{file\_type}, \texttt{page}, \texttt{timestamp}
+hoặc \texttt{heading\_path}. Lớp sư phạm gồm \texttt{course\_id},
+\texttt{chapter\_id}, \texttt{learning\_outcome\_id}, \texttt{bloom\_level} và
+\texttt{difficulty}. Lớp vận hành gồm \texttt{pipeline\_status},
+\texttt{parser\_version}, \texttt{embedding\_model}, \texttt{prompt\_version},
+\texttt{review\_status} và \texttt{publish\_status}.
+
+\begin{table}[H]
+    \centering
+    \caption{Chiến lược metadata cho curriculum-aware retrieval}
+    \label{tab:metadata-strategy-curriculum}
+    \begin{tabular}{p{3.2cm}p{4.5cm}p{5.8cm}}
+        \toprule
+        \textbf{Nhóm metadata} & \textbf{Trường tiêu biểu} & \textbf{Mục đích sử dụng} \\
+        \midrule
+        Nguồn & \texttt{document\_id}, \texttt{page}, \texttt{timestamp}, \texttt{heading\_path} & Truy vết citation, review và cập nhật khi tài liệu gốc thay đổi. \\
+        Sư phạm & \texttt{course\_id}, \texttt{chapter\_id}, \texttt{learning\_outcome\_id}, \texttt{bloom\_level} & Lọc theo khóa học, sinh quiz theo LO và phân tích kết quả học tập. \\
+        Vận hành AI & \texttt{embedding\_model}, \texttt{prompt\_version}, \texttt{parser\_version} & Đánh giá và tái lập kết quả khi thay đổi mô hình hoặc pipeline. \\
+        Quyền truy cập & \texttt{review\_status}, \texttt{publish\_status}, \texttt{visibility} & Bảo đảm học viên chỉ nhìn thấy nội dung đã publish. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Metadata cần được lưu nhất quán ở cả metadata store và vector database. Vector
+database dùng metadata để filter khi retrieval, trong khi PostgreSQL hoặc graph
+store lưu quan hệ chi tiết hơn để phục vụ review, analytics và audit. Nguyên tắc
+quan trọng là mọi nội dung AI sinh ra phải truy ngược được về nguồn gốc: tài
+liệu, chunk, prompt, model và phiên bản pipeline.
+
+\subsection{Graph-based Retrieval}
+\label{subsec:graph-based-retrieval}
+
+Graph-based Retrieval là phương pháp truy xuất kết hợp giữa vector similarity và
+quan hệ trong graph. Vector search giúp tìm các chunk gần truy vấn về mặt ngữ
+nghĩa, còn graph giúp mở rộng hoặc lọc kết quả dựa trên quan hệ như cùng Learning
+Outcome, cùng chapter, cùng concept hoặc cùng assessment. Cách tiếp cận này phù
+hợp với các hệ thống giáo dục vì câu hỏi của người học thường gắn với bối cảnh
+khóa học cụ thể, không chỉ với ý nghĩa ngôn ngữ chung.
+
+Một quy trình graph-based retrieval trong hệ thống có thể gồm bốn bước. Đầu
+tiên, hệ thống xác định context từ LMS hoặc giao diện, ví dụ course, chapter,
+resource link hoặc LO mục tiêu. Tiếp theo, query được embedding và truy xuất
+top-K chunk bằng vector database. Sau đó, hệ thống dùng graph để lọc, mở rộng
+hoặc rerank các chunk theo quan hệ curriculum. Cuối cùng, các chunk được đưa vào
+prompt của chatbot hoặc quiz generator kèm citation và metadata nguồn.
+
+Graph-based retrieval có thể được triển khai theo nhiều mức độ. Ở mức đơn giản,
+hệ thống dùng metadata filter như \texttt{course\_id}, \texttt{chapter\_id} và
+\texttt{publish\_status}. Ở mức nâng cao hơn, hệ thống truy vấn graph để lấy các
+chunk thuộc LO liên quan, các concept lân cận hoặc các câu hỏi từng đánh giá cùng
+chuẩn đầu ra. Ở mức đầy đủ, graph có thể hỗ trợ reranking và giải thích vì sao
+một nguồn được chọn.
+
+\begin{longtable}{|p{3.2cm}|p{4.5cm}|p{6.3cm}|}
+\caption{Vai trò của graph trong các luồng retrieval}
+\label{tab:graph-based-retrieval-roles}\\
+\hline
+\textbf{Luồng} & \textbf{Cách dùng graph} & \textbf{Lợi ích} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Luồng} & \textbf{Cách dùng graph} & \textbf{Lợi ích} \\
+\hline
+\endhead
+Semantic Search & Lọc theo course, chapter, LO và trạng thái publish. & Kết quả phù hợp bối cảnh học tập và quyền truy cập. \\
+\hline
+AI Tutor Chatbot & Mở rộng context bằng chunk cùng LO hoặc concept liên quan. & Trả lời đầy đủ hơn nhưng vẫn có nguồn kiểm chứng. \\
+\hline
+Sinh Quiz & Ưu tiên chunk hỗ trợ LO mục tiêu và Bloom level mong muốn. & Câu hỏi bám chuẩn đầu ra, dễ review và đánh giá. \\
+\hline
+Learning Analytics & Tổng hợp submission theo LO, chapter và concept. & Phát hiện nội dung khó và gợi ý ôn tập có căn cứ. \\
+\hline
+\end{longtable}
+
+Trong phạm vi MVP, graph-based retrieval có thể bắt đầu bằng metadata filter và
+quan hệ chunk--LO ở mức cơ bản. Khi dữ liệu và nhu cầu đánh giá tăng lên, hệ
+thống có thể bổ sung graph database hoặc graph index để hỗ trợ truy vấn quan hệ
+phức tạp hơn. Điều quan trọng là thiết kế dữ liệu ngay từ đầu phải giữ được
+\texttt{source\_chunk\_id}, \texttt{learning\_outcome\_id} và các metadata liên
+quan, để việc mở rộng sang GraphRAG không cần tái xử lý toàn bộ dữ liệu.
+
+\section{Speech-to-Text và Video AI}
+Trong hệ thống LMS (Learning Management System) hiện đại được tăng cường bởi Generative AI, bộ đôi công nghệ Speech-to-Text (nhận dạng giọng nói) và Video AI đóng vai trò nền tảng. Chúng đảm nhận nhiệm vụ số hóa, trích xuất và cấu trúc hóa dữ liệu đa phương tiện (video và audio bài giảng) thành các luồng thông tin văn bản và siêu dữ liệu (metadata) mà các Mô hình ngôn ngữ lớn (LLM) có thể hiểu và xử lý, từ đó tạo ra nội dung học tập vi mô (micro-content) và bài tập trắc nghiệm (quiz).
+
+\subsection{Whisper}
+Whisper là một hệ thống Nhận dạng Giọng nói Tự động (Automatic Speech Recognition - ASR) mã nguồn mở tiên tiến dựa trên kiến trúc Transformer do OpenAI phát triển \cite{radford2023robust}.
+\begin{itemize}
+    \item \textbf{Cơ chế hoạt động:} Mô hình được huấn luyện trên hàng trăm nghìn giờ dữ liệu âm thanh đa ngôn ngữ, cho phép phiên mã âm thanh thành văn bản (Speech-to-Text) với độ chính xác cao. Nó có khả năng xử lý tốt nhiễu âm nền, trọng âm đa dạng và các thuật ngữ chuyên ngành phức tạp.
+    \item \textbf{Vai trò trong LMS:} Whisper làm nhiệm vụ số hóa toàn bộ nội dung lời giảng của giảng viên thành văn bản thô (Transcript), đồng thời cung cấp các mốc thời gian (timestamps) cơ sở ở cấp độ câu, tạo tiền đề quan trọng cho việc xử lý ngữ nghĩa ở các bước tiếp theo.
+\end{itemize}
+
+\subsection{Transcript Alignment}
+Transcript Alignment (Căn chỉnh phiên mã) là quá trình tinh chỉnh các mốc thời gian của văn bản phiên mã để khớp chính xác với luồng âm thanh và video ở cấp độ từ (word-level) \cite{mcauliffe2017montreal}.
+\begin{itemize}
+    \item \textbf{Công nghệ cốt lõi:} Các thuật toán Forced Alignment (như thư viện Wav2Vec2 \cite{baevski2020wav2vec} hoặc WhisperX \cite{bain2023whisperx}) được áp dụng để đồng bộ hóa từng từ trong văn bản với chính xác mili-giây mà từ đó được phát âm trong video gốc.
+    \item \textbf{Vai trò trong LMS:} Quá trình này rất quan trọng để định vị ngữ cảnh thời gian thực. Nó cho phép hệ thống xác định chính xác thời điểm một khái niệm được giảng dạy, từ đó hỗ trợ LMS tạm dừng video đúng lúc để chèn các câu hỏi tương tác (Pop-up Quiz) hoặc kích hoạt tính năng phụ đề tương tác (Interactive Transcript).
+\end{itemize}
+
+\subsection{Video Segmentation}
+Video Segmentation (Phân đoạn video) là kỹ thuật chia nhỏ một video bài giảng dài thành các đoạn video ngắn (micro-learning), mỗi đoạn tập trung vào một chủ đề hoặc khái niệm học thuật cụ thể \cite{galanopoulos2020lecture}.
+\begin{itemize}
+    \item \textbf{Cơ chế hoạt động:} Quá trình phân đoạn được thực hiện thông qua việc kết hợp nhiều luồng phân tích:
+    \begin{itemize}
+        \item \textit{Semantic Text Segmentation:} Sử dụng LLM để phân tích ngữ nghĩa của bản Transcript nhằm xác định các điểm chuyển giao chủ đề (Topic Shift).
+        \item \textit{Visual Cues:} Ứng dụng Computer Vision (thị giác máy tính) để phát hiện sự thay đổi trên slide thuyết trình, sự chuyển cảnh (scene cuts) hoặc thao tác trên bảng.
+        \item \textit{Audio Pauses:} Xác định các khoảng lặng dài có chủ đích trong giọng nói của giảng viên.
+    \end{itemize}
+    \item \textbf{Vai trò trong LMS:} Đầu ra của kỹ thuật này là các đoạn Micro-content độc lập. Mỗi phân đoạn sau đó sẽ được tự động tóm tắt, gắn thẻ (tags) và tạo tiêu đề bởi AI để tối ưu hóa quá trình học tập cá nhân.
+\end{itemize}
+
+\subsection{Multimodal Learning Pipeline}
+Multimodal Learning Pipeline (Đường ống học đa phương thức) là kiến trúc tích hợp toàn diện, kết hợp nhiều luồng dữ liệu khác nhau để cung cấp ngữ cảnh đầy đủ nhất cho Generative AI \cite{baltrusaitis2018multimodal}.
+\begin{itemize}
+    \item \textbf{Kiến trúc tổng thể:}
+    \begin{enumerate}
+        \item \textbf{Luồng âm thanh (Audio):} Dữ liệu đi qua mô hình Whisper và hệ thống Transcript Alignment để tạo ra văn bản gắn kèm word-level timestamps.
+        \item \textbf{Luồng hình ảnh (Video Frames):} Dữ liệu đi qua các mô hình Computer Vision và OCR (Optical Character Recognition) để trích xuất văn bản từ slide bài giảng và lưu lại các sự kiện chuyển hình ảnh.
+        \item \textbf{Dung hợp dữ liệu (Multimodal Fusion):} Văn bản phiên mã từ lời nói và văn bản trích xuất từ slide được đồng bộ hóa chặt chẽ trên cùng một trục thời gian để tạo thành cơ sở siêu dữ liệu chung (Metadata DB).
+        \item \textbf{Xử lý tạo sinh (Generative AI Processing):} Khối siêu dữ liệu đa phương thức được đưa vào LLM (hỗ trợ multimodal) kết hợp với các chỉ thị (Prompt Engineering) để tự động sinh câu hỏi trắc nghiệm và phân đoạn video một cách logic.
+    \end{enumerate}
+    \item \textbf{Vai trò trong LMS:} Việc kết hợp đa phương thức giúp LLM không bị mất thông tin quan trọng khi giảng viên sử dụng các yếu tố trực quan để giải thích, đảm bảo độ chính xác của Micro-content và ngữ cảnh của các Quiz được tạo ra.
+\end{itemize}
+
+\section{AI Orchestration Frameworks và thư viện hỗ trợ}
+Trong các hệ thống ứng dụng AI tạo sinh phức tạp, Mô hình ngôn ngữ lớn (LLM) hiếm khi hoạt động độc lập. Để xây dựng luồng xử lý đa phương thức (Multimodal Pipeline) từ việc cắt video, đọc phiên mã đến sinh câu hỏi trắc nghiệm, hệ thống cần một "nhạc trưởng" để điều phối dữ liệu, quản lý bộ nhớ và liên kết các tác vụ. Các nền tảng điều phối (AI Orchestration Frameworks) ra đời để giải quyết bài toán này.
+
+\subsection{LangChain}
+LangChain là một nền tảng mã nguồn mở hàng đầu được thiết kế để đơn giản hóa quá trình phát triển các ứng dụng dựa trên LLM \cite{chase2022langchain}. Trong hệ thống LMS, LangChain đóng vai trò như một bộ khung xương kết nối các mô hình (như Whisper, GPT-4) với dữ liệu bài giảng và các cơ sở dữ liệu nội bộ. Các thành phần cốt lõi của LangChain được ứng dụng trong hệ thống bao gồm:
+
+\begin{itemize}
+    \item[\textbf{a.}] \textbf{Document Loader (Trình tải tài liệu):} \\
+    Đây là bước đầu tiên trong luồng xử lý dữ liệu. Document Loader cung cấp các giao diện tiêu chuẩn để trích xuất dữ liệu từ nhiều định dạng và nguồn khác nhau (file TXT, JSON, PDF slide bài giảng, hoặc video transcript). Trong ngữ cảnh của LMS, các bộ nạp này sẽ lấy dữ liệu thô từ quá trình nhận dạng giọng nói (Whisper) và nhận dạng ký tự quang học (OCR), sau đó chuẩn hóa chúng thành các đối tượng \texttt{Document} chứa văn bản và siêu dữ liệu (metadata như timestamps) để chuẩn bị cho các bước phân tích tiếp theo.
+    
+    \item[\textbf{b.}] \textbf{Retriever (Trình truy xuất thông tin):} \\
+    Thành phần này là trái tim của kiến trúc Sinh văn bản tăng cường truy xuất (Retrieval-Augmented Generation - RAG) \cite{lewis2020retrieval}. Khi hệ thống LMS cần tạo một Quiz cho phân đoạn video từ phút thứ 05:00 đến 10:00, Retriever sẽ tìm kiếm và trích xuất đúng các đoạn văn bản, nội dung slide và các khái niệm khóa tương ứng với khoảng thời gian đó từ Cơ sở dữ liệu Vector (Vector Store). Điều này giúp LLM có ngữ cảnh chính xác, tránh hiện tượng "ảo giác" (hallucination) khi sinh câu hỏi.
+    
+    \item[\textbf{c.}] \textbf{Prompt Template (Khuôn mẫu chỉ thị):} \\
+    Prompt Template giúp tham số hóa và tái sử dụng các câu lệnh gửi đến LLM \cite{white2023prompt}. Thay vì viết lại prompt từ đầu cho mỗi đoạn video, hệ thống sử dụng các khuôn mẫu động. Ví dụ: \textit{"Dựa trên nội dung lời giảng: \{transcript\_segment\} và nội dung trên bảng: \{ocr\_data\}, hãy tạo \{num\_questions\} câu hỏi trắc nghiệm ở độ khó \{difficulty\_level\}."} LangChain sẽ tự động tiêm (inject) các biến số này vào prompt trước khi gọi API của mô hình ngôn ngữ.
+    
+    \item[\textbf{d.}] \textbf{Chain Orchestration (Điều phối chuỗi tác vụ):} \\
+    Đây là cơ chế liên kết nhiều bước xử lý tuần tự hoặc song song thành một đường ống (pipeline) hoàn chỉnh \cite{wu2022promptchainer}. Trong hệ thống tạo Micro-content, một chuỗi tiêu biểu (LLMChain) sẽ diễn ra như sau: 
+    (1) Nạp dữ liệu từ Document Loader $\rightarrow$ 
+    (2) Retriever lấy ngữ cảnh tương ứng $\rightarrow$ 
+    (3) Truyền dữ liệu vào Prompt Template $\rightarrow$ 
+    (4) Đưa qua LLM để sinh câu hỏi $\rightarrow$ 
+    (5) Đưa qua Output Parser để ép kiểu dữ liệu đầu ra thành định dạng chuẩn (ví dụ: JSON) trước khi lưu vào cơ sở dữ liệu của LMS. Việc sử dụng Chain giúp tự động hóa hoàn toàn quy trình mà không cần sự can thiệp thủ công giữa các bước.
+\end{itemize}
+
+\subsection{LangGraph}
+Mặc dù LangChain cung cấp các công cụ mạnh mẽ để liên kết các tác vụ (Chains), các chuỗi này thường mang tính chất tuyến tính (linear) và thiếu linh hoạt khi xử lý các kịch bản phức tạp cần tính tuần hoàn. LangGraph ra đời như một phần mở rộng của hệ sinh thái LangChain, cho phép xây dựng các ứng dụng LLM có tính chất đồ thị tuần hoàn (cyclic graphs) và quản lý trạng thái phức tạp \cite{langgraph2024}. Trong hệ thống LMS, LangGraph cung cấp cơ sở hạ tầng để xây dựng các quy trình tạo nội dung tự động với độ tin cậy cao thông qua 3 đặc tính cốt lõi:
+
+\begin{itemize}
+    \item[\textbf{a.}] \textbf{Stateful Workflow (Luồng công việc lưu trạng thái):} \\
+    Khác với các chuỗi xử lý phi trạng thái (stateless), LangGraph duy trì một "Trạng thái chung" (Global State) xuyên suốt toàn bộ quá trình thực thi. Trong ngữ cảnh của LMS, \textit{State} này có thể là một cấu trúc dữ liệu lưu trữ video gốc, bản phiên mã (transcript) đang xử lý, danh sách các khái niệm khóa đã trích xuất, và các câu hỏi Quiz đã được sinh ra. Khi dữ liệu đi qua từng nút (node) trong đồ thị (ví dụ: từ nút cắt video sang nút tạo câu hỏi), trạng thái này liên tục được cập nhật và kế thừa, giúp hệ thống không bị mất ngữ cảnh dù quy trình kéo dài nhiều bước.
+    
+    \item[\textbf{b.}] \textbf{Agentic Pipeline (Đường ống dựa trên Tác tử):} \\
+    LangGraph cho phép thiết kế hệ thống dưới dạng nhiều Tác tử AI (AI Agents) tự trị hoạt động phối hợp với nhau \cite{wang2023survey}. Thay vì dùng một LLM duy nhất để làm mọi việc, hệ thống LMS có thể chia nhỏ thành: (1) \textit{Extraction Agent} chuyên phân tích ngữ nghĩa để cắt video, (2) \textit{Quiz Generation Agent} chuyên sinh câu hỏi trắc nghiệm, và (3) \textit{Reviewer Agent} đóng vai trò kiểm duyệt chất lượng. Các tác tử này có khả năng tự gọi công cụ (tool calling) và giao tiếp với nhau, tạo ra một đường ống xử lý chuyên môn hóa và tối ưu hơn.
+    
+    \item[\textbf{c.}] \textbf{Branching Flow (Luồng rẽ nhánh và vòng lặp):} \\
+    Sức mạnh lớn nhất của đồ thị là khả năng tạo ra các cạnh có điều kiện (conditional edges). Thay vì bắt buộc đi từ A đến B, hệ thống có thể rẽ nhánh hoặc quay lui (loop) dựa trên kết quả đánh giá \cite{wei2022chain}. Ví dụ: Sau khi \textit{Quiz Generation Agent} sinh ra một câu hỏi, hệ thống sẽ rẽ nhánh sang khâu kiểm duyệt. Nếu câu hỏi bị thiếu đáp án hoặc không bám sát transcript gốc, luồng công việc sẽ quay ngược lại (loop back) nút tạo câu hỏi kèm theo thông báo lỗi để LLM sửa chữa. Khả năng rẽ nhánh tự sửa lỗi (self-correction) này giúp đảm bảo Micro-content và Quiz đầu ra đạt chuẩn chất lượng sư phạm trước khi đưa vào CSDL của LMS.
+\end{itemize}
+
+\subsection{Document Processing Libraries}
+Bên cạnh dữ liệu âm thanh và hình ảnh từ video, hệ thống LMS thường phải xử lý các tài liệu đính kèm như slide bài giảng (PowerPoint), giáo trình (PDF) hoặc tài liệu văn bản (Word). Các thư viện xử lý tài liệu (Document Processing Libraries) đóng vai trò trích xuất văn bản thô, bảng biểu và siêu dữ liệu từ các tệp này, biến chúng thành định dạng có cấu trúc để nạp vào hệ thống RAG (Retrieval-Augmented Generation) phục vụ việc sinh câu hỏi Quiz.
+
+\begin{itemize}
+    \item[\textbf{a.}] \textbf{Docling:} \\
+    Docling là một thư viện mã nguồn mở tiên tiến do IBM phát triển, chuyên biệt cho việc phân tích cú pháp và hiểu tài liệu phức tạp \cite{docling2024}. Trong LMS, Docling đặc biệt hữu ích khi xử lý các giáo trình PDF chứa nhiều công thức toán học, bảng biểu khoa học và sơ đồ. Nó có khả năng trích xuất và bảo toàn cấu trúc tài liệu một cách toàn vẹn (xuất ra định dạng Markdown hoặc JSON), giúp LLM không bị mất ngữ cảnh khi đọc các nội dung học thuật phức tạp.
+    
+    \item[\textbf{b.}] \textbf{Unstructured:} \\
+    Unstructured là một thư viện tiêu chuẩn trong hệ sinh thái RAG dùng để trích xuất dữ liệu phi cấu trúc \cite{unstructured2024}. Nó cung cấp các hàm API thống nhất để đọc dữ liệu từ hàng chục định dạng khác nhau (HTML, PDF, TXT, EPUB...). Trong hệ thống tạo Micro-content, Unstructured kết hợp tốt với LangChain để thực hiện kỹ thuật phân mảnh văn bản (Document Chunking), chia nhỏ giáo trình thành các đoạn văn ngắn có ý nghĩa để Vector Database dễ dàng truy xuất.
+    
+    \item[\textbf{c.}] \textbf{PyMuPDF:} \\
+    PyMuPDF là một thư viện xử lý PDF hiệu năng cao dựa trên engine MuPDF \cite{mckennon2024pymupdf}. Điểm mạnh của PyMuPDF trong luồng pipeline của LMS là tốc độ trích xuất văn bản cực nhanh và khả năng render trực tiếp các trang PDF thành hình ảnh (image frames). Hệ thống có thể dùng PyMuPDF để trích xuất chữ trên slide dạng PDF, kết hợp với thời gian hiển thị trên video để đồng bộ hóa.
+    
+    \item[\textbf{d.}] \textbf{python-docx:} \\
+    Đây là thư viện chuẩn trong Python để tạo và cập nhật các tệp Microsoft Word (.docx) \cite{python_docx2024}. Trong hệ thống này, nó được dùng với hai mục đích: (1) Đọc và trích xuất kịch bản, giáo án văn bản do giảng viên tải lên; (2) Xuất kết quả tự động sinh (ví dụ: một bộ 50 câu hỏi trắc nghiệm kèm đáp án) thành file Word định dạng chuẩn để giảng viên có thể tải về và chỉnh sửa thủ công nếu cần.
+    
+    \item[\textbf{e.}] \textbf{PPTX Parser (python-pptx):} \\
+    Slide bài giảng là nguồn tri thức cốt lõi. \texttt{python-pptx} cho phép hệ thống can thiệp sâu vào các tệp .pptx để trích xuất văn bản từ từng Text Box, Speaker Notes (ghi chú của người thuyết trình) trên mỗi slide \cite{python_pptx2024}. Dữ liệu này sau đó được căn chỉnh với Transcript của video để tạo ra ngữ cảnh học tập đa phương thức có độ chính xác tuyệt đối.
+\end{itemize}
+
+\subsection{Video Processing Libraries}
+Sau khi các AI Agent (như LLM) đã phân tích ngữ nghĩa và quyết định được thời điểm cần cắt video (ví dụ: cắt từ giây thứ 120 đến 340 để tạo thành Micro-content bài 1), hệ thống cần các công cụ cấp thấp (low-level) để thực thi việc xử lý tệp media nặng này.
+
+\begin{itemize}
+    \item[\textbf{a.}] \textbf{FFmpeg:} \\
+    FFmpeg là "tiêu chuẩn vàng" trong lĩnh vực xử lý đa phương tiện \cite{tomar2006converting}. Trong hệ thống LMS, FFmpeg chạy ngầm ở mức hệ điều hành, đảm nhận các tác vụ nặng nhất với tốc độ cao và tối ưu tài nguyên: tách luồng âm thanh (.wav) khỏi video bài giảng gốc (.mp4) để đưa vào mô hình nhận dạng giọng nói, hoặc trích xuất hàng loạt khung hình (frames) để phân tích Computer Vision.
+    
+    \item[\textbf{b.}] \textbf{MoviePy:} \\
+    MoviePy là một thư viện Python cung cấp giao diện lập trình bậc cao, dễ sử dụng bao bọc xung quanh engine của FFmpeg \cite{moviepy2024}. Hệ thống sử dụng MoviePy để thực thi lệnh cắt (subclip) tự động, ghép nối video, thêm hiệu ứng chuyển cảnh mờ (fade-in, fade-out), và chèn các văn bản, watermark (như logo trường đại học hoặc tiêu đề bài học vi mô) lên trên video đầu ra trước khi lưu vào kho lưu trữ của LMS.
+    
+    \item[\textbf{c.}] \textbf{Whisper (Library Integration):} \\
+    Bên cạnh việc là một mô hình AI (đã trình bày ở phần trước), Whisper còn được triển khai dưới dạng thư viện Python nguồn mở \texttt{openai-whisper} \cite{radford2023robust}. Thư viện này tích hợp chặt chẽ với PyTorch và FFmpeg, cho phép hệ thống lập trình trực tiếp các lệnh tải mô hình lên GPU, thiết lập các tham số giải mã (decoding parameters), nhận diện ngôn ngữ tự động (language detection) và trả về đối tượng JSON chứa bản phiên mã cùng timestamp chi tiết ở cấp độ từ (word-level).
+\end{itemize}
+
+\section{Các công nghệ sử dụng}
+Để hiện thực hóa hệ thống LMS (Learning Management System) có khả năng tự động tạo Micro-content và Quiz từ video bài giảng, kiến trúc phần mềm cần sự kết hợp của nhiều công nghệ hiện đại. Việc lựa chọn công nghệ dựa trên các tiêu chí: hiệu năng xử lý đa phương tiện, khả năng tích hợp linh hoạt với các thư viện AI/ML (Python), lưu trữ dữ liệu đa phương thức và tính mở rộng cao.
+
+\subsection{FastAPI}
+FastAPI là một web framework hiện đại, hiệu năng cao dùng để xây dựng các API bằng Python dựa trên chuẩn gợi ý kiểu dữ liệu (type hints) \cite{ramirez2018fastapi}.
+\begin{itemize}
+    \item \textbf{Vai trò trong hệ thống:} Vì hầu hết các thư viện AI lõi (LangChain, Whisper, OpenCV) đều được viết bằng Python, FastAPI là lựa chọn lý tưởng để xây dựng Backend lõi. FastAPI hỗ trợ xử lý bất đồng bộ (Asynchronous) nguyên bản (qua \texttt{async/await}), rất phù hợp cho các tác vụ tốn thời gian như gọi API tới LLM, chờ trích xuất âm thanh từ video hay chạy pipeline RAG.
+\end{itemize}
+
+\subsection{React + Next.js}
+React là thư viện JavaScript dùng để xây dựng giao diện người dùng dựa trên component, trong khi Next.js là một framework bao bọc React, cung cấp các tính năng như Server-Side Rendering (SSR) và định tuyến (Routing) tối ưu \cite{vercel2024nextjs}.
+\begin{itemize}
+    \item \textbf{Vai trò trong hệ thống:} Next.js đóng vai trò xây dựng Frontend (trang web học tập). Nó xử lý giao diện người dùng cho các tính năng phức tạp như: Trình phát video tích hợp phụ đề tương tác (Interactive Video Player), hiển thị Pop-up Quiz ngay trên nền video, và giao diện Dashboard để giảng viên quản lý, chỉnh sửa Micro-content do AI tạo ra.
+\end{itemize}
+
+\subsection{PostgreSQL}
+PostgreSQL là một hệ quản trị cơ sở dữ liệu quan hệ (RDBMS) mã nguồn mở tiên tiến, nổi bật với khả năng tuân thủ chặt chẽ chuẩn ACID và hỗ trợ kiểu dữ liệu đa dạng \cite{postgresql2024}.
+\begin{itemize}
+    \item \textbf{Vai trò trong hệ thống:} PostgreSQL là cơ sở dữ liệu chính của toàn hệ thống, chịu trách nhiệm lưu trữ các thông tin có cấu trúc và tính quan hệ cao: tài khoản người dùng (sinh viên, giảng viên), danh sách khóa học, tiến độ học tập, lịch sử làm Quiz và điểm số.
+\end{itemize}
+
+\subsection{Redis}
+Redis là một kho lưu trữ cấu trúc dữ liệu trong bộ nhớ (In-memory Data Structure Store), thường được sử dụng làm cơ sở dữ liệu, bộ nhớ đệm (cache) và trình môi giới thông điệp (message broker) \cite{carlson2013redis}.
+\begin{itemize}
+    \item \textbf{Vai trò trong hệ thống:} Quá trình cắt video và chạy mô hình AI mất rất nhiều thời gian, do đó không thể xử lý đồng bộ qua API HTTP thông thường. Redis được sử dụng làm Message Broker kết hợp với Celery để quản lý hàng đợi tác vụ nền (Background Tasks Queue). Giảng viên sau khi upload video sẽ nhận được phản hồi ngay lập tức, trong khi Redis xếp hàng và phân phối nhiệm vụ xử lý video cho các worker phía sau.
+\end{itemize}
+
+\subsection{Qdrant}
+Qdrant là một công cụ tìm kiếm và cơ sở dữ liệu vector (Vector Database) mã nguồn mở, được tối ưu hóa cho hiệu suất cao khi làm việc với dữ liệu nhúng (embeddings) chiều cao \cite{qdrant2024}.
+\begin{itemize}
+    \item \textbf{Vai trò trong hệ thống:} Đây là trái tim của hệ thống RAG. Khi slide bài giảng và transcript được băm nhỏ (chunking), chúng được chuyển thành vector ngữ nghĩa thông qua các mô hình nhúng (Embedding Models) và lưu vào Qdrant. Khi LLM cần sinh câu hỏi trắc nghiệm cho một đoạn video cụ thể, hệ thống sẽ truy vấn Qdrant để tìm ra các đoạn văn bản có ý nghĩa liên quan nhất làm ngữ cảnh.
+\end{itemize}
+
+\subsection{Neo4j}
+Neo4j là một hệ quản trị cơ sở dữ liệu đồ thị (Graph Database) chuyên biệt, lưu trữ dữ liệu dưới dạng các nút (nodes) và cạnh (edges) đại diện cho các mối quan hệ \cite{neo4j2024}.
+\begin{itemize}
+    \item \textbf{Vai trò trong hệ thống:} Hệ thống sử dụng Neo4j để xây dựng Đồ thị Tri thức (Knowledge Graph) của khóa học. AI sẽ phân tích video và trích xuất các khái niệm cốt lõi (ví dụ: Nút "Deep Learning" có quan hệ \textit{YÊU CẦU} Nút "Toán đại số"). Việc này giúp LMS hiểu được cấu trúc của khóa học, từ đó đề xuất cho sinh viên học lại Micro-content nào nếu họ làm sai Quiz liên quan đến một khái niệm cụ thể.
+\end{itemize}
+
+\subsection{MinIO}
+MinIO là một hệ thống lưu trữ đối tượng (Object Storage) mã nguồn mở hiệu năng cao, tương thích hoàn toàn với API của Amazon S3 \cite{minio2024}.
+\begin{itemize}
+    \item \textbf{Vai trò trong hệ thống:} Video bài giảng gốc, các tệp âm thanh trích xuất, và hàng loạt các tệp video Micro-content sinh ra là những dữ liệu phi cấu trúc và rất nặng. MinIO giúp lưu trữ an toàn các tệp media này với khả năng mở rộng ngang, thay vì lưu trực tiếp vào ổ cứng server hoặc trong PostgreSQL.
+\end{itemize}
+
+\subsection{gRPC}
+gRPC là một framework Remote Procedure Call (RPC) mã nguồn mở hiệu năng cao do Google phát triển, sử dụng Protocol Buffers để mã hóa dữ liệu truyền tải \cite{grpc2024}.
+\begin{itemize}
+    \item \textbf{Vai trò trong hệ thống:} Trong cấu trúc Microservices, gRPC được sử dụng để giao tiếp nội bộ giữa các service. Ví dụ: Web server (FastAPI) cần giao tiếp với một AI Worker Service chạy trên máy chủ có GPU mạnh để chạy mô hình Whisper. gRPC giúp việc truyền tải các file video/audio nhị phân qua mạng nội bộ diễn ra với tốc độ cực nhanh và độ trễ thấp so với REST API (JSON).
+\end{itemize}
+
+\subsection{Docker}
+Docker là nền tảng container hóa (containerization) cho phép tự động hóa việc triển khai các ứng dụng bên trong các môi trường cô lập gọi là container \cite{merkel2014docker}.
+\begin{itemize}
+    \item \textbf{Vai trò trong hệ thống:} Với một hệ thống phức tạp bao gồm Frontend (Node.js), Backend (Python), các Database (PostgreSQL, Redis, Qdrant, Neo4j) và các thư viện C++ mức hệ điều hành (như FFmpeg), Docker đảm bảo toàn bộ hệ sinh thái này có thể được đóng gói và chạy ổn định trên mọi môi trường (từ máy tính cá nhân của lập trình viên đến máy chủ cloud) mà không gặp lỗi xung đột thư viện.
+\end{itemize}
