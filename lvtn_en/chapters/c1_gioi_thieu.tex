@@ -139,38 +139,40 @@ The problem includes the following main questions:
 
 \subsection{General Objective}
 
-The general objective of this thesis is to build and evaluate a Generative AI
-system integrated with Canvas LMS to automatically create Micro-content and
+The general objective of this thesis is to design and prototype a Generative
+AI system integrated with Canvas LMS to automatically create Micro-content and
 quizzes from academic materials, support lecture-video processing, provide an
 AI Tutor Chatbot, and allow instructors to review content before publishing it
-to learners. The system is intended to serve as an AI extension layer for
-Canvas, where Canvas is the LTI platform and the DA/Next.js application is the
-LTI tool launched from a course or assignment.
+to learners. The thesis also defines an evaluation framework for later pilot
+measurement instead of presenting unverified experimental results. The system
+is intended to serve as an AI extension layer for Canvas, where Canvas is the
+LTI platform and the DA/Next.js application is the LTI tool launched from a
+course or assignment.
 
 \subsection{Technical Objectives}
 
 Technically, the thesis targets the following objectives:
 \begin{enumerate}
-    \item Design a system architecture consisting of a frontend, gRPC backend,
-          asynchronous workers, relational database, vector database, graph
-          database, object storage, and task queue.
-    \item Build a document-processing pipeline that includes upload, content
+    \item Design a system architecture consisting of a frontend/BFF, backend
+          services, asynchronous workers, relational database, vector
+          database, graph database, object storage, and task queue.
+    \item Prototype a document-processing pipeline that includes upload, content
           extraction, text normalization, chunking, embedding, metadata
           storage, and semantic retrieval.
     \item Design a lecture-video processing pipeline at the level of transcript
           extraction, time-based segmentation, and linking transcripts with
           learning materials or generated content.
-    \item Build mechanisms to generate Micro-content, flashcards/lesson cards,
-          multiple-choice questions, answers, and explanations from retrieved
-          context.
+    \item Prototype mechanisms to generate Micro-content, flashcards/lesson
+          cards, multiple-choice questions, answers, and explanations from
+          retrieved context.
     \item Design a Curriculum-Aware Layer to represent Course, Chapter,
           Learning Outcome, Assessment, and their relationships with content
           chunks.
     \item Integrate RAG and a GraphRAG direction to retrieve content by
           semantics, chapter structure, and learning outcomes.
-    \item Integrate the system with Canvas LMS through LTI 1.3/OIDC, verify
-          launch requests, map Canvas users, and create secure learning
-          sessions.
+    \item Design and prototype Canvas LMS integration through LTI 1.3/OIDC,
+          including launch-request verification, Canvas user mapping, and
+          secure learning sessions.
     \item Propose evaluation methods for functionality, integration, retrieval,
           generated-content quality, performance, and user experience.
 \end{enumerate}
@@ -311,7 +313,7 @@ three main characteristics:
           AI models, for example moving from GPT-3.5 to GPT-4 or to an
           open-source model, without changing the rest of the system.
     \item \textbf{Connectivity with different LMS platforms:} the AI
-          extension layer is implemented as a web service / microservice that
+          extension layer is designed as a web service / microservice that
           can connect to common LMS platforms through REST APIs or LTI
           Advantage. Therefore, although Canvas is the selected experimental
           platform in this thesis, the same direction can later be adapted as

@@ -949,8 +949,8 @@ ensure low latency and high responsiveness:
 
 \subsection{Object Storage Schema}
 
-The S3-compatible object storage system, implemented with MinIO, is
-organized into a strict hierarchical structure:
+The S3-compatible object storage system, represented by MinIO in the
+prototype design, is organized into a strict hierarchical structure:
 
 \begin{itemize}
     \item \textbf{Specialized buckets:}
@@ -1270,7 +1270,7 @@ LLMs are called through adapters, with three isolation mechanisms:
     \end{tabular}
 \end{table}
 
-Rate limiting is implemented through Redis token bucket. LLM token quota
+Rate limiting is designed around a Redis token bucket. LLM token quota
 is tracked per user in PostgreSQL table \texttt{user\_llm\_quota} and
 reset daily.
 
@@ -1614,12 +1614,13 @@ retry returns the job to \texttt{QUEUED}. Content-generation states
 such as \texttt{GENERATED\_DRAFT} are intentionally not part of this
 pipeline; they belong to a separate review lifecycle.
 
-\subsection{Other State Machines (See Appendix)}
+\subsection{Supporting State Machine Designs}
 \label{subsec:other-state-machines}
 
-Two further state machines are needed for completeness but are not
-required to follow the main design narrative; their full diagrams and
-state tables are in Appendix~\ref{appendix:state-machines}:
+Two additional state machines support the operational and review
+lifecycle of the system, but they are not required to follow the main
+design narrative. Their full diagrams and state tables are provided in
+Appendix~\ref{appendix:state-machines}:
 
 \begin{itemize}
     \item \textbf{Asynchronous Job State (BullMQ)} -- broker-level

@@ -4,27 +4,28 @@
 
 \section{Achieved Results}
 
-This thesis has proposed and built the foundation for an LMS-integrated
-Generative AI system that automatically creates Micro-Content and Quizzes
-from academic materials. The system does not stop at calling an LLM to
-generate content; it also designs a knowledge-processing pipeline that
-includes document extraction, chunking, embedding, retrieval, Knowledge
-Graph, and Human-in-the-Loop review.
+This thesis has proposed, designed, and prototyped the foundation for an
+LMS-integrated Generative AI system that automatically creates
+Micro-Content and Quizzes from academic materials. The system does not
+stop at calling an LLM to generate content; it also defines a
+knowledge-processing pipeline that includes document extraction,
+chunking, embedding, retrieval, Knowledge Graph, and Human-in-the-Loop
+review.
 
 The main results are:
 \begin{itemize}
-    \item Designed the overall architecture including frontend, gRPC
-          backend, workers, queues, and storage systems PostgreSQL,
+    \item Designed the overall architecture including frontend/BFF,
+          backend services, workers, queues, and storage systems PostgreSQL,
           MinIO, Qdrant, and Neo4j.
     \item Applied Hexagonal Architecture/DDD to separate use cases from
           infrastructure adapters.
-    \item Built the document-processing pipeline: parse, chunk, embed,
-          store vectors, and generate AI content.
+    \item Prototyped the core document-processing flow: parse, chunk,
+          embed, store vectors, and generate AI content.
     \item Designed a Curriculum-Aware Layer to extract Learning Outcomes
           and map chunks to LOs.
-    \item Oriented the LTI 1.3/OIDC integration so the system can operate
-          as an external tool for an LMS.
-    \item Built an evaluation framework for functionality, integration,
+    \item Designed the LTI 1.3/OIDC integration direction so the system can
+          operate as an external tool for an LMS.
+    \item Defined an evaluation framework for functionality, integration,
           retrieval, generated-content quality, and performance, with the
           principle that no metric is reported before it has actually
           been measured.

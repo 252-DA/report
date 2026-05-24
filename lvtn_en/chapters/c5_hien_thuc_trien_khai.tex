@@ -286,7 +286,7 @@ Appendix~\ref{appendix:system-environment}
 
 \subsection{\texttt{web-bff} (Next.js)}
 
-The frontend and Backend-for-Frontend are implemented with Next.js 14
+The frontend and Backend-for-Frontend are prototyped with Next.js 14
 and App Router. The component has three main roles:
 
 \begin{itemize}
@@ -330,7 +330,7 @@ delegated to \texttt{core-api} through JWT.
 
 \subsection{\texttt{core-api} (NestJS)}
 
-\texttt{core-api} is implemented with NestJS 10 and the Fastify adapter
+\texttt{core-api} is prototyped with NestJS 10 and the Fastify adapter
 to reduce overhead compared with Express. It acts as the business center:
 
 \begin{itemize}
@@ -357,7 +357,7 @@ single source of truth, and provides a good migration CLI for the team.
 
 \subsection{\texttt{chat-service} (FastAPI)}
 
-\texttt{chat-service} is implemented with FastAPI 0.110+ and Uvicorn
+\texttt{chat-service} is prototyped with FastAPI 0.110+ and Uvicorn
 (2 worker processes, without Gunicorn so the async event loop remains
 simple). It exposes two main endpoints:
 
@@ -386,7 +386,7 @@ The internal pipeline in \texttt{stream}:
 
 \subsection{\texttt{document-worker}}
 
-\texttt{document-worker} is implemented with Python 3.11 and the BullMQ
+\texttt{document-worker} is prototyped with Python 3.11 and the BullMQ
 Python client (\texttt{bullmq-python}). The container has three main
 roles in the same process:
 
@@ -426,7 +426,7 @@ of Pro) and retries one more time.
 
 \subsection{\texttt{video-worker} (Go)}
 
-\texttt{video-worker} is implemented with Go 1.22+ instead of Python
+\texttt{video-worker} is prototyped with Go 1.22+ instead of Python
 to: (i) avoid the GIL when orchestrating parallel FFmpeg subprocesses
 through goroutines, (ii) build a small static binary ($\approx$ 20MB)
 instead of a Python image ($\approx$ 1GB), and (iii) handle large
@@ -823,7 +823,8 @@ Production & BGE-M3 local & Whisper local + AssemblyAI fallback
 
 \section{Chapter Summary}
 
-This chapter has presented concrete implementation decisions:
+This chapter has presented concrete implementation and deployment
+decisions for the prototype:
 
 \begin{itemize}
     \item \textbf{Target environment:} Ubuntu Server 22.04 LTS for the
@@ -852,7 +853,8 @@ This chapter has presented concrete implementation decisions:
           files with mode 600 or GitHub Actions Secrets.
 \end{itemize}
 
-The next chapter, Chapter 6, presents the methodology and evaluation
-results of the system based on pilot data collected according to the
-plan in Section~\ref{sec:plan-gd2} of
+The next chapter, Chapter 6, presents the evaluation methodology and
+planned measurement framework for the system. Pilot data and measured
+results should be collected in the follow-up phase according to the plan
+in Section~\ref{sec:plan-gd2} of
 Chapter~\ref{chap:ket-luan-huong-phat-trien}.
