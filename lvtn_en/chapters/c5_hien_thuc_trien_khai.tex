@@ -94,58 +94,22 @@ can participate. The supported environments are:
 \texttt{ubuntu-22.04} is used, with a planned move to
 \texttt{ubuntu-24.04} after April 2025 when GitHub changes its default.
 
-\subsection{Hardware Requirements by Tier}
+\subsection{Deployment Sizing Assumptions}
 \label{subsec:hardware-tiers}
 
-Table~\ref{tab:hardware-tiers} lists the minimum and recommended
-configurations for each environment tier. It is used as a checklist
-when purchasing machines or renting VPS resources.
+For development, the system can run on a 16GB machine when external
+APIs are used for embedding and speech-to-text. A pilot deployment for
+10--20 students should use at least 16GB RAM without local AI models, or
+32GB RAM with an 8GB VRAM GPU when BGE-M3 and Whisper are executed
+locally. Production sizing is intentionally treated as a future
+operational decision because it depends on the number of courses,
+concurrent users, data volume, and whether PostgreSQL/Qdrant are kept on
+the same host or moved to managed services.
 
-\begin{longtable}{|p{2.8cm}|p{1.6cm}|p{1.6cm}|p{2cm}|p{1.7cm}|p{2.7cm}|}
-\caption{Hardware requirements by environment tier.}
-\label{tab:hardware-tiers} \\
-\hline
-\textbf{Tier} & \textbf{CPU} & \textbf{RAM} & \textbf{Disk} & \textbf{GPU}
-    & \textbf{Notes} \\
-\hline
-\endfirsthead
-\hline
-\textbf{Tier} & \textbf{CPU} & \textbf{RAM} & \textbf{Disk} & \textbf{GPU}
-    & \textbf{Notes} \\
-\hline
-\endhead
-
-Minimum dev & 4 cores (i5 gen 10+/\allowbreak Ryzen 5/Apple M1) & 16GB & 50GB SSD
-    & Optional & Use APIs for embedding/STT instead of local models. \\
-\hline
-Recommended dev & 8 cores & 32GB & 100GB SSD & Optional 4GB VRAM
-    & Can run Whisper small and BGE-M3 locally. \\
-\hline
-CI runner & 2 cores & 8GB & 30GB & No
-    & GitHub Actions \texttt{ubuntu-22.04} or self-hosted. \\
-\hline
-Minimum pilot & 4 cores & 16GB & 100GB SSD & No
-    & Enough for 10--20 concurrent students when using STT/\allowbreak embedding APIs. \\
-\hline
-Recommended pilot & 8 cores & 32GB & 200GB NVMe & 1x 8GB VRAM GPU
-    (for example RTX 3060/\allowbreak 4060 or NVIDIA T4)
-    & Can run Whisper medium + BGE-M3 locally; Gemini API is still
-      required. \\
-\hline
-Reference production & 16 cores+ & 64GB+ & 500GB NVMe + separate backup
-    & 2x 16GB+ VRAM GPUs (for example L4 or A10)
-    & Move PostgreSQL/\allowbreak Qdrant to managed services; many
-      courses/classes in parallel. \\
-\hline
-\end{longtable}
-
-\textbf{Reason for choosing 8GB VRAM for the pilot:} Whisper
-\texttt{medium} (769M parameters) requires approximately 5GB VRAM
-during inference, while \texttt{small} (244M parameters) requires
-approximately 2GB; BGE-M3 dense embedding requires another
-approximately 2GB when loaded in FP16. With 8GB VRAM, Whisper medium
-and BGE-M3 can run at the same time without unloading and reloading
-models between requests.
+The detailed per-container memory allocation and pinned runtime versions
+are provided in Appendix~\ref{appendix:system-environment}, so the main
+chapter only records the sizing assumptions needed to reproduce the
+prototype and pilot deployment.
 
 \subsection{Per-Service Sizing and Versioning}
 \label{subsec:sizing-versioning}
