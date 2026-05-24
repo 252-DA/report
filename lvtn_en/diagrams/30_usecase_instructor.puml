@@ -1,0 +1,51 @@
+@startuml usecase_instructor
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam UsecaseBackgroundColor #EBF5FB
+skinparam UsecaseBorderColor #555555
+skinparam ActorBorderColor #555555
+skinparam PackageBorderColor #888888
+skinparam ranksep 18
+skinparam nodesep 14
+
+title Instructor Use Case View
+
+left to right direction
+
+actor "Instructor\n(AC-01)" as Instructor
+
+rectangle "AI Extension System" {
+
+    package "Access and Canvas Integration" #DDEBF7 {
+        usecase "UC-LMS-01\nLTI Launch" as UC_Launch
+        usecase "UC-LMS-02\nDeep Linking" as UC_DeepLink
+    }
+
+    package "AI-assisted Authoring" #FEF9E7 {
+        usecase "UC-IN-01\nUpload Learning\nResources" as UC_Upload
+        usecase "UC-IN-02\nMonitor\nProcessing" as UC_Watch
+        usecase "UC-IN-03\nReview\nAI Content" as UC_Review
+        usecase "UC-IN-04\nPublish Learning\nResources" as UC_Publish
+        usecase "UC-IN-05\nView Class\nAnalytics" as UC_Analytics
+        usecase "UC-IN-06\nManage Learning\nResources" as UC_Manage
+    }
+}
+
+actor "Canvas LMS\n(AC-03)" as Canvas
+actor "LLM Provider\n(AC-04)" as LLM
+
+Instructor --> UC_Launch
+Instructor --> UC_DeepLink
+Instructor --> UC_Upload
+Instructor --> UC_Watch
+Instructor --> UC_Review
+Instructor --> UC_Publish
+Instructor --> UC_Analytics
+Instructor --> UC_Manage
+
+Canvas --> UC_Launch
+Canvas --> UC_DeepLink
+LLM <-- UC_Review
+
+@enduml

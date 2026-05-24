@@ -3,84 +3,105 @@
 skinparam defaultFontName Arial
 skinparam defaultFontSize 11
 skinparam UsecaseBackgroundColor #EBF5FB
+skinparam UsecaseBorderColor #555555
 skinparam ActorBorderColor #555555
 skinparam PackageBorderColor #888888
+skinparam ranksep 18
+skinparam nodesep 14
 
 title Use Case Diagram - LMS Generative AI System
 
 left to right direction
 
+' ===== Primary actors on the LEFT =====
 actor "Instructor\n(AC-01)" as Instructor
 actor "Learner\n(AC-02)" as Learner
-actor "System Administrator\n(AC-05)" as Admin
-actor "Canvas LMS\n(AC-03)" as Canvas
-actor "LLM Provider\nGemini (AC-04)" as LLM
+actor "System\nAdministrator\n(AC-05)" as Admin
 
 rectangle "AI Extension System" {
 
-    package "LMS Integration & Operations" {
+    package "Access and LMS Integration" #DDEBF7 {
         usecase "UC-LMS-01\nLTI Launch" as UC_Launch
         usecase "UC-LMS-02\nDeep Linking" as UC_DeepLink
-        usecase "UC-LMS-03\nScore Synchronization\n(AGS)" as UC_AGS
+        usecase "UC-LMS-03\nScore\nSynchronization" as UC_AGS
+    }
+
+    together {
+        package "AI-assisted Authoring" #FEF9E7 {
+            usecase "UC-IN-01\nUpload Learning\nResources" as UC_Upload
+            usecase "UC-IN-02\nMonitor\nProcessing" as UC_Watch
+            usecase "UC-IN-03\nReview\nAI Content" as UC_Review
+            usecase "UC-IN-04\nPublish Learning\nResources" as UC_Publish
+            usecase "UC-IN-05\nView Class\nAnalytics" as UC_Analytics
+            usecase "UC-IN-06\nManage Learning\nResources" as UC_Manage
+        }
+
+        package "Learner Experience" #E8F5E9 {
+            usecase "UC-LE-01\nLearn Micro-Content\nand Videos" as UC_Learn
+            usecase "UC-LE-02\nReview with\nFlashcards" as UC_Flash
+            usecase "UC-LE-03\nTake Quizzes" as UC_Quiz
+            usecase "UC-LE-04\nAsk AI Tutor" as UC_Chat
+            usecase "UC-LE-05\nView Personal\nProgress" as UC_Progress
+            usecase "UC-LE-06\nSearch Course\nContent" as UC_Search
+        }
+    }
+
+    package "Governance and Operations" #FADBD8 {
         usecase "UC-AD-01\nManage AI Limits" as UC_Quota
         usecase "UC-AD-02\nMonitor System" as UC_Ops
-    }
-
-    package "Instructor Use Cases" {
-        usecase "UC-IN-01\nUpload Learning Resources" as UC_Upload
-        usecase "UC-IN-02\nMonitor Processing" as UC_Watch
-        usecase "UC-IN-03\nReview AI Content" as UC_Review
-        usecase "UC-IN-04\nPublish Learning Resources" as UC_Publish
-        usecase "UC-IN-05\nView Class Analytics" as UC_Analytics
-    }
-
-    package "Learner Use Cases" {
-        usecase "UC-LE-01\nLearn Micro-Content" as UC_Learn
-        usecase "UC-LE-02\nReview with Flashcards" as UC_Flash
-        usecase "UC-LE-03\nTake Quizzes" as UC_Quiz
-        usecase "UC-LE-04\nAsk AI Tutor" as UC_Chat
-        usecase "UC-LE-05\nView Personal Progress" as UC_Progress
+        usecase "UC-AD-03\nConfigure LMS\nIntegration" as UC_LMSConfig
     }
 }
 
-' --- Authentication entrypoint ---
-Instructor --> UC_Launch
-Learner --> UC_Launch
-Canvas --> UC_Launch
+' ===== External systems on the RIGHT =====
+actor "Canvas LMS\n(AC-03)" as Canvas
+actor "LLM Provider\nGemini (AC-04)" as LLM
 
-' --- Instructor flow ---
+' ===== Primary actor associations =====
 Instructor --> UC_Upload
 Instructor --> UC_Watch
 Instructor --> UC_Review
 Instructor --> UC_Publish
 Instructor --> UC_Analytics
+Instructor --> UC_Manage
 Instructor --> UC_DeepLink
 
-' --- Learner flow ---
 Learner --> UC_Learn
 Learner --> UC_Flash
 Learner --> UC_Quiz
 Learner --> UC_Chat
 Learner --> UC_Progress
+Learner --> UC_Search
 
-' --- Admin flow ---
 Admin --> UC_Quota
 Admin --> UC_Ops
+Admin --> UC_LMSConfig
 
-' --- External system involvement ---
-Canvas --> UC_DeepLink
-Canvas --> UC_AGS
-LLM --> UC_Review : <<supports>>\nAI generation
-LLM --> UC_Chat : <<supports>>\nRAG answer
+' ===== External-system associations =====
+Canvas --> UC_Launch
+Canvas <-- UC_AGS
+Canvas <-- UC_LMSConfig
+LLM <-- UC_Review
+LLM <-- UC_Chat
 
-' --- Include / Extend / Triggers ---
-UC_Upload ..> UC_Watch : <<triggers>>
-UC_Watch ..> UC_Review : <<precedes>>
-UC_Review ..> UC_Publish : <<precedes>>
-UC_Publish ..> UC_AGS : <<extends>>\nwhen quiz graded
-UC_Quiz ..> UC_AGS : <<triggers>>
-UC_Quiz ..> UC_Progress : <<include>>
-UC_Learn ..> UC_Progress : <<include>>
-UC_Flash ..> UC_Progress : <<include>>
+' ===== Standard UML stereotypes only =====
+UC_Upload ..> UC_Watch  : <<trigger>>
+UC_Quiz   ..> UC_AGS    : <<extend>>
+UC_Quiz   ..> UC_Progress : <<include>>
+UC_Learn  ..> UC_Progress : <<include>>
+UC_Flash  ..> UC_Progress : <<include>>
+UC_Search ..> UC_Chat : <<extend>>
+
+note bottom of Canvas
+  Canvas is the LMS platform: it initiates
+  UC-LMS-01 (LTI Launch) and receives scores
+  from UC-LMS-03 (AGS).
+end note
+
+note bottom of LLM
+  LLM Provider is a supporting external system
+  used by Review (AI generation) and Ask AI
+  Tutor (RAG answer).
+end note
 
 @enduml

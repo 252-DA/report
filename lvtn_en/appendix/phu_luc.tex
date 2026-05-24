@@ -1,62 +1,420 @@
 % !TeX root = ../main.tex
-\chapter*{Appendix}
-\addcontentsline{toc}{chapter}{Appendix}
+\chapter{Supplementary Specifications}
+\label{appendix:supplementary-specifications}
 
-\section*{Important Links}
+This appendix contains compact reference material that supports the
+analysis and design chapters. Detailed diagrams are separated into
+dedicated appendices by diagram type so that Chapter~\ref{chap:phan-tich-thiet-ke}
+can focus on the main architectural narrative.
 
-\begin{table}[H]
-    \centering
-    \begin{tabular}{|p{4.3cm}|p{8.7cm}|}
-        \hline
-        \textbf{Resource} & \textbf{Link} \\
-        \hline
-        System repository          & \texttt{https://github.com/...} \\
-        \hline
-        LaTeX report               & \texttt{https://github.com/...} \\
-        \hline
-        Demo video                 & \texttt{https://...} \\
-        \hline
-        Pilot evaluation dataset   & \texttt{TODO: update after pilot} \\
-        \hline
-    \end{tabular}
-    \caption*{Important links.}
-\end{table}
-
-\section*{Use Case Summary}
+\section{Appendix Organization}
+\label{appendix:organization}
 
 \begin{table}[H]
     \centering
-    \caption*{System use case summary.}
-    \begin{tabular}{|p{1.3cm}|p{3.8cm}|p{2.8cm}|p{5.3cm}|}
+    \caption{Appendix organization.}
+    \label{tab:appendix-organization}
+    \begin{tabular}{|p{2.5cm}|p{4.2cm}|p{6.7cm}|}
         \hline
-        \textbf{ID} & \textbf{Name} & \textbf{Primary actor} & \textbf{Main result} \\
+        \textbf{Appendix} & \textbf{Content} & \textbf{Purpose} \\
         \hline
-        UC-01 & Upload documents & Instructor & The file is stored in MinIO and the document enters the pending-processing state. \\
+        Appendix~\ref{appendix:supplementary-specifications}
+            & Supplementary specifications
+            & Detailed specs for secondary use cases plus database schema summary. \\
         \hline
-        UC-02 & Automatic document processing & AI Pipeline & Chunks, embeddings, cards, and quizzes are generated from the document. \\
+        Appendix~\ref{appendix:sequence-diagrams}
+            & Detailed sequence diagrams
+            & Step-by-step interaction flows that are too detailed for Chapter 4. \\
         \hline
-        UC-03 & Review AI content & Instructor & Cards/quizzes are edited and marked as approved. \\
+        Appendix~\ref{appendix:activity-diagrams}
+            & Detailed activity diagrams
+            & Decision points and parallel branches of major workflows. \\
         \hline
-        UC-04 & Publish course content & Instructor & Content is published to learners. \\
+        Appendix~\ref{appendix:class-diagrams}
+            & Detailed class diagrams
+            & Additional bounded-context diagrams supporting the domain model. \\
         \hline
-        UC-05 & Learn with cards & Learner & Learning progress is updated. \\
-        \hline
-        UC-06 & Take quizzes & Learner & Scores and immediate feedback are stored. \\
-        \hline
-        UC-07 & Semantic search & Learner & The top-K relevant content items are returned. \\
-        \hline
-        UC-08 & Manage accounts & Administrator & User accounts, roles, and statuses are managed. \\
+        Appendix~\ref{appendix:state-machines}
+            & Detailed state machines
+            & Operational and review lifecycle states separated from the main design flow. \\
         \hline
     \end{tabular}
 \end{table}
 
-\section*{Database DDL Specification}
-\addcontentsline{toc}{section}{Database DDL Specification}
+\section{Detailed Specifications of Secondary Use Cases}
+\label{appendix:use-case-reference}
+
+The use case diagram and detailed specifications of the main use cases
+are in
+Section~\ref{sec:use-case-diagram} of
+Chapter~\ref{chap:khao-sat-phan-tich-he-thong} (specifically
+Section~\ref{subsec:main-use-case-specs}). This appendix collects the
+detailed specifications of the remaining eleven secondary use cases
+using the same template (Primary actor, Preconditions, Main flow,
+Postconditions, Alternate flows). They are placed here because their
+flows are operational or auxiliary rather than load-bearing for the
+main thesis defense.
+
+\subsection{UC-IN-02 -- Monitor Processing}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & Instructor (AC-01) \\
+\hline
+Preconditions & At least one document or video is in a non-terminal
+    pipeline state (\texttt{QUEUED} through \texttt{EMBEDDING}). \\
+\hline
+Main flow &
+    1.\ Instructor opens the upload list page in \texttt{web-bff}.
+    2.\ \texttt{web-bff} subscribes to Redis Pub/Sub and forwards
+    progress events to the browser via SSE.
+    3.\ Each row updates in place as pipeline state changes
+    (\texttt{PARSING} $\to$ \texttt{CHUNKING} $\to$ \texttt{EMBEDDING}
+    $\to$ \texttt{INDEXED}). \\
+\hline
+Postconditions & UI shows the latest pipeline state; instructor can
+    retry items in \texttt{ERROR} state. \\
+\hline
+Alternate flows &
+    \emph{A1} - SSE connection drops: browser auto-reconnects; state
+    backfilled from the next snapshot.
+    \emph{A2} - Item in \texttt{ERROR}: instructor clicks Retry; a
+    new job is enqueued. \\
+\hline
+\end{longtable}
+
+\subsection{UC-IN-05 -- View Class Analytics}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & Instructor (AC-01) \\
+\hline
+Preconditions & The course has at least one quiz attempt and one
+    learning event from a learner. \\
+\hline
+Main flow &
+    1.\ Instructor opens \texttt{/manage/analytics}.
+    2.\ \texttt{core-api} aggregates \texttt{quiz\_attempts} and
+    \texttt{learning\_events} grouped by Learning Outcome.
+    3.\ Dashboard shows: active learners, completion rate, average
+    quiz score, top 5 weakest LOs. \\
+\hline
+Postconditions & No state change. \\
+\hline
+Alternate flows &
+    \emph{A1} - No data yet: dashboard shows ``insufficient data''
+    placeholder with a guide to onboard learners. \\
+\hline
+\end{longtable}
+
+\subsection{UC-IN-06 -- Manage Learning Resources}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & Instructor (AC-01) \\
+\hline
+Preconditions & Instructor launched the tool from Canvas with role
+    \texttt{Instructor}; at least one document or video belongs to the
+    selected course. \\
+\hline
+Main flow &
+    1.\ Instructor opens the resource library in \texttt{web-bff}.
+    2.\ \texttt{core-api} returns documents/videos with processing
+    status, publish status, owner, and derived artifact counts.
+    3.\ Instructor selects a resource and chooses Rename, Rerun
+    pipeline, or Delete.
+    4.\ For Rename, \texttt{core-api} updates metadata and writes an
+    audit record.
+    5.\ For Rerun, \texttt{core-api} enqueues a new processing job
+    while preserving the old result until the new result is ready.
+    6.\ For Delete, \texttt{core-api} soft-deletes the resource and
+    publishes \texttt{DocumentDeleted}/\texttt{VideoDeleted} for
+    cleanup across storage, vector index, and graph stores. \\
+\hline
+Postconditions & Resource metadata is updated, the pipeline is rerun,
+    or derived artifacts are marked for idempotent cleanup. Audit logs
+    preserve the instructor action. \\
+\hline
+Alternate flows &
+    \emph{A1} - Resource has published content: the UI requires a
+    second confirmation before deletion.
+    \emph{A2} - Delete is repeated: \texttt{core-api} returns success
+    without creating duplicate cleanup effects. \\
+\hline
+\end{longtable}
+
+\subsection{UC-LE-02 -- Review with Flashcards}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & Learner (AC-02) \\
+\hline
+Preconditions & At least one \texttt{PUBLISHED} card in the lesson. \\
+\hline
+Main flow &
+    1.\ Learner opens the lesson and toggles flashcard mode.
+    2.\ Cards are presented as flippable front/back (title /
+    key\_insight).
+    3.\ After flipping, learner selects ``Mastered'' or ``Review
+    again''; \texttt{flashcard\_reviews} is upserted with new
+    \texttt{state}, \texttt{last\_seen\_at},
+    \texttt{next\_due\_at}. \\
+\hline
+Postconditions & Per-learner spaced-repetition state is updated. \\
+\hline
+Alternate flows &
+    \emph{A1} - No published cards: UI shows the standard lesson view
+    instead of flashcard mode. \\
+\hline
+\end{longtable}
+
+\subsection{UC-LE-05 -- View Personal Progress}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & Learner (AC-02) \\
+\hline
+Preconditions & Learner has interacted with at least one published
+    lesson. \\
+\hline
+Main flow &
+    1.\ Learner opens \texttt{/learn/progress}.
+    2.\ \texttt{core-api} aggregates the learner's
+    \texttt{learning\_events} and \texttt{quiz\_attempts} grouped by
+    LO.
+    3.\ Dashboard shows: percentage of cards viewed, quiz score
+    trend, top 3 weakest LOs to review. \\
+\hline
+Postconditions & No state change. \\
+\hline
+Alternate flows & None. \\
+\hline
+\end{longtable}
+
+\subsection{UC-LE-06 -- Search Course Content}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & Learner (AC-02) \\
+\hline
+Preconditions & Learner launched the tool from Canvas with role
+    \texttt{Learner}; the course has at least one published card,
+    chunk, or transcript segment indexed for retrieval. \\
+\hline
+Main flow &
+    1.\ Learner types a keyword or natural-language query in the
+    course search box.
+    2.\ \texttt{web-bff} forwards the query with course and role
+    context to \texttt{chat-service} or \texttt{core-api}.
+    3.\ The retrieval layer applies metadata filters
+    (\texttt{course\_id}, publish status, role) and runs hybrid search
+    over Qdrant.
+    4.\ Results are returned as cards/chunks/transcript segments with
+    source document, page, heading, or video timestamp. \\
+\hline
+Postconditions & No learning state is changed unless the learner opens
+    a result; search logs can be stored for retrieval evaluation. \\
+\hline
+Alternate flows &
+    \emph{A1} - No result: UI shows an empty state and suggests asking
+    the AI Tutor.
+    \emph{A2} - Query is outside the course scope: only published
+    course-scoped results are returned; no external knowledge is used. \\
+\hline
+\end{longtable}
+
+\subsection{UC-LMS-02 -- Deep Linking}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & Instructor (AC-01) \\
+\hline
+Secondary actor & Canvas LMS (AC-03) \\
+\hline
+Preconditions & At least one lesson with \texttt{PUBLISHED} content;
+    Canvas tool registration has the Deep Linking message type
+    enabled. \\
+\hline
+Main flow &
+    1.\ Instructor adds an external tool in Canvas; Canvas POSTs a
+    Deep Linking request JWT to \texttt{/lti/deep-link-select}.
+    2.\ \texttt{web-bff} validates the JWT, lets the instructor pick a
+    target (lesson, card, quiz\_set, chat, or video).
+    3.\ \texttt{web-bff} constructs an
+    \texttt{LtiResourceLinkRequest} JWT pointing at the chosen target
+    and POSTs it back to Canvas \texttt{deep\_link\_return\_url}.
+    4.\ \texttt{core-api} persists an \texttt{lti\_resource\_links}
+    row mapping \texttt{lms\_resource\_link\_id} $\to$
+    \texttt{target\_kind} + \texttt{target\_id}. \\
+\hline
+Postconditions & Canvas now has an activity that, when launched,
+    routes the learner straight to the chosen target. \\
+\hline
+Alternate flows &
+    \emph{A1} - Instructor cancels: \texttt{web-bff} returns to
+    Canvas with an empty content-items array; no row is written. \\
+\hline
+\end{longtable}
+
+\subsection{UC-LMS-03 -- Score Synchronization (AGS)}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & System (triggered by UC-LE-03 quiz submission) \\
+\hline
+Secondary actor & Canvas LMS (AC-03) \\
+\hline
+Preconditions & The quiz attempt exists; an
+    \texttt{lti\_resource\_links} row references the attempt's lesson;
+    a corresponding \texttt{lti\_line\_items} row exists. \\
+\hline
+Main flow &
+    1.\ \texttt{core-api} fetches an OAuth 2.0 access token from
+    Canvas (client\_credentials with private-key JWT assertion).
+    2.\ POST to \texttt{lti\_line\_items.lms\_line\_item\_url}
+    \texttt{/scores} with \texttt{userId}, \texttt{scoreGiven},
+    \texttt{scoreMaximum}, \texttt{activityProgress},
+    \texttt{gradingProgress}.
+    3.\ On 2xx: update \texttt{quiz\_attempts.ags\_status =
+    POSTED} and \texttt{ags\_posted\_at}. \\
+\hline
+Postconditions & Canvas Gradebook reflects the new score within
+    $\leq 5$ seconds. \\
+\hline
+Alternate flows &
+    \emph{A1} - Non-2xx response: \texttt{ags\_status = FAILED} with
+    error captured; a retry job runs with exponential backoff.
+    \emph{A2} - Token cache miss/expired: refresh OAuth token then
+    retry. \\
+\hline
+\end{longtable}
+
+\subsection{UC-AD-01 -- Manage AI Limits}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & System Administrator (AC-05) \\
+\hline
+Preconditions & Administrator authenticated via admin-scope JWT. \\
+\hline
+Main flow &
+    1.\ Administrator opens \texttt{/admin/quota}.
+    2.\ \texttt{core-api} lists current entries in
+    \texttt{user\_llm\_quota} and \texttt{scope\_llm\_quota}.
+    3.\ Administrator edits limits (daily / monthly tokens, per-user
+    or per-scope) and saves.
+    4.\ \texttt{core-api} validates and persists; rate-limit layer
+    picks up new limits on the next check. \\
+\hline
+Postconditions & Updated limits take effect; previously blocked users
+    can be unblocked manually if needed. \\
+\hline
+Alternate flows &
+    \emph{A1} - Limit raised above hard cap: rejected with HTTP 422.
+    \emph{A2} - Bulk import via CSV: validated in a single
+    transaction. \\
+\hline
+\end{longtable}
+
+\subsection{UC-AD-02 -- Monitor System}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & System Administrator (AC-05) \\
+\hline
+Preconditions & Observability stack (Prometheus / Grafana / Loki /
+    Tempo) running and scraping all runtimes. \\
+\hline
+Main flow &
+    1.\ Administrator opens the Grafana subdomain.
+    2.\ Dashboards display: active jobs, error rate (24h), latency
+    p95, queue depth, accumulated LLM cost.
+    3.\ Administrator can open Bull-board to inspect failed jobs and
+    requeue. \\
+\hline
+Postconditions & No state change in business data; failed jobs may
+    be requeued. \\
+\hline
+Alternate flows &
+    \emph{A1} - Threshold-based alert fired: alert delivered to
+    Discord/Email; administrator follows the on-call runbook. \\
+\hline
+\end{longtable}
+
+\subsection{UC-AD-03 -- Configure LMS Integration}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & System Administrator (AC-05) \\
+\hline
+Secondary actor & Canvas LMS (AC-03) \\
+\hline
+Preconditions & Administrator has access to the AI admin interface and
+    Canvas Developer Key settings. \\
+\hline
+Main flow &
+    1.\ Administrator opens \texttt{/admin/lti-settings}.
+    2.\ The system shows the required Canvas configuration values:
+    issuer, client ID, deployment ID, JWKS URL, login URL, launch URL,
+    redirect URLs, Deep Linking URL, and AGS scopes.
+    3.\ Administrator enters or updates the values obtained from
+    Canvas Developer Key configuration.
+    4.\ \texttt{core-api} validates required fields, stores encrypted
+    secrets, and tests JWKS retrieval.
+    5.\ Administrator runs a test launch from Canvas; the system
+    verifies issuer, audience, nonce, deployment ID, and role claims. \\
+\hline
+Postconditions & Canvas and the AI system are mutually configured for
+    LTI launch, Deep Linking, and AGS passback. \\
+\hline
+Alternate flows &
+    \emph{A1} - JWKS or deployment validation fails: configuration is
+    saved as inactive and the UI shows the failed check.
+    \emph{A2} - AGS scope missing: launch can still work, but grade
+    synchronization is disabled until the scope is granted. \\
+\hline
+\end{longtable}
+
+\section{Database Schema Reference}
 \label{appendix:db-schema}
 
-The complete PostgreSQL initialization DDL for the system is separated into
-the file \texttt{report/lvtn/appendix/db\_schema.sql} to make deployment and
-Git-based version management easier. This file includes:
+The complete PostgreSQL initialization DDL is separated into
+\texttt{report/lvtn\_en/appendix/db\_schema.sql} to keep the report
+readable while preserving an implementation-ready schema artifact. The
+file includes:
 
 \begin{itemize}
     \item \textbf{31 tables for Phase 1:} identity and LMS integration
@@ -70,34 +428,35 @@ Git-based version management easier. This file includes:
           card\_video\_attachments, quiz\_items, flashcard\_reviews),
           analytics and audit (quiz\_attempts, chat\_messages,
           learning\_events, review\_audit\_logs, llm\_usage\_logs,
-          user\_llm\_quota, scope\_llm\_quota), async outbox, content
-          generation requests, and engine cache
+          user\_llm\_quota, scope\_llm\_quota), asynchronous outbox,
+          content generation requests, and engine cache
           (content\_generation\_requests, outbox\_events,
           youtube\_search\_cache).
-    \item \textbf{03 Phase-2 extension tables (adaptive learning):}
+    \item \textbf{Three Phase-2 extension tables for adaptive learning:}
           \texttt{lo\_mastery\_states} stores the four BKT parameters
           ($p_{\text{known}}, p_{\text{learn}}, p_{\text{guess}},
-          p_{\text{slip}}$) per (user, LO);
+          p_{\text{slip}}$) per user and LO;
           \texttt{recommendation\_logs} records bandit-generated
           recommendations (Thompson sampling or LinUCB) together with the
           posterior distribution; \texttt{learning\_paths} persists the LO
           sequence selected by beam search as the personalized path.
-    \item \textbf{CHECK constraints for state enums:} seven values that match
-          the State Machine in Section~4.11.
-    \item \textbf{Partial index:} \texttt{idx\_outbox\_pending\_poller}
-          \texttt{WHERE status = 'PENDING'} for the sequential polling daemon;
-          \texttt{idx\_lesson\_cards\_review} \texttt{WHERE status IN
-          ('GENERATED\_DRAFT','REVIEWING','CHANGES\_REQUESTED')} for the
-          instructor review inbox.
+    \item \textbf{CHECK constraints for state enums:} the content-review
+          states follow the lifecycle in
+          Appendix~\ref{appendix:state-content-review}; the document/video
+          processing states follow Section~\ref{sec:state-machine-design}.
+    \item \textbf{Partial indexes:} \texttt{idx\_outbox\_pending\_poller}
+          \texttt{WHERE status = 'PENDING'} supports the outbox polling
+          daemon; \texttt{idx\_lesson\_cards\_review}
+          \texttt{WHERE status IN ('GENERATED\_DRAFT','REVIEWING',
+          'CHANGES\_REQUESTED')} supports the instructor review inbox.
     \item \textbf{Views:} \texttt{v\_current\_learning\_outcomes} filters the
           current LO version; \texttt{v\_lo\_mastery\_summary} aggregates
-          mastery data for the instructor dashboard (Phase 2).
+          mastery data for the instructor dashboard in Phase 2.
 \end{itemize}
 
-The Qdrant collection configuration (named dense + sparse vectors, payload
-hard-filter indexes by \texttt{course\_id}/\texttt{source\_type}/
-\texttt{lo\_ids}/\texttt{language}) and sample upsert templates are described
-in detail in the same deployment directory as JSON/REST API contracts. The
-Neo4j Cypher configuration (unique constraints by node label and a Range Index
-on \texttt{course\_id} for property-based multi-tenancy) is presented in
-Section~4.4.3 of the report.
+The Qdrant collection design (dense and sparse named vectors, payload
+indexes, hard filters by \texttt{course\_id}, \texttt{source\_type},
+\texttt{lo\_ids}, \texttt{language}, and \texttt{visibility}) is
+summarized in Section~\ref{subsec:qdrant-vector-schema}. The Neo4j
+constraints and indexes are summarized in
+Section~\ref{subsec:neo4j-knowledge-graph}.

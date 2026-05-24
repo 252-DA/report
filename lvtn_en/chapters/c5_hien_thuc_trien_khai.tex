@@ -1111,8 +1111,7 @@ This chapter has presented concrete implementation decisions:
           grade passback, and Deep Linking; BFF-to-Core Ed25519 JWT
           isolates Canvas sessions from backend services.
     \item \textbf{Docker Compose} with 3 files (base + dev override +
-          GPU override) is the main packaging approach; Kubernetes is a
-          future direction after the thesis defense.
+          GPU override) is the main packaging approach.
     \item \textbf{CI/CD:} GitHub Actions with 4 parallel jobs (lint,
           test, integration, build); secrets are managed through env
           files with mode 600 or GitHub Actions Secrets.

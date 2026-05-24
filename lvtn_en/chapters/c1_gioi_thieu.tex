@@ -300,11 +300,35 @@ content.
 \subsection{AI Extension Layer for LMS}
 
 This thesis does not aim to build a new LMS to replace Canvas. Instead, the
-system is designed as an AI Extension Layer for Canvas LMS. Canvas continues to
-handle core functions such as course management, learner rosters,
-authorization, assignments, gradebook, and classroom context. The AI system
-acts as an external tool that provides document processing, Micro-content
-generation, quiz generation, and Q\&A support.
+system is designed as an AI Extension Layer for Canvas LMS. This layer has
+three main characteristics:
+
+\begin{itemize}
+    \item \textbf{Separation and replaceability:} modules for PDF
+          processing, video processing, Micro-content generation, and quiz
+          generation are designed as independent components that communicate
+          through standard APIs. This makes it possible to upgrade or replace
+          AI models, for example moving from GPT-3.5 to GPT-4 or to an
+          open-source model, without changing the rest of the system.
+    \item \textbf{Connectivity with different LMS platforms:} the AI
+          extension layer is implemented as a web service / microservice that
+          can connect to common LMS platforms through REST APIs or LTI
+          Advantage. Therefore, although Canvas is the selected experimental
+          platform in this thesis, the same direction can later be adapted as
+          a plugin-like extension for Moodle, Canvas, or other learning
+          platforms.
+    \item \textbf{Prompt and context management:} the layer includes a Prompt
+          Engine direction that allows administrators to customize prompt
+          templates, temperature, response length, and text-chunking strategy
+          without rewriting application code. This separates pedagogical and
+          operational configuration from the implementation of the processing
+          pipeline.
+\end{itemize}
+
+Canvas continues to handle core functions such as course management, learner
+rosters, authorization, assignments, gradebook, and classroom context. The AI
+system acts as an external tool that provides document processing,
+Micro-content generation, quiz generation, and Q\&A support.
 
 This direction reduces deployment risk in real environments. An institution
 can keep Canvas as the main learning platform while adding AI capabilities
@@ -395,59 +419,81 @@ to, and which concept needs review when they answer incorrectly.
 
 \section{Practical and Academic Significance}
 
-Practically, the thesis helps reduce instructors' workload in preparing digital
-learning materials. The system can automatically create drafts of
-Micro-content and quizzes from academic materials while still maintaining a
-review mechanism for instructors to control quality. For learners, the system
-turns long documents into smaller learning units, increases opportunities for
-self-assessment, and provides immediate feedback. For educational
-institutions, LTI integration allows AI capabilities to be added to Canvas
-without changing the whole infrastructure or developing a Canvas-specific
-plugin.
+From a practical perspective, the thesis helps reduce instructors'
+workload in preparing digital learning materials. The system can
+automatically create draft Micro-content and quizzes from academic
+materials, while still preserving an instructor-review mechanism so that
+content quality remains under human control. This design also supports
+more diverse forms of assessment because quizzes can be generated,
+reviewed, edited, and aligned with the intended learning objectives before
+being published.
 
-Academically, the thesis demonstrates how Micro-learning, Bloom taxonomy, RAG,
-Knowledge Graph, curriculum-aware GraphRAG, and Human-in-the-Loop Review can be
-combined in a complete EdTech system. Instead of studying question generation
-or chatbots in isolation, the thesis places these techniques into an
-end-to-end workflow: document ingestion, retrieval, content generation, review,
-Canvas integration, and system evaluation.
+For learners, the system transforms long learning materials into smaller
+units that can be reviewed quickly. Micro-content in the form of concise
+summaries, key concepts, and short quiz items is suitable for distributed
+learning habits and limited study time. Instead of reading a whole
+document again, learners can revisit focused learning units, check their
+understanding, and receive explanations connected to the original course
+materials.
 
-\section{System Evaluation Criteria}
+For educational institutions and training organizations, the system offers
+several operational benefits. By automating the initial creation of
+Micro-content and multiple-choice questions from PDF documents and lecture
+videos, it can reduce the time instructors spend preparing digital
+materials and lower the cost of hiring specialists to produce online
+learning content. This is especially useful for large-scale training
+programs such as MOOCs or corporate internal training. In addition, the
+hybrid deployment model supports both external AI APIs (such as OpenAI and
+Gemini) and locally hosted open-source models (such as LLaMA and
+Mistral), allowing institutions to balance cost, performance, and data
+privacy requirements. For sensitive materials, an on-premise deployment
+can keep data inside the organization's own infrastructure.
 
-To evaluate the system comprehensively, the thesis considers the following
-groups of criteria:
-\begin{itemize}
-    \item \textbf{Functional evaluation:} test the main flows such as document
-          upload, pipeline processing, card generation, quiz generation,
-          review/publish, card-based learning, quiz-taking, and AI Tutor Q\&A.
-    \item \textbf{Canvas integration evaluation:} test the LTI 1.3/OIDC flow,
-          launch-request verification, Canvas user mapping, course/assignment
-          context transfer, and learning-session creation.
-    \item \textbf{Retrieval evaluation:} evaluate the accuracy and relevance
-          of retrieved context based on user questions; use LLM-as-a-judge
-          automated evaluation frameworks to measure Context Recall and Context
-          Precision without depending on a large manually labeled dataset.
-    \item \textbf{Generated-content evaluation:} examine correctness, source
-          grounding, clarity, Learning Outcome alignment, distractor quality,
-          and answer explanations.
-    \item \textbf{Curriculum-aware evaluation:} check the ability to map
-          chunks, cards, and quizzes to Course, Chapter, and Learning Outcome;
-          also evaluate content coverage by learning outcome.
-    \item \textbf{Performance evaluation:} measure document-processing time,
-          content-generation time, retrieval latency, chatbot latency, and
-          asynchronous task throughput.
-    \item \textbf{User-experience evaluation:} examine the usability of the
-          instructor and learner interfaces, clarity of processing status,
-          review operations, and the learning/quiz-taking experience.
-    \item \textbf{Safety and operations evaluation:} check session management,
-          secret configuration, access control, error logging, and Docker
-          Compose deployment in local/staging environments.
-\end{itemize}
+From an academic perspective, the thesis illustrates how Micro-learning,
+Bloom taxonomy, RAG, Knowledge Graph, curriculum-aware GraphRAG, and
+Human-in-the-Loop Review can be combined in a complete EdTech system.
+Instead of studying question generation or chatbots in isolation, the
+thesis places these techniques into an end-to-end workflow: ingesting
+learning materials, retrieving source-grounded context, generating
+Micro-content and quizzes, reviewing AI outputs, integrating with Canvas,
+and evaluating the system.
 
-Within the thesis scope, criteria with experimental data are presented clearly
-in the evaluation chapter. Criteria that cannot yet be measured at large scale
-are recorded as evaluation plans or future work, avoiding conclusions that
-exceed the collected evidence.
+% \section{System Evaluation Criteria}
+
+% To evaluate the system comprehensively, the thesis considers the following
+% groups of criteria:
+% \begin{itemize}
+%     \item \textbf{Functional evaluation:} test the main flows such as document
+%           upload, pipeline processing, card generation, quiz generation,
+%           review/publish, card-based learning, quiz-taking, and AI Tutor Q\&A.
+%     \item \textbf{Canvas integration evaluation:} test the LTI 1.3/OIDC flow,
+%           launch-request verification, Canvas user mapping, course/assignment
+%           context transfer, and learning-session creation.
+%     \item \textbf{Retrieval evaluation:} evaluate the accuracy and relevance
+%           of retrieved context based on user questions; use LLM-as-a-judge
+%           automated evaluation frameworks to measure Context Recall and Context
+%           Precision without depending on a large manually labeled dataset.
+%     \item \textbf{Generated-content evaluation:} examine correctness, source
+%           grounding, clarity, Learning Outcome alignment, distractor quality,
+%           and answer explanations.
+%     \item \textbf{Curriculum-aware evaluation:} check the ability to map
+%           chunks, cards, and quizzes to Course, Chapter, and Learning Outcome;
+%           also evaluate content coverage by learning outcome.
+%     \item \textbf{Performance evaluation:} measure document-processing time,
+%           content-generation time, retrieval latency, chatbot latency, and
+%           asynchronous task throughput.
+%     \item \textbf{User-experience evaluation:} examine the usability of the
+%           instructor and learner interfaces, clarity of processing status,
+%           review operations, and the learning/quiz-taking experience.
+%     \item \textbf{Safety and operations evaluation:} check session management,
+%           secret configuration, access control, error logging, and Docker
+%           Compose deployment in local/staging environments.
+% \end{itemize}
+
+% Within the thesis scope, criteria with experimental data are presented clearly
+% in the evaluation chapter. Criteria that cannot yet be measured at large scale
+% are recorded as evaluation plans or future work, avoiding conclusions that
+% exceed the collected evidence.
 
 \section{Thesis Structure}
 
@@ -471,10 +517,10 @@ The thesis is organized into 7 chapters:
     \item \textbf{Chapter 5 --- Implementation and Deployment:} describes the
           development environment, frontend, backend, workers, Canvas
           integration, operational configuration, and deployment packaging.
-    \item \textbf{Chapter 6 --- System Evaluation:} presents methods and
-          results for functionality, integration, retrieval,
-          generated-content quality, performance, and user experience
-          evaluation.
+    \item \textbf{Chapter 6 --- System Evaluation Framework:} presents
+          evaluation methods and planned criteria for functionality,
+          integration, retrieval, generated-content quality, performance,
+          and user experience.
     \item \textbf{Chapter 7 --- Conclusion and Future Development:}
           summarizes achieved results, remaining limitations, and future
           development directions.

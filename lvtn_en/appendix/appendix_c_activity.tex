@@ -1,0 +1,78 @@
+% !TeX root = ../main.tex
+\chapter{Detailed Activity Diagrams}
+\label{appendix:activity-diagrams}
+
+This appendix collects swimlane activity diagrams for the main
+end-to-end flows. They complement -- not replace -- the data-flow
+diagrams in Chapter~\ref{chap:phan-tich-thiet-ke}: the data flows
+emphasize \emph{components and messages}, while the activity diagrams
+emphasize \emph{decisions and parallel branches} that an implementer
+must encode.
+
+\section{Document Pipeline}
+\label{appendix:activity-document}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth,height=0.78\textheight,keepaspectratio]{diagrams/activity_document_pipeline.png}
+    \caption{Swimlane activity diagram for the document pipeline.}
+    \label{fig:activity-document-pipeline}
+\end{figure}
+
+\begin{enumerate}
+    \item \textbf{Start:} Document uploaded.
+    \item \textbf{Decision:} Valid file type?
+        \begin{itemize}
+            \item No $\to$ status=ERROR, end.
+            \item Yes $\to$ continue.
+        \end{itemize}
+    \item \textbf{Action:} Parse file by type.
+    \item \textbf{Decision:} Is text layer quality sufficient?
+        \begin{itemize}
+            \item No $\to$ Run OCR (parallel).
+            \item Yes $\to$ continue.
+        \end{itemize}
+    \item \textbf{Action:} Normalize text, extract headings.
+    \item \textbf{Action:} Chunk by headings, with size-based fallback if
+          no heading exists.
+    \item \textbf{Action:} Embed chunks with BGE-M3.
+    \item \textbf{Action:} Commit \texttt{chunks} +
+          \texttt{outbox\_events} to PostgreSQL (single transaction).
+    \item \textbf{Action:} Upsert vectors to Qdrant (after PG commit;
+          idempotent by UUIDv7).
+    \item \textbf{Action:} Outbox Poller dispatches Neo4j graph sync;
+          worker MERGEs \texttt{Chunk} + \texttt{SUPPORTS} edges.
+    \item \textbf{Action:} Publish \texttt{TextIndexed} so downstream
+          pipelines can use indexed knowledge.
+    \item \textbf{End:} status=INDEXED.
+\end{enumerate}
+
+\section{Video Pipeline}
+\label{appendix:activity-video}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth,height=0.78\textheight,keepaspectratio]{diagrams/activity_video_pipeline.png}
+    \caption{Swimlane activity diagram for the video pipeline.}
+    \label{fig:activity-video-pipeline}
+\end{figure}
+
+\section{Learning Flow (Learner)}
+\label{appendix:activity-learning}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth,height=0.78\textheight,keepaspectratio]{diagrams/activity_learning_flow.png}
+    \caption{Swimlane activity diagram for the learner journey.}
+    \label{fig:activity-learning-flow}
+\end{figure}
+
+\section{Review and Publish Flow (Instructor)}
+\label{appendix:activity-review}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth,height=0.78\textheight,keepaspectratio]{diagrams/activity_review_publish.png}
+    \caption{Swimlane activity diagram for the review and publish flow.}
+    \label{fig:activity-review-publish}
+\end{figure}

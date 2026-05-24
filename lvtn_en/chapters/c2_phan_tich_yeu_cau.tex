@@ -978,100 +978,501 @@ use case groups rather than listing every interface action separately. This
 grouping clarifies responsibility boundaries among instructors, learners,
 Canvas LMS, LLM Provider, and system administrators.
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,height=0.85\textheight,keepaspectratio]{diagrams/usecase_diagram.png}
+    \caption{Use case diagram of the LMS Generative AI system.}
+    \label{fig:c2-usecase-diagram}
+\end{figure}
+
+Figure~\ref{fig:c2-usecase-diagram} shows the five actors of the system
+(Instructor AC-01, Learner AC-02, Canvas LMS AC-03, LLM Provider AC-04,
+and System Administrator AC-05) and the eighteen system-level use cases
+they participate in. To make the responsibility of each actor easier to
+inspect, the following subsections also provide actor-specific use case
+views. These views do not introduce new use cases; they isolate each actor's
+interactions from the system-level diagram. The remainder of this section
+first lists every use case in tables with coverage columns grouped by actor
+(Sections~\ref{subsec:use-case-tong-quan}--\ref{subsec:use-case-tich-hop-lms}),
+then provides detailed specifications for the use cases that are
+load-bearing for the thesis defense
+(Section~\ref{subsec:main-use-case-specs}). Detailed specifications for
+the remaining secondary use cases are gathered in
+Appendix~\ref{appendix:use-case-reference}.
+
 \subsection{System-level Use Case Overview}
 \label{subsec:use-case-tong-quan}
 
 At a high level, the proposed system operates as an AI extension tool for
 Canvas LMS. Instructors and learners access it through LTI launch; the AI
 system receives course context, processes learning resources, generates
-content, supports learning, and synchronizes results when needed. The main
-system-level use cases include:
+content, supports learning, and synchronizes results when needed.
+Table~\ref{tab:use-case-system-overview} summarizes the system-level grouping.
 
-\begin{itemize}
-    \item authenticating users through Canvas LMS;
-    \item managing course documents, videos, and metadata;
-    \item generating, reviewing, and publishing micro-content / quizzes;
-    \item learning micro-content, taking quizzes, and asking the AI Tutor
-          Chatbot;
-    \item tracking learning progress and synchronizing scores to the LMS;
-    \item monitoring AI pipeline operation, cost, and errors.
-\end{itemize}
+\begingroup
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{|p{3.4cm}|p{4.2cm}|p{6.4cm}|}
+\caption{System-level use case grouping}
+\label{tab:use-case-system-overview}\\
+\hline
+\textbf{Group} & \textbf{Use cases} & \textbf{Main coverage} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Group} & \textbf{Use cases} & \textbf{Main coverage} \\
+\hline
+\endhead
+Access and LMS integration & UC-LMS-01--UC-LMS-03 & LTI launch, Deep Linking placement, and Canvas grade synchronization. \\
+\hline
+AI-assisted authoring & UC-IN-01--UC-IN-06 & Resource upload/lifecycle, syllabus and video ingestion, processing status, AI review, publishing, and class analytics. \\
+\hline
+Learner experience & UC-LE-01--UC-LE-06 & Micro-content/video learning, flashcards, quizzes, AI Tutor, semantic search, and personal progress. \\
+\hline
+Governance and operations & UC-AD-01--UC-AD-03 & AI quota, monitoring, incident visibility, and LMS tool configuration. \\
+\hline
+\end{longtable}
+\endgroup
 
 \subsection{Instructor Use Case Group}
 \label{subsec:use-case-giang-vien}
 
-\begin{longtable}{|p{2.4cm}|p{5.2cm}|p{6.8cm}|}
+Figure~\ref{fig:c2-usecase-instructor} isolates the instructor-facing
+responsibilities: launching the tool from Canvas, preparing learning
+resources, monitoring the AI pipeline, reviewing generated content,
+publishing reviewed materials, managing resource lifecycle, and viewing
+class-level analytics.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,height=0.55\textheight,keepaspectratio]{diagrams/usecase_instructor.png}
+    \caption{Instructor use case view.}
+    \label{fig:c2-usecase-instructor}
+\end{figure}
+
+\begingroup
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{|p{1.8cm}|p{3.4cm}|p{4.0cm}|p{5.2cm}|}
 \caption{Instructor use case group}
 \label{tab:use-case-giang-vien}\\
 \hline
-\textbf{Code} & \textbf{Use case} & \textbf{Short description} \\
+\textbf{Code} & \textbf{Use case} & \textbf{Covered stories / requirements} & \textbf{Scope} \\
 \hline
 \endfirsthead
 \hline
-\textbf{Code} & \textbf{Use case} & \textbf{Short description} \\
+\textbf{Code} & \textbf{Use case} & \textbf{Covered stories / requirements} & \textbf{Scope} \\
 \hline
 \endhead
-UC-IN-01 & Upload learning resources & The instructor uploads PDF, DOCX, PPTX, course syllabi, or lecture videos into the course. \\
+UC-IN-01 & Upload learning resources & US-IN-02, US-IN-03, US-IN-12; FR-LR-01--FR-LR-05, FR-SL-01 & Upload PDF, DOCX, PPTX, course syllabi, or lecture videos; start the asynchronous extraction, chunking, embedding, and generation pipeline. \\
 \hline
-UC-IN-02 & Monitor processing & The instructor views pipeline states such as parsing, chunking, embedding, generation, and errors. \\
+UC-IN-02 & Monitor processing & US-IN-04; FR-AD-03 & View pipeline states such as queued, parsing, chunking, embedding, generating, completed, failed, and retrying. \\
 \hline
-UC-IN-03 & Review AI content & The instructor views, edits, and marks micro-content, flashcards, and quizzes as accepted / rejected. \\
+UC-IN-03 & Review AI content & US-IN-05, US-IN-06, US-IN-07; FR-AI-01--FR-AI-04, FR-AI-06, FR-SL-03 & Preview, edit inline, add manual quiz questions, selectively regenerate, and approve / request changes / reject AI-generated content. \\
 \hline
-UC-IN-04 & Publish learning resources & The instructor publishes reviewed content to learners and can unpublish it when needed. \\
+UC-IN-04 & Publish learning resources & US-IN-08; FR-AI-05, FR-SL-06 & Publish reviewed lessons, cards, flashcards, and quizzes to learners; unpublish when correction is needed. \\
 \hline
-UC-IN-05 & View class analytics & The instructor tracks completion rate, quiz score, weak Learning Outcomes, and content needing intervention. \\
+UC-IN-05 & View class analytics & US-IN-09; FR-AD-01, FR-SL-05 & Track active learners, completion rate, average quiz score, weak Learning Outcomes, and content needing intervention. \\
+\hline
+UC-IN-06 & Manage learning resources & US-IN-11; FR-LR-07, FR-AD-05 & View, rename, delete, and rerun processing for documents/videos while preserving audit history and idempotent cleanup. \\
 \hline
 \end{longtable}
+\endgroup
 
 \subsection{Learner Use Case Group}
 \label{subsec:use-case-hoc-vien}
 
-\begin{longtable}{|p{2.4cm}|p{5.2cm}|p{6.8cm}|}
+Figure~\ref{fig:c2-usecase-learner} shows the learner-facing use cases.
+Learners access the tool through Canvas, consume published micro-content,
+review flashcards, take quizzes, search course content, ask the AI Tutor,
+and inspect their own learning progress.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth,height=0.55\textheight,keepaspectratio]{diagrams/usecase_learner.png}
+    \caption{Learner use case view.}
+    \label{fig:c2-usecase-learner}
+\end{figure}
+
+\begingroup
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{|p{1.8cm}|p{3.4cm}|p{4.0cm}|p{5.2cm}|}
 \caption{Learner use case group}
 \label{tab:use-case-hoc-vien}\\
 \hline
-\textbf{Code} & \textbf{Use case} & \textbf{Short description} \\
+\textbf{Code} & \textbf{Use case} & \textbf{Covered stories / requirements} & \textbf{Scope} \\
 \hline
 \endfirsthead
 \hline
-\textbf{Code} & \textbf{Use case} & \textbf{Short description} \\
+\textbf{Code} & \textbf{Use case} & \textbf{Covered stories / requirements} & \textbf{Scope} \\
 \hline
 \endhead
-UC-LE-01 & Learn micro-content & The learner reads lesson summaries and key concept cards and resumes from the last position. \\
+UC-LE-01 & Learn micro-content and videos & US-LE-01, US-LE-02, US-LE-06, US-LE-09; FR-AI-05, FR-LR-02 & Read published summaries/cards, watch lecture video segments with timestamp cards, and resume from the last saved position. \\
 \hline
-UC-LE-02 & Review with flashcards & The learner flips flashcards, marks mastered / review again, and tracks progress. \\
+UC-LE-02 & Review with flashcards & US-LE-03; FR-SL-02 & Flip flashcards, mark mastered / review again, and persist personal review state. \\
 \hline
-UC-LE-03 & Take quizzes & The learner takes quizzes, receives immediate feedback, views explanations, and sees scores. \\
+UC-LE-03 & Take quizzes & US-LE-04, US-IN-10; FR-SL-04, FR-SL-06 & Take quizzes, receive immediate feedback and explanations, and trigger grade synchronization when the activity is gradable. \\
 \hline
-UC-LE-04 & Ask AI Tutor & The learner asks natural-language questions and receives cited answers. \\
+UC-LE-04 & Ask AI Tutor & US-LE-07; FR-CHAT-01--FR-CHAT-05 & Ask natural-language questions and receive course-scoped, cited, retrieval-grounded answers. \\
 \hline
-UC-LE-05 & View personal progress & The learner views completed sections, quiz scores, and Learning Outcomes to review. \\
+UC-LE-05 & View personal progress & US-LE-08; FR-AD-02, FR-SL-05 & View completed sections, quiz score trends, and Learning Outcomes that need review. \\
+\hline
+UC-LE-06 & Search course content & US-LE-05; FR-LR-06 & Search published cards, chunks, and transcript segments in Vietnamese or English with source references. \\
 \hline
 \end{longtable}
+\endgroup
 
 \subsection{LMS Integration and Operations Use Case Group}
 \label{subsec:use-case-tich-hop-lms}
 
-\begin{longtable}{|p{2.4cm}|p{5.2cm}|p{6.8cm}|}
+The remaining actor-specific views clarify the supporting actors around the
+AI extension. Canvas LMS provides identity, course context, deep-link
+placement, and score synchronization
+(Figure~\ref{fig:c2-usecase-canvas-lms}). The LLM Provider is not a
+separate business user; it is a supporting external service invoked by AI
+generation and AI Tutor interactions
+(Figure~\ref{fig:c2-usecase-llm-provider}). The System Administrator manages
+Canvas tool configuration, operational limits, and system health
+(Figure~\ref{fig:c2-usecase-admin}).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.92\textwidth,height=0.42\textheight,keepaspectratio]{diagrams/usecase_canvas_lms.png}
+    \caption{Canvas LMS use case view.}
+    \label{fig:c2-usecase-canvas-lms}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.92\textwidth,height=0.42\textheight,keepaspectratio]{diagrams/usecase_llm_provider.png}
+    \caption{LLM Provider use case view.}
+    \label{fig:c2-usecase-llm-provider}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.92\textwidth,height=0.42\textheight,keepaspectratio]{diagrams/usecase_admin.png}
+    \caption{System Administrator use case view.}
+    \label{fig:c2-usecase-admin}
+\end{figure}
+
+\begingroup
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{|p{1.8cm}|p{3.4cm}|p{4.0cm}|p{5.2cm}|}
 \caption{LMS integration and operations use case group}
 \label{tab:use-case-lms-van-hanh}\\
 \hline
-\textbf{Code} & \textbf{Use case} & \textbf{Short description} \\
+\textbf{Code} & \textbf{Use case} & \textbf{Covered stories / requirements} & \textbf{Scope} \\
 \hline
 \endfirsthead
 \hline
-\textbf{Code} & \textbf{Use case} & \textbf{Short description} \\
+\textbf{Code} & \textbf{Use case} & \textbf{Covered stories / requirements} & \textbf{Scope} \\
 \hline
 \endhead
-UC-LMS-01 & LTI launch & Canvas authenticates the user and passes course / role / resource context to the AI system. \\
+UC-LMS-01 & LTI launch & US-IN-01, US-LE-01; security NFRs & Canvas authenticates the user and passes course, role, and resource context to the AI system. \\
 \hline
-UC-LMS-02 & Deep Linking & The instructor selects content or an activity from the AI system and attaches it to the Canvas course. \\
+UC-LMS-02 & Deep Linking & US-IN-08; LTI Advantage integration & The instructor selects content or an activity from the AI system and attaches it to the Canvas course. \\
 \hline
-UC-LMS-03 & Score synchronization & The system sends quiz scores or completion status to Canvas gradebook when the activity is graded. \\
+UC-LMS-03 & Score synchronization & US-IN-10, US-LE-04; FR-SL-06 & The system sends quiz scores or completion status to Canvas Gradebook when the activity is graded. \\
 \hline
-UC-AD-01 & Manage AI limits & The administrator configures quota, LLM call limits, and cost alert thresholds. \\
+UC-AD-01 & Manage AI limits & US-AD-02; FR-AD-04 & The administrator configures quota, LLM call limits, and cost alert thresholds. \\
 \hline
-UC-AD-02 & Monitor system & The administrator monitors logs, errors, latency, job queue, and AI usage cost. \\
+UC-AD-02 & Monitor system & US-AD-03; FR-AD-03, FR-AD-05 & The administrator monitors logs, errors, latency, job queues, audit events, and AI usage cost. \\
+\hline
+UC-AD-03 & Configure LMS integration & US-AD-01; LTI/OIDC configuration & The administrator registers and validates Canvas Developer Key, deployment, redirect URLs, JWKS, Deep Linking, and AGS settings. \\
+\hline
+\end{longtable}
+\endgroup
+
+\subsection{Detailed Specifications of Main Use Cases}
+\label{subsec:main-use-case-specs}
+
+The seven main use cases below are specified in full because they
+exercise the load-bearing architectural decisions of the thesis: LTI
+integration, the document/AI pipeline, the human-in-the-loop review
+gate, and the RAG-grounded learner experience. The remaining eleven
+secondary use cases are specified with the same template in
+Appendix~\ref{appendix:use-case-reference}.
+
+\subsubsection*{UC-IN-01 -- Upload Learning Resources}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & Instructor (AC-01) \\
+\hline
+Secondary actors & Canvas LMS (LTI launch context), AI Pipeline (triggered) \\
+\hline
+Preconditions & Instructor launched the tool from Canvas with role
+    \texttt{Instructor}; an internal session exists; the target course
+    is bound via \texttt{lms\_course\_ref}. \\
+\hline
+Main flow &
+    1.\ Instructor selects PDF/DOCX/PPTX (or video) on the upload page.
+    2.\ \texttt{web-bff} requests an upload session from \texttt{core-api}.
+    3.\ \texttt{core-api} creates a \texttt{documents} row in status
+    \texttt{UPLOADING} and returns a MinIO presigned URL.
+    4.\ Browser uploads the file directly to MinIO.
+    5.\ \texttt{web-bff} confirms the upload; \texttt{core-api} flips
+    status to \texttt{QUEUED} and publishes
+    \texttt{DocumentUploaded}/\texttt{VideoUploaded} on BullMQ. \\
+\hline
+Postconditions & A row exists in PostgreSQL, the file lives in MinIO,
+    and the document/video pipeline (UC-IN-02) is triggered
+    asynchronously. \\
+\hline
+Alternate flows &
+    \emph{A1} - Invalid file type or size: \texttt{core-api} returns
+    HTTP 422; status set to \texttt{ERROR}; instructor sees an inline
+    error.
+    \emph{A2} - Upload aborted by browser: the presigned URL expires;
+    the row remains in \texttt{UPLOADING} and is garbage-collected by a
+    scheduled job after 24h.
+    \emph{A3} - Syllabus upload: the curriculum extractor creates a
+    draft Course/Chapter/LO structure for instructor confirmation.
+    \emph{A4} - Video upload: \texttt{VideoUploaded} starts transcript
+    extraction and timestamp-based segment processing. \\
+\hline
+\end{longtable}
+
+\subsubsection*{UC-IN-03 -- Review AI Content}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & Instructor (AC-01) \\
+\hline
+Preconditions & At least one card or quiz item exists with status
+    \texttt{GENERATED\_DRAFT} or \texttt{CHANGES\_REQUESTED} for a
+    course owned by the instructor. \\
+\hline
+Main flow &
+    1.\ Instructor opens \texttt{/manage/review}; \texttt{web-bff}
+    fetches the review inbox grouped by lesson.
+    2.\ Instructor opens a draft item; the system shows content plus
+    citations (source chunks / video timestamps).
+    3.\ Instructor edits inline; \texttt{core-api} persists the change
+    and writes a \texttt{review\_audit\_logs} row.
+    4.\ Instructor can add a manual quiz item or request selective
+    regeneration for one card, section, or quiz set.
+    5.\ Instructor chooses Approve, Request Changes, or Reject.
+    6.\ \texttt{core-api} transitions the status accordingly and
+    records the actor and diff in audit log. \\
+\hline
+Postconditions & Item is in \texttt{APPROVED} (eligible to publish),
+    \texttt{CHANGES\_REQUESTED} (returned for regeneration), or
+    \texttt{REVIEWING} (still in progress). Audit log captures all
+    transitions. \\
+\hline
+Alternate flows &
+    \emph{A1} - Instructor requests regeneration: a new
+    \texttt{ContentGenerationRequested} event is enqueued; the old
+    draft is archived.
+    \emph{A2} - Bulk approve: instructor selects multiple items; the
+    same flow runs in a single transaction. \\
+\hline
+\end{longtable}
+
+\subsubsection*{UC-IN-04 -- Publish Learning Resources}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & Instructor (AC-01) \\
+\hline
+Secondary actor & Canvas LMS (receives published resource via LTI Deep
+    Linking when applicable). \\
+\hline
+Preconditions & All required cards/quiz items in the target Lesson are
+    in status \texttt{APPROVED}. \\
+\hline
+Main flow &
+    1.\ Instructor clicks Publish on a Lesson.
+    2.\ \texttt{core-api} runs one PostgreSQL transaction:
+    update status \texttt{APPROVED} $\to$ \texttt{PUBLISHED}, insert
+    \texttt{outbox\_events} (\texttt{CardPublishedEvent} /
+    \texttt{QuizPublishedEvent}).
+    3.\ Outbox Poller dispatches a graph-sync job; worker MERGEs
+    \texttt{Card}/\texttt{QuizItem} nodes into Neo4j with
+    \texttt{EXPLAINS}/\texttt{ASSESSES} edges.
+    4.\ Updates chunk Qdrant payload visibility to
+    \texttt{all} so learners can retrieve them. \\
+\hline
+Postconditions & Learners can access the published content; the
+    Knowledge Graph is eventually consistent with PostgreSQL. \\
+\hline
+Alternate flows &
+    \emph{A1} - Not all items approved: Publish button is disabled
+    with explanation.
+    \emph{A2} - Unpublish: a reverse transition is recorded; visibility
+    rolls back to \texttt{instructor} only. \\
+\hline
+\end{longtable}
+
+\subsubsection*{UC-LE-01 -- Learn Micro-content and Videos}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & Learner (AC-02) \\
+\hline
+Preconditions & Learner launched the tool from Canvas with role
+    \texttt{Learner}; at least one Lesson or video segment in the course
+    is \texttt{PUBLISHED}. \\
+\hline
+Main flow &
+    1.\ Learner opens \texttt{/learn/lessons/\{id\}}; \texttt{web-bff}
+    fetches published cards and optional video segment metadata.
+    2.\ System displays cards in order; if the lesson has video
+    timestamps, the player shows markers linked to the corresponding
+    cards.
+    3.\ \texttt{web-bff} reports view events to
+    \texttt{learning\_events} for progress tracking.
+    4.\ Learner can flip a card into flashcard mode and persist
+    mastered / review-again state, or jump from a card to the matching
+    video timestamp. \\
+\hline
+Postconditions & \texttt{learning\_events} and
+    \texttt{flashcard\_reviews} updated; learner sees an updated
+    progress indicator. \\
+\hline
+Alternate flows &
+    \emph{A1} - Learner leaves mid-way: last position is autosaved;
+    next launch resumes from there. \\
+\hline
+\end{longtable}
+
+\subsubsection*{UC-LE-03 -- Take Quizzes}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & Learner (AC-02) \\
+\hline
+Secondary actor & Canvas LMS (receives score via LTI AGS when the
+    activity is gradable). \\
+\hline
+Preconditions & Quiz items in \texttt{PUBLISHED} status exist for the
+    selected Lesson; a corresponding \texttt{lti\_line\_items} row
+    exists if AGS passback is enabled. \\
+\hline
+Main flow &
+    1.\ Learner opens \texttt{/learn/lessons/\{id\}/quiz}.
+    2.\ Quiz items shown one by one; learner answers; system records
+    \texttt{quiz\_attempts} with chosen answer.
+    3.\ On submit, system grades and shows immediate feedback +
+    explanation per item.
+    4.\ If AGS-linked, \texttt{core-api} posts the score to
+    \texttt{lti\_line\_items.lms\_line\_item\_url}; status flips
+    \texttt{PENDING} $\to$ \texttt{POSTED}. \\
+\hline
+Postconditions & \texttt{quiz\_attempts} captures the score and
+    grading; Canvas Gradebook reflects the score within $\leq 5$
+    seconds. \\
+\hline
+Alternate flows &
+    \emph{A1} - AGS POST fails: status \texttt{FAILED}; a retry job is
+    scheduled.
+    \emph{A2} - Quiz not gradable: skip AGS; status
+    \texttt{NOT\_REQUIRED}. \\
+\hline
+\end{longtable}
+
+\subsubsection*{UC-LE-04 -- Ask AI Tutor}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & Learner (AC-02) \\
+\hline
+Secondary actor & LLM Provider (AC-04) -- supplies the streamed
+    answer. \\
+\hline
+Preconditions & Course has at least one \texttt{PUBLISHED} content
+    item; Qdrant has corresponding chunks with
+    \texttt{visibility=all}. \\
+\hline
+Main flow &
+    1.\ Learner types a question in the chat UI.
+    2.\ \texttt{web-bff} requests a short-lived JWT from
+    \texttt{core-api}; the JWT carries
+    \texttt{allowed\_lo\_ids}/\texttt{allowed\_document\_ids}.
+    3.\ \texttt{web-bff} opens SSE to \texttt{chat-service} with the
+    JWT and question.
+    4.\ \texttt{chat-service} runs hybrid retrieval on Qdrant (dense +
+    sparse + RRF), graph-aware rerank on Neo4j, then calls the LLM
+    streaming.
+    5.\ Tokens stream back through SSE to the browser with inline
+    citations. \\
+\hline
+Postconditions & \texttt{chat\_messages} stores question, answer,
+    \texttt{chunks\_used}, and latency. \\
+\hline
+Alternate flows &
+    \emph{A1} - Retrieval returns no relevant chunks: chat-service
+    replies ``insufficient source material'' rather than fabricating
+    an answer (refusal rule).
+    \emph{A2} - LLM rate-limit/error: client receives an SSE error
+    event and can retry. \\
+\hline
+\end{longtable}
+
+\subsubsection*{UC-LMS-01 -- LTI Launch}
+
+\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
+\hline
+\textbf{Field} & \textbf{Specification} \\
+\hline
+\endhead
+Primary actor & Canvas LMS (AC-03) -- initiates the launch on behalf
+    of a Canvas user. \\
+\hline
+Secondary actors & Instructor or Learner (AC-01/AC-02) -- the human
+    triggering the launch. \\
+\hline
+Preconditions & The system is registered in Canvas as an LTI 1.3 tool
+    with a Developer Key; the user is enrolled in the course. \\
+\hline
+Main flow &
+    1.\ User clicks the LTI activity in Canvas.
+    2.\ Canvas calls \texttt{/lti/login} with
+    \texttt{iss}, \texttt{client\_id}, \texttt{login\_hint}.
+    3.\ \texttt{web-bff} stores state/nonce in Redis and redirects to
+    Canvas \texttt{authorize\_redirect}.
+    4.\ Canvas authenticates the user, POSTs \texttt{id\_token} back
+    to \texttt{/lti/launch}.
+    5.\ \texttt{web-bff} verifies the JWT (issuer, audience, signature
+    via Canvas JWKS, exp, nonce, deployment\_id).
+    6.\ Claims (\texttt{sub}, \texttt{context.id}, \texttt{roles},
+    \texttt{custom.lesson\_id}) are extracted; \texttt{core-api}
+    upserts \texttt{lms\_user\_mappings},
+    \texttt{lms\_course\_ref}, \texttt{course\_memberships}.
+    7.\ Server-side session is created in Redis; HttpOnly cookie set;
+    user is redirected to the role-appropriate route. \\
+\hline
+Postconditions & The user has a valid internal session; user/course
+    rows are kept in sync with the latest LTI claims; subsequent gRPC
+    calls carry the BFF-signed internal JWT. \\
+\hline
+Alternate flows &
+    \emph{A1} - JWT validation fails: HTTP 401; session not created;
+    incident logged.
+    \emph{A2} - State/nonce mismatch: launch rejected to prevent
+    replay attacks. \\
 \hline
 \end{longtable}
 

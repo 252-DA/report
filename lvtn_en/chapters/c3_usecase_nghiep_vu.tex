@@ -1099,16 +1099,50 @@ pedagogical layer includes \texttt{course\_id}, \texttt{chapter\_id},
     \centering
     \caption{Metadata strategy for curriculum-aware retrieval}
     \label{tab:metadata-strategy-curriculum}
-    \begin{tabular}{p{3.2cm}p{4.5cm}p{5.8cm}}
+    \footnotesize
+    \begin{tabularx}{\textwidth}{
+        >{\raggedright\arraybackslash}p{2.7cm}
+        >{\raggedright\arraybackslash}p{4.2cm}
+        >{\raggedright\arraybackslash}X}
         \toprule
-        \textbf{Metadata group} & \textbf{Representative fields} & \textbf{Usage purpose} \\
+        \textbf{Metadata group} & \textbf{Representative fields} & \textbf{How the system uses it} \\
         \midrule
-        Source & \texttt{document\_id}, \texttt{page}, \texttt{timestamp}, \texttt{heading\_path} & Citation, review, and update when original material changes. \\
-        Pedagogical & \texttt{course\_id}, \texttt{chapter\_id}, \texttt{learning\_outcome\_id}, \texttt{bloom\_level} & Course filtering, LO-based quiz generation, and learning-result analysis. \\
-        AI operation & \texttt{embedding\_model}, \texttt{prompt\_version}, \texttt{parser\_version} & Evaluation and reproducibility after model or pipeline changes. \\
-        Access control & \texttt{review\_status}, \texttt{publish\_status}, \texttt{visibility} & Ensure learners only see published content. \\
+        Source location
+            & \texttt{source\_type}, \texttt{document\_id}, \texttt{page},
+              \texttt{heading\_path}, \texttt{start\_ms}, \texttt{end\_ms}
+            & Shows citations in generated cards, quiz explanations, and
+              chatbot answers; lets instructors open the original page or
+              video timestamp during review. \\
+        \midrule
+        Curriculum scope
+            & \texttt{course\_id}, \texttt{chapter\_id}, \texttt{lo\_id},
+              \texttt{assessment\_id}
+            & Applies hard filters so retrieval stays inside the launched
+              Canvas course and the selected chapter/LO; prevents chunks from
+              unrelated courses from entering the RAG context. \\
+        \midrule
+        Pedagogical intent
+            & \texttt{bloom\_level}, \texttt{difficulty},
+              \texttt{content\_type}, \texttt{learning\_goal}
+            & Guides quiz generation, distractor design, and micro-content
+              type selection; supports later analysis of learner performance
+              by LO and Bloom level. \\
+        \midrule
+        AI operation
+            & \texttt{parser\_version}, \texttt{chunker\_version},
+              \texttt{embedding\_model}, \texttt{prompt\_version}
+            & Records which pipeline version produced a chunk or generated
+              item, making evaluation reproducible after changing models,
+              prompts, or chunking strategy. \\
+        \midrule
+        Access and lifecycle
+            & \texttt{review\_status}, \texttt{publish\_status},
+              \texttt{visibility}, \texttt{updated\_at}
+            & Controls whether a chunk can be shown to learners, included in
+              chatbot retrieval, or restricted to instructor-only review
+              before publication. \\
         \bottomrule
-    \end{tabular}
+    \end{tabularx}
 \end{table}
 
 Metadata must be stored consistently in both the metadata store and the
@@ -1430,123 +1464,56 @@ processing.
     transcripts with detailed word-level timestamps.
 \end{itemize}
 
-\section{Technologies Used}
-To implement an LMS capable of automatically generating micro-content and
-quizzes from lecture videos, the software architecture combines several
-modern technologies. Technology selection is based on multimedia
-processing performance, flexible integration with AI/ML libraries
-(Python), multimodal data storage, and scalability.
+\section{Technology Selection Rationale}
+\label{sec:technology-selection-rationale}
 
-\subsection{FastAPI}
-FastAPI is a modern high-performance web framework for building Python
-APIs based on type hints \cite{ramirez2018fastapi}.
+This section does not repeat textbook definitions of common tools. The
+important point for this thesis is why each technology fits the proposed
+AI-enabled LMS architecture. The theoretical core of the chapter remains
+RAG, GraphRAG, chunking, Bloom-aware quiz generation, and LTI 1.3; the
+following technologies are implementation choices that support those
+foundations.
+
 \begin{itemize}
-    \item \textbf{Role in the system:} Because most core AI libraries
-          (LangChain, Whisper, OpenCV) are written in Python, FastAPI is
-          an ideal choice for building the core backend. FastAPI natively
-          supports asynchronous processing through \texttt{async/await},
-          which is suitable for time-consuming tasks such as calling LLM
-          APIs, waiting for audio extraction from video, or running a RAG
-          pipeline.
+    \item \textbf{FastAPI} \cite{ramirez2018fastapi}: selected for the Python
+          AI backend because it integrates naturally with parsing, embedding,
+          LLM, and video-processing libraries while supporting asynchronous
+          API calls.
+    \item \textbf{Go} \cite{golang2026}: selected for the video worker because
+          video processing requires robust subprocess orchestration, concurrent
+          task execution, and predictable resource usage around FFmpeg,
+          transcription, and media-cutting jobs.
+    \item \textbf{React + Next.js} \cite{vercel2024nextjs}: selected for
+          instructor and learner interfaces because the system needs
+          dashboard screens, review editors, quiz views, and LMS entry routes.
+    \item \textbf{PostgreSQL} \cite{postgresql2024}: selected as the main
+          relational store for users, courses, documents, attempts, review
+          states, and transactional learning data.
+    \item \textbf{Redis} \cite{carlson2013redis}: selected as the queue/cache
+          layer so upload, transcription, embedding, and LLM generation jobs
+          can run asynchronously.
+    \item \textbf{Qdrant} \cite{qdrant2024}: selected as the vector database
+          for RAG because it supports embedding search with metadata filters.
+    \item \textbf{Neo4j} \cite{neo4j2024}: selected for curriculum and
+          Learning Outcome relationships that support GraphRAG expansion.
+    \item \textbf{MinIO} \cite{minio2024}: selected for large media objects
+          such as lecture videos, extracted audio, rendered pages, and
+          generated files instead of storing them in PostgreSQL.
+    \item \textbf{gRPC} \cite{grpc2024}: selected for internal service calls
+          where typed contracts and efficient binary transport are useful
+          between web, core, and AI worker runtimes.
+    \item \textbf{Model Context Protocol (MCP)}
+          \cite{modelcontextprotocol2025}: selected for external AI tool
+          integration, especially the YouTube/video-search adapter, because it
+          standardizes how the system exposes tools and keeps third-party API
+          access behind a controlled adapter boundary.
+    \item \textbf{Docker} \cite{merkel2014docker}: selected to package the
+          mixed runtime stack consistently across local and deployment
+          environments.
 \end{itemize}
 
-\subsection{React + Next.js}
-React is a JavaScript library for building component-based user
-interfaces, while Next.js is a framework built on React that provides
-Server-Side Rendering (SSR) and optimized routing \cite{vercel2024nextjs}.
-\begin{itemize}
-    \item \textbf{Role in the system:} Next.js builds the frontend
-          learning website. It handles complex user interfaces such as an
-          interactive video player with subtitles, Pop-up Quiz display on
-          top of video, and a dashboard where instructors manage and edit
-          AI-generated micro-content.
-\end{itemize}
-
-\subsection{PostgreSQL}
-PostgreSQL is an advanced open-source relational database management
-system (RDBMS), known for strong ACID compliance and diverse data types
-\cite{postgresql2024}.
-\begin{itemize}
-    \item \textbf{Role in the system:} PostgreSQL is the main database of
-          the whole system, storing structured and highly relational data:
-          user accounts (students, instructors), course lists, learning
-          progress, quiz attempt history, and grades.
-\end{itemize}
-
-\subsection{Redis}
-Redis is an in-memory data structure store, commonly used as a database,
-cache, and message broker \cite{carlson2013redis}.
-\begin{itemize}
-    \item \textbf{Role in the system:} Video cutting and AI model
-          execution take a long time, so they cannot be handled
-          synchronously through normal HTTP APIs. Redis is used as a
-          Message Broker together with a background task queue. After an
-          instructor uploads a video, they receive an immediate response
-          while Redis queues and distributes video-processing work to
-          backend workers.
-\end{itemize}
-
-\subsection{Qdrant}
-Qdrant is an open-source vector search engine and vector database,
-optimized for high performance with high-dimensional embedding data
-\cite{qdrant2024}.
-\begin{itemize}
-    \item \textbf{Role in the system:} Qdrant is the heart of the RAG
-          system. When lecture slides and transcripts are chunked, they
-          are converted into semantic vectors by embedding models and
-          stored in Qdrant. When the LLM needs to generate quiz questions
-          for a specific video segment, the system queries Qdrant to find
-          the most semantically relevant text passages as context.
-\end{itemize}
-
-\subsection{Neo4j}
-Neo4j is a specialized graph database management system that stores data
-as nodes and edges representing relationships \cite{neo4j2024}.
-\begin{itemize}
-    \item \textbf{Role in the system:} The system uses Neo4j to build the
-          course Knowledge Graph. AI analyzes videos and extracts core
-          concepts, for example node ``Deep Learning'' has a
-          \textit{REQUIRES} relation to node ``Linear Algebra''. This
-          helps the LMS understand course structure and recommend which
-          micro-content a student should review if they answer a quiz
-          about a specific concept incorrectly.
-\end{itemize}
-
-\subsection{MinIO}
-MinIO is a high-performance open-source object storage system fully
-compatible with the Amazon S3 API \cite{minio2024}.
-\begin{itemize}
-    \item \textbf{Role in the system:} Original lecture videos, extracted
-          audio files, and generated micro-content videos are large
-          unstructured data. MinIO stores these media files safely with
-          horizontal scalability, instead of placing them directly on the
-          server disk or in PostgreSQL.
-\end{itemize}
-
-\subsection{gRPC}
-gRPC is a high-performance open-source Remote Procedure Call framework
-developed by Google, using Protocol Buffers to encode transmitted data
-\cite{grpc2024}.
-\begin{itemize}
-    \item \textbf{Role in the system:} In the microservices structure,
-          gRPC is used for internal communication between services. For
-          example, the web server may need to communicate with an AI
-          Worker Service running on a strong GPU machine to execute
-          Whisper. gRPC transfers binary video/audio data over the
-          internal network with higher speed and lower latency than REST
-          API (JSON).
-\end{itemize}
-
-\subsection{Docker}
-Docker is a containerization platform that automates application
-deployment inside isolated environments called containers
-\cite{merkel2014docker}.
-\begin{itemize}
-    \item \textbf{Role in the system:} With a complex system containing a
-          frontend (Node.js), backend (Python), databases (PostgreSQL,
-          Redis, Qdrant, Neo4j), and operating-system-level C++ libraries
-          such as FFmpeg, Docker ensures that the whole ecosystem can be
-          packaged and run consistently in every environment, from
-          developers' personal computers to cloud servers, without library
-          conflicts.
-\end{itemize}
+These choices are not the research contribution by themselves. Their role
+is to provide a practical execution environment for the core ideas: source
+grounding through RAG, structural retrieval through GraphRAG, pedagogical
+alignment through Bloom and Learning Outcomes, and LMS interoperability
+through LTI 1.3.

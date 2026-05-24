@@ -1,0 +1,43 @@
+@startuml usecase_canvas_lms
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam UsecaseBackgroundColor #EBF5FB
+skinparam UsecaseBorderColor #555555
+skinparam ActorBorderColor #555555
+skinparam PackageBorderColor #888888
+skinparam ranksep 18
+skinparam nodesep 14
+
+title Canvas LMS Use Case View
+
+left to right direction
+
+actor "Canvas LMS\n(AC-03)" as Canvas
+
+rectangle "AI Extension System" {
+
+    package "LMS Integration Touchpoints" #DDEBF7 {
+        usecase "UC-LMS-01\nLTI Launch" as UC_Launch
+        usecase "UC-LMS-02\nDeep Linking" as UC_DeepLink
+        usecase "UC-LMS-03\nScore Sync" as UC_AGS
+        usecase "UC-AD-03\nConfigure LMS\nIntegration" as UC_LMSConfig
+    }
+}
+
+actor "Instructor" as Instructor
+actor "Learner" as Learner
+actor "System\nAdministrator" as Admin
+
+Canvas --> UC_Launch
+Canvas --> UC_DeepLink
+Canvas <-- UC_AGS
+Canvas <-- UC_LMSConfig
+
+Instructor --> UC_Launch
+Instructor --> UC_DeepLink
+Learner --> UC_Launch
+Learner --> UC_AGS
+Admin --> UC_LMSConfig
+
+@enduml

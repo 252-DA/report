@@ -1,0 +1,35 @@
+@startuml usecase_llm_provider
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+skinparam UsecaseBackgroundColor #EBF5FB
+skinparam UsecaseBorderColor #555555
+skinparam ActorBorderColor #555555
+skinparam PackageBorderColor #888888
+skinparam ranksep 18
+skinparam nodesep 14
+
+title LLM Provider Use Case View
+
+left to right direction
+
+actor "LLM Provider\n(AC-04)" as LLM
+
+rectangle "AI Extension System" {
+
+    package "LLM-backed Use Cases" #EBDEF0 {
+        usecase "UC-IN-03\nReview AI Content" as UC_Review
+        usecase "UC-LE-04\nAsk AI Tutor" as UC_Chat
+    }
+}
+
+actor "Instructor" as Instructor
+actor "Learner" as Learner
+
+LLM <-- UC_Review
+LLM <-- UC_Chat
+
+Instructor --> UC_Review
+Learner --> UC_Chat
+
+@enduml

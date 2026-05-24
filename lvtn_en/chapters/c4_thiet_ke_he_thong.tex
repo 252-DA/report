@@ -530,23 +530,17 @@ participate in PostgreSQL transactions:
     \label{fig:dataflow-video}
 \end{figure}
 
-The Video Processing Pipeline and its data interactions are illustrated in
-Figure~\ref{fig:dataflow-video}. The upload-video pipeline includes:
-
-\begin{enumerate}
-    \item \textbf{Upload:} The client uploads the video to MinIO and emits
-          \texttt{VideoUploaded}.
-    \item \textbf{Media processing:} \texttt{video-worker} (Go) extracts
-          audio, runs Whisper STT to create timestamped transcript, and
-          segments the video.
-    \item \textbf{Event registration:} \texttt{video-worker} inserts
-          segments into PostgreSQL, then publishes
-          \texttt{TranscriptReady} to Redis BullMQ broker. There is no
-          direct network connection to the Python worker.
-    \item \textbf{Vector embedding:} \texttt{document-worker} receives the
-          queue event, embeds the transcript, and upserts it into Qdrant
-          collection \texttt{learning\_chunks}.
-\end{enumerate}
+The video pipeline mirrors the document pipeline pattern but is split
+across two runtimes: \texttt{video-worker} (Go) handles the heavy media
+work (FFmpeg audio extract, Whisper STT, segment, clip) and persists
+\texttt{video\_segments}/\texttt{transcript\_segments} to PostgreSQL,
+then publishes \texttt{TranscriptReady}. \texttt{document-worker}
+consumes that event, embeds the transcript, commits to PostgreSQL
+first, upserts vectors to Qdrant after the commit, and Outbox-syncs
+to Neo4j. Cross-runtime communication is exclusively through BullMQ
+events on Redis -- there is no direct call between
+\texttt{video-worker} and \texttt{document-worker}. See
+Appendix~\ref{appendix:seq-video} for the full sequence.
 
 \subsection{RAG Pipeline}
 \label{subsec:rag-pipeline}
@@ -602,37 +596,18 @@ stages:
     \label{fig:dataflow-micro-content}
 \end{figure}
 
-The Micro-Content generation pipeline operates asynchronously to transform
-large raw documents into concise learning cards. The detailed flow
-contains four stages:
-
-\begin{enumerate}
-    \item \textbf{Context aggregation:} The system scans the database and
-          groups text \texttt{Chunks} belonging to the same level-2
-          heading path, for example Section 2.1 or 2.2. This ensures the
-          content sent to the LLM is semantically continuous and complete.
-          Each group's character/token size is capped below 4000 tokens to
-          optimize cost and prevent attention degradation.
-    \item \textbf{Learning Outcome alignment:} \texttt{enrichment-worker}
-          builds a context query combining raw document content and
-          corresponding \texttt{Learning Outcomes} defined in the CDIO
-          Course Syllabus. The technical prompt asks the LLM to accurately
-          extract \texttt{Key Concepts} and summarize lesson content as
-          \texttt{Lesson Cards}.
-    \item \textbf{Strict JSON formatting:} Gemini 1.5 Pro API calls are
-          forced to use \texttt{JSON Schema strict mode}. The model must
-          return data that strictly follows the system structure,
-          including required fields such as \texttt{title},
-          \texttt{key\_insights} (array of concept strings), and
-          \texttt{bullets} (bullet-point lesson card content). This
-          minimizes response parsing errors from the LLM.
-    \item \textbf{Draft persistence:} After successful structural
-          validation, results are persisted to PostgreSQL table
-          \texttt{lesson\_cards} with state
-          \texttt{GENERATED\_DRAFT}.
-\end{enumerate}
+\texttt{enrichment-worker} aggregates indexed chunks by level-2 heading
+path (cap $\leq 4000$ tokens to control cost and avoid attention
+degradation), combines them with the chapter's Learning Outcomes from
+the CDIO syllabus, and asks Gemini 1.5 Pro to generate
+\texttt{Lesson Cards} under a strict JSON schema (required
+\texttt{title}, \texttt{key\_insights[]}, \texttt{bullets[]}). After
+schema validation, drafts are persisted to \texttt{lesson\_cards} with
+status \texttt{GENERATED\_DRAFT} and surfaced in the instructor review
+inbox.
 
 \subsection{Quiz Generation Pipeline}
+\label{subsec:quiz-pipeline}
 
 \begin{figure}[H]
     \centering
@@ -682,43 +657,19 @@ curriculum. The execution flow contains four steps:
     \label{fig:dataflow-review-publish}
 \end{figure}
 
-To ensure the quality of AI-generated learning content before it reaches
-learners, the system establishes a strict human-in-the-loop review process
-with safe asynchronous synchronization:
-
-\begin{enumerate}
-    \item \textbf{Instructor Dashboard:} All \texttt{Lesson Cards} and
-          \texttt{Quiz Items} in \texttt{GENERATED\_DRAFT} are displayed
-          visually in the instructor interface of the Next.js BFF. The
-          instructor can edit text directly, change answers, remove
-          low-quality questions, or approve content for use.
-    \item \textbf{Atomic double-commit and Outbox recording:} When the
-          instructor clicks ``Publish'', an API request is sent to
-          \texttt{core-api}. The system executes one PostgreSQL
-          transaction that performs two actions:
-        \begin{itemize}
-            \item update the learning-content record from
-                  \texttt{GENERATED\_DRAFT} to \texttt{PUBLISHED};
-            \item insert the corresponding synchronization event, for
-                  example \texttt{CardPublishedEvent} or
-                  \texttt{QuizPublishedEvent}, into
-                  \texttt{outbox\_events}.
-        \end{itemize}
-          Using the same PostgreSQL transaction guarantees atomicity:
-          either both actions succeed or none happens, avoiding a state in
-          which content is published but graph synchronization is missing
-          or vice versa.
-    \item \textbf{Poller scan and Neo4j synchronization:} The Outbox
-          Poller daemon periodically scans \texttt{outbox\_events},
-          detects new events, and pushes corresponding jobs to BullMQ.
-          The Neo4j worker consumes the job and executes Cypher
-          \texttt{MERGE} to create \texttt{Card}/\texttt{QuizItem} nodes
-          and relationships \texttt{-[:EXPLAINS]->} or
-          \texttt{-[:ASSESSES]->} to the corresponding
-          \texttt{LearningOutcome}. This provides eventual consistency
-          between the source of truth (PostgreSQL) and the Knowledge
-          Graph.
-\end{enumerate}
+The Human-in-the-Loop review pipeline guarantees that no AI-generated
+content reaches learners without instructor approval, and that the
+graph stays eventually consistent with the source of truth. When the
+instructor clicks ``Publish'', \texttt{core-api} runs a single
+PostgreSQL transaction that flips the row from
+\texttt{GENERATED\_DRAFT} to \texttt{PUBLISHED} \emph{and} writes an
+\texttt{outbox\_events} row (e.g.\ \texttt{CardPublishedEvent}) --
+atomicity rules out the split-brain case where content is published
+but graph sync is lost. The Outbox Poller daemon in \texttt{core-api}
+later picks the event up, enqueues a BullMQ job, and a worker MERGEs
+the matching \texttt{Card} or \texttt{QuizItem} node into Neo4j with
+the appropriate \texttt{-[:EXPLAINS]->} or \texttt{-[:ASSESSES]->}
+edge to its \texttt{LearningOutcome}.
 
 \subsection{Document Deletion Pipeline (Delete Saga)}
 \label{subsec:delete-saga}
@@ -782,6 +733,7 @@ crashes mid-saga, retrying the job is safe because every step uses
 filter-based deletion or unconditional removal.
 
 \section{Database Design}
+\label{sec:database-design}
 
 \begin{figure}[H]
     \centering
@@ -791,6 +743,7 @@ filter-based deletion or unconditional removal.
 \end{figure}
 
 \subsection{PostgreSQL Schema}
+\label{subsec:postgres-schema}
 
 PostgreSQL is the source of truth for all business data. The schema is
 divided into seven logical subsystems with a total of \textbf{31 tables}
@@ -893,6 +846,7 @@ only \texttt{(internal\_user\_id, display\_name, role)} mapped from
 \texttt{lms\_user\_mappings}.
 
 \subsection{Qdrant Vector Schema}
+\label{subsec:qdrant-vector-schema}
 
 Qdrant stores vector embeddings for document chunks and video transcript
 segments. In the MVP, a single collection \texttt{learning\_chunks} is
@@ -901,7 +855,8 @@ production, it can be split into \texttt{document\_chunks} and
 \texttt{video\_segments} if optimization is needed.
 
 \textbf{Named Vectors.} To support the \emph{Hybrid Retrieval + RRF}
-pipeline described in Section~4.3.3, the collection is initialized with
+pipeline described in Section~\ref{subsec:rag-pipeline}, the collection
+is initialized with
 two parallel vectors on the same data point:
 
 \begin{itemize}
@@ -967,6 +922,7 @@ payload-index initialization, and sample upsert are in
 Appendix~\ref{appendix:db-schema}.
 
 \subsection{Neo4j Knowledge Graph}
+\label{subsec:neo4j-knowledge-graph}
 
 Neo4j represents the complex knowledge structure of the course
 (Curriculum Graph), synchronized in a decentralized manner from
@@ -1333,6 +1289,7 @@ identity information is never leaked:
 \end{itemize}
 
 \subsection{Internal Service Authentication (BFF-to-Core JWT)}
+\label{subsec:internal-jwt}
 
 Communication between \texttt{web-bff} and business APIs such as
 \texttt{core-api} or AI services such as \texttt{chat-service} requires a
@@ -1750,177 +1707,19 @@ badge. The three main actions are Approve (green), Edit (yellow), and
 Reject (red). Bulk actions support many items at once. Diff view tracks
 changes during editing, with an audit-log timeline on the side.
 
-\section{Sequence Diagram}
+\section{Sequence Diagram: LTI Launch}
+\label{sec:lti-launch-sequence}
 
-\subsection{Upload and Document Processing}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.95\textwidth]{diagrams/seq_document_processing.png}
-    \caption{Sequence diagram for document upload and processing.}
-    \label{fig:seq-document-processing}
-\end{figure}
-
-\begin{enumerate}
-    \item Instructor selects PDF/DOCX/PPTX on \texttt{web-bff}.
-    \item \texttt{web-bff} $\to$ \texttt{core-api}:
-          \texttt{POST /documents/upload-session}.
-    \item \texttt{core-api}: creates document record
-          (status=UPLOADING), issues MinIO presigned URL, returns
-          \texttt{document\_id}.
-    \item Browser uploads directly to MinIO through presigned URL.
-    \item \texttt{web-bff} $\to$ \texttt{core-api}:
-          \texttt{POST /documents/\{id\}/confirm-upload}.
-    \item \texttt{core-api}: update status=QUEUED, publish
-          \texttt{DocumentUploaded} through BullMQ.
-    \item \texttt{document-worker} (parsing) consumes event: download
-          from MinIO, parse, chunk.
-    \item \texttt{document-worker} (indexing): embed BGE-M3, then
-          commit \texttt{chunks} and \texttt{outbox\_events}
-          (\texttt{ChunkIndexed}) in one PostgreSQL transaction FIRST,
-          and only after the commit upsert vectors to Qdrant (idempotent
-          by UUIDv7) so no orphan vector can exist.
-    \item Outbox Poller in \texttt{core-api} reads pending events and
-          enqueues \texttt{GraphSyncRequested} on BullMQ.
-    \item \texttt{document-worker} consumes the graph-sync job: Cypher
-          \texttt{MERGE Chunk} and \texttt{SUPPORTS} relationships into
-          Neo4j, then publishes \texttt{TextIndexed}.
-    \item \texttt{web-bff} streams progress to browser through SSE.
-\end{enumerate}
-
-\subsection{Upload and Video Processing}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.95\textwidth]{diagrams/seq_video_processing.png}
-    \caption{Sequence diagram for video upload and processing.}
-    \label{fig:seq-video-processing}
-\end{figure}
-
-\begin{enumerate}
-    \item Instructor selects a video on \texttt{web-bff}.
-    \item \texttt{web-bff} $\to$ \texttt{core-api}:
-          \texttt{POST /videos/upload-session}.
-    \item \texttt{core-api}: creates video record, issues presigned URL,
-          returns \texttt{video\_id}.
-    \item Browser uploads to MinIO.
-    \item \texttt{web-bff} $\to$ \texttt{core-api}: confirm upload.
-    \item \texttt{core-api}: status=QUEUED, publish
-          \texttt{VideoUploaded}.
-    \item \texttt{video-worker} (Go) consumes: download, FFmpeg extract
-          audio, Whisper transcribe, segment, cut clips, upload artifacts.
-    \item Save \texttt{video\_segments}, \texttt{transcript\_segments};
-          publish \texttt{TranscriptReady}.
-    \item \texttt{document-worker} (indexing) consumes
-          \texttt{TranscriptReady}: embed transcript, then commit
-          \texttt{transcript\_segments} status and
-          \texttt{outbox\_events} (\texttt{SegmentIndexed}) to
-          PostgreSQL in one transaction FIRST, and only after the commit
-          upsert vectors to Qdrant (idempotent by UUIDv7) so no orphan
-          vector can exist.
-    \item Outbox Poller in \texttt{core-api} dispatches
-          \texttt{GraphSyncRequested}; \texttt{document-worker} projects
-          \texttt{VideoSegment} nodes and \texttt{SUPPORTS} relations
-          into Neo4j, then publishes \texttt{VideoIndexed}.
-\end{enumerate}
-
-\subsection{AI Tutor Chatbot}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.95\textwidth]{diagrams/seq_ai_tutor_chatbot.png}
-    \caption{Sequence diagram for AI Tutor Chatbot.}
-    \label{fig:seq-ai-tutor-chatbot}
-\end{figure}
-
-\begin{enumerate}
-    \item Learner sends a question on \texttt{web-bff}.
-    \item \texttt{web-bff} $\to$ \texttt{core-api}:
-          \texttt{POST /chat/context-token} with session info.
-    \item \texttt{core-api}: validate session, generate short-lived JWT
-          containing \texttt{user\_id}, \texttt{course\_id},
-          \texttt{allowed\_document\_ids}, \texttt{allowed\_lo\_ids}.
-    \item \texttt{web-bff} opens SSE to \texttt{chat-service}
-          \texttt{/chat/stream} with token + question.
-    \item \texttt{chat-service}: validate token, embed question, search
-          Qdrant top-K with course/LO filter.
-    \item If the question is LO-related: query Neo4j for chunks
-          \texttt{SUPPORTS} LO and rerank.
-    \item Build prompt with context + citation, call LLM streaming.
-    \item For every token received, \texttt{chat-service} pushes through
-          SSE; \texttt{web-bff} forwards to browser.
-    \item On completion: send \texttt{event: done} with citation list and
-          save chat message in PostgreSQL.
-\end{enumerate}
-
-\subsection{Quiz Generation}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.95\textwidth]{diagrams/seq_quiz_generation.png}
-    \caption{Sequence diagram for quiz generation by Learning Outcome.}
-    \label{fig:seq-quiz-generation}
-\end{figure}
-
-\begin{enumerate}
-    \item Instructor clicks ``Generate Quiz'' for LO X in review UI.
-    \item \texttt{web-bff} $\to$ \texttt{core-api}:
-          \texttt{POST /quiz-generations} with
-          \texttt{lo\_id=X}, params (number of questions, Bloom,
-          difficulty).
-    \item \texttt{core-api}: publish \texttt{ContentGenerationRequested}
-          with type=quiz, target LO.
-    \item \texttt{enrichment-worker} consumes:
-        \begin{itemize}
-            \item Query Neo4j: chunks \texttt{SUPPORTS} LO X.
-            \item Vector search Qdrant using LO statement as query.
-            \item Merge chunks, dedupe.
-            \item Build prompt with LO code, statement, Bloom, schema.
-            \item Call LLM, validate JSON schema.
-            \item Store \texttt{quiz\_items} status=GENERATED\_DRAFT with
-                  \texttt{source\_chunk\_ids}.
-            \item Publish \texttt{ContentDraftGenerated}.
-        \end{itemize}
-    \item \texttt{core-api}: update lesson draft and send notification to
-          instructor through progress SSE.
-\end{enumerate}
-
-\subsection{Curriculum Ingestion}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.95\textwidth]{diagrams/seq_curriculum_ingestion.png}
-    \caption{Sequence diagram for ingesting the course syllabus.}
-    \label{fig:seq-ingest-curriculum-lvtn}
-\end{figure}
-
-\begin{enumerate}
-    \item Instructor uploads the syllabus PDF through \texttt{web-bff}.
-    \item Upload session $\to$ MinIO $\to$ confirm, like the document flow.
-    \item \texttt{core-api}: publish
-          \texttt{CurriculumIngestionRequested} with
-          \texttt{document\_id}, \texttt{course\_id}.
-    \item \texttt{document-worker} (curriculum): download the syllabus,
-          call \texttt{SyllabusExtractor} hybrid parse (Regex + Gemini
-          Flash JSON schema).
-    \item Extract Course metadata, Chapter list, Learning Outcome (LO),
-          Assessment.
-    \item Insert PostgreSQL in one transaction: \texttt{courses},
-          \texttt{chapters}, \texttt{learning\_outcomes},
-          \texttt{assessments}, \texttt{lo\_assessments}.
-    \item In the same transaction: insert \texttt{outbox\_events} with
-          \texttt{CurriculumIngested} payload.
-    \item Outbox Poller daemon in \texttt{core-api} reads the event and
-          pushes a job to \texttt{document-worker} to project into Neo4j:
-          create Course, Chapter, LO, Assessment nodes and relationships
-          \texttt{HAS\_CHAPTER}, \texttt{HAS\_LO}, \texttt{MEASURES}.
-    \item After LO graph exists: \texttt{HeuristicLoMapper} runs on all
-          existing chunks of the course, creating
-          \texttt{chunk\_lo\_mappings} and \texttt{SUPPORTS}
-          relationships.
-\end{enumerate}
-
-\subsection{LTI Launch Flow}
+Only the LTI Launch sequence is kept in this chapter because it is the
+single integration point with Canvas and the foundation of every
+downstream authorization check; understanding it is required to follow
+the security design in
+Section~\ref{subsec:internal-jwt} and the gRPC API boundary in
+Section~\ref{subsec:grpc-internal-apis}. The remaining sequence
+diagrams (document upload, video upload, AI Tutor chatbot, quiz
+generation, curriculum ingestion) follow the same canonical patterns
+described in the AI Pipeline section above and are provided in full in
+Appendix~\ref{appendix:sequence-diagrams}.
 
 \begin{figure}[H]
     \centering
@@ -1957,157 +1756,17 @@ changes during editing, with an audit-log timeline on the side.
         \end{itemize}
 \end{enumerate}
 
-\section{Activity Diagram}
-
-\subsection{Document Pipeline}
-
-Activity flow for document processing:
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.95\textwidth,height=0.78\textheight,keepaspectratio]{diagrams/activity_document_pipeline.png}
-    \caption{Swimlane activity diagram for Document Pipeline.}
-    \label{fig:activity-document-pipeline}
-\end{figure}
-
-\begin{enumerate}
-    \item \textbf{Start:} Document uploaded.
-    \item \textbf{Decision:} Valid file type?
-        \begin{itemize}
-            \item No $\to$ status=ERROR, end.
-            \item Yes $\to$ continue.
-        \end{itemize}
-    \item \textbf{Action:} Parse file by type.
-    \item \textbf{Decision:} Is text layer quality sufficient?
-        \begin{itemize}
-            \item No $\to$ Run OCR (parallel).
-            \item Yes $\to$ continue.
-        \end{itemize}
-    \item \textbf{Action:} Normalize text, extract headings.
-    \item \textbf{Action:} Chunk by headings, with size-based fallback if
-          no heading exists.
-    \item \textbf{Action:} Embed chunks with BGE-M3.
-    \item \textbf{Action:} Commit \texttt{chunks} +
-          \texttt{outbox\_events} to PostgreSQL (single transaction).
-    \item \textbf{Action:} Upsert vectors to Qdrant (after PG commit;
-          idempotent by UUIDv7).
-    \item \textbf{Action:} Outbox Poller dispatches Neo4j graph sync;
-          worker MERGEs \texttt{Chunk} + \texttt{SUPPORTS} edges.
-    \item \textbf{Action:} Publish \texttt{TextIndexed} so downstream
-          pipelines can use indexed knowledge.
-    \item \textbf{End:} status=INDEXED.
-\end{enumerate}
-
-\subsection{Video Pipeline}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.95\textwidth,height=0.78\textheight,keepaspectratio]{diagrams/activity_video_pipeline.png}
-    \caption{Swimlane activity diagram for Video Pipeline.}
-    \label{fig:activity-video-pipeline}
-\end{figure}
-
-\begin{enumerate}
-    \item \textbf{Start:} Video uploaded.
-    \item \textbf{Decision:} Valid codec/format?
-        \begin{itemize}
-            \item No $\to$ ERROR.
-            \item Yes $\to$ continue.
-        \end{itemize}
-    \item \textbf{Action:} Extract audio with FFmpeg.
-    \item \textbf{Action:} Speech-to-Text (Whisper).
-    \item \textbf{Action:} Detect segment boundaries (silence + topic shift).
-    \item \textbf{Parallel:}
-        \begin{itemize}
-            \item Branch 1: Cut video clip for each segment.
-            \item Branch 2: Create thumbnail.
-            \item Branch 3: Insert \texttt{video\_segments},
-                  \texttt{transcript\_segments} into PostgreSQL.
-        \end{itemize}
-    \item \textbf{Join:} Synchronize three branches.
-    \item \textbf{Action:} Publish \texttt{TranscriptReady}.
-    \item \textbf{Action:} \texttt{document-worker} embeds transcript
-          segments and upserts Qdrant.
-    \item \textbf{End:} status=INDEXED.
-\end{enumerate}
-
-\subsection{Learning Flow}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.95\textwidth,height=0.78\textheight,keepaspectratio]{diagrams/activity_learning_flow.png}
-    \caption{Swimlane activity diagram for Learning Flow.}
-    \label{fig:activity-learning-flow}
-\end{figure}
-
-\begin{enumerate}
-    \item \textbf{Start:} Student clicks activity in Canvas.
-    \item \textbf{Action:} LTI launch, session initialized.
-    \item \textbf{Decision:} Is \texttt{lesson\_id} present in launch context?
-        \begin{itemize}
-            \item Yes $\to$ Open specific lesson.
-            \item No $\to$ Show course landing.
-        \end{itemize}
-    \item \textbf{Action:} Student reads cards sequentially.
-    \item \textbf{Decision:} Is a quiz attached?
-        \begin{itemize}
-            \item Yes $\to$ Let student take quiz.
-            \item No $\to$ skip.
-        \end{itemize}
-    \item \textbf{Action:} Submit quiz and compute score.
-    \item \textbf{Action:} Show feedback (right/wrong, explanation).
-    \item \textbf{Action:} Update progress, optionally perform LTI AGS
-          grade passback.
-    \item \textbf{Decision:} Does student want to chat with AI Tutor?
-        \begin{itemize}
-            \item Yes $\to$ Open chat interface (Chatbot flow).
-            \item No $\to$ end.
-        \end{itemize}
-    \item \textbf{End:} Update \texttt{last\_active\_at}.
-\end{enumerate}
-
-\subsection{Review and Publish Flow}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.95\textwidth,height=0.78\textheight,keepaspectratio]{diagrams/activity_review_publish.png}
-    \caption{Swimlane activity diagram for Review and Publish Flow.}
-    \label{fig:activity-review-publish}
-\end{figure}
-
-\begin{enumerate}
-    \item \textbf{Start:} Instructor opens review inbox.
-    \item \textbf{Action:} Load lesson draft with cards + quizzes + video
-          attachment candidates.
-    \item \textbf{Loop:} for each item:
-        \begin{itemize}
-            \item View content + source citation.
-            \item Decision: Approve / Edit / Reject?
-            \item Approve $\to$ status=APPROVED.
-            \item Edit $\to$ open editor, save diff, status=REVIEWING.
-            \item Reject $\to$ optional regenerate with hint,
-                  status=CHANGES\_REQUESTED.
-        \end{itemize}
-    \item \textbf{Decision:} Are all items APPROVED?
-        \begin{itemize}
-            \item Yes $\to$ Publish button enabled.
-            \item No $\to$ block publish and show pending list.
-        \end{itemize}
-    \item \textbf{Action:} Click Publish.
-    \item \textbf{Action:} \texttt{core-api} moves the whole lesson to
-          PUBLISHED, writes audit log, publishes \texttt{LessonPublished}.
-    \item \textbf{Action:} Outbox sync to Neo4j.
-    \item \textbf{End:} Student can access lesson from Canvas.
-\end{enumerate}
-
 \section{Class Diagram}
 
 The class diagram represents the main domain entities and their
 relationships, split into two bounded contexts to keep each figure
-readable: \emph{Content Authoring}
-(Figure~\ref{fig:class-content-authoring}) and \emph{Curriculum}
-(Figure~\ref{fig:class-curriculum}). Field names mirror the PostgreSQL
-schema in Appendix~\ref{appendix:db-schema}.
+readable. Only \emph{Content Authoring} is included here because it
+carries the \texttt{Lesson} aggregate -- the unit of LTI Deep Linking
+and the most architecturally load-bearing entity. The
+\emph{Curriculum} bounded context (Course, Chapter, LearningOutcome,
+Assessment, ChunkLOMapping) is provided in
+Appendix~\ref{appendix:class-diagrams}. Field names mirror the
+PostgreSQL schema in Appendix~\ref{appendix:db-schema}.
 
 \subsection{Bounded Context: Content Authoring}
 
@@ -2134,22 +1793,6 @@ referential integrity is preserved by the document delete saga
 (Section~\ref{subsec:delete-saga}) rather than by
 \texttt{ON DELETE CASCADE}.
 
-\subsection{Bounded Context: Curriculum}
-
-The curriculum context models the CDIO/Bloom course structure.
-\texttt{LearningOutcome} is versioned by \texttt{academic\_year} so
-that the Knowledge Graph evolves as the curriculum changes year by
-year -- the novelty contribution of this thesis. \texttt{Chunk} from
-the Content Authoring context is referenced through the
-\texttt{ChunkLOMapping} join table to keep the two contexts decoupled.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth,height=0.88\textheight,keepaspectratio]{diagrams/class_diagram_curriculum.png}
-    \caption{Class diagram of the Curriculum bounded context.}
-    \label{fig:class-curriculum}
-\end{figure}
-
 \subsection{Port Interfaces (Hexagonal Domain)}
 
 The domain layer exposes the following Ports; each Port has one or
@@ -2171,11 +1814,16 @@ Architecture subsection and the Adapter design section):
 The system uses three independent state machines that cover three
 different concerns: the business state of document/video processing
 (Section~\ref{subsec:document-pipeline-state}), the broker-level state
-of asynchronous jobs (Section~\ref{subsec:async-job-state}), and the
-review lifecycle of generated cards/quizzes
-(Section~\ref{subsec:quiz-review-state}). Keeping these state machines
-separate prevents business state from being coupled to retry mechanics
-or content-review workflow.
+of asynchronous BullMQ jobs
+(Appendix~\ref{appendix:state-async-job}), and the review lifecycle of
+generated cards/quizzes
+(Appendix~\ref{appendix:state-content-review}). Keeping these state
+machines separate prevents business state from being coupled to retry
+mechanics or content-review workflow. Only the user-visible business
+state machine is shown in this chapter; the other two are placed in
+Appendix~\ref{appendix:state-machines} because they belong to
+operational and review concerns rather than the main design
+narrative.
 
 \subsection{Document and Video Pipeline State}
 \label{subsec:document-pipeline-state}
@@ -2255,69 +1903,26 @@ at \texttt{EMBEDDING} and end at \texttt{INDEXED}.
 Any failed stage transitions to \texttt{ERROR}; from there a manual
 retry returns the job to \texttt{QUEUED}. Content-generation states
 such as \texttt{GENERATED\_DRAFT} are intentionally not part of this
-pipeline; they belong to the separate review lifecycle described in
-Section~\ref{subsec:quiz-review-state}.
+pipeline; they belong to a separate review lifecycle.
 
-\subsection{Async Job State}
-\label{subsec:async-job-state}
+\subsection{Other State Machines (See Appendix)}
+\label{subsec:other-state-machines}
 
-Broker jobs (BullMQ) have states separate from business state:
+Two further state machines are needed for completeness but are not
+required to follow the main design narrative; their full diagrams and
+state tables are in Appendix~\ref{appendix:state-machines}:
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.9\textwidth,height=0.72\textheight,keepaspectratio]{diagrams/state_machine_async_job.png}
-    \caption{State machine of asynchronous jobs in the broker.}
-    \label{fig:state-machine-async-job}
-\end{figure}
-
-\textbf{Retry policy:} 3 attempts with exponential backoff ($1s \to 2s
-\to 4s$). After maximum retries, the job moves to \texttt{DEAD\_LETTER}
-for manual debugging. Engineers can requeue it through the BullMQ
-dashboard.
-
-\subsection{Quiz Review State}
-\label{subsec:quiz-review-state}
-
-Content (cards, quizzes) has its own review lifecycle:
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.9\textwidth,height=0.72\textheight,keepaspectratio]{diagrams/state_machine_content_review.png}
-    \caption{Review lifecycle state machine for cards and quizzes.}
-    \label{fig:state-machine-content-review}
-\end{figure}
-
-\begin{table}[H]
-    \centering
-    \caption{Review states of content.}
-    \label{tab:review-states}
-    \begin{tabular}{|p{4cm}|p{9.5cm}|}
-        \hline
-        \textbf{State} & \textbf{Meaning} \\
-        \hline
-        \texttt{GENERATED\_\allowbreak DRAFT}
-            & AI generated it; no one has reviewed it yet. \\
-        \hline
-        \texttt{REVIEWING}
-            & Instructor is reviewing/editing. \\
-        \hline
-        \texttt{CHANGES\_\allowbreak REQUESTED}
-            & Instructor rejected it and requested regeneration or edit. \\
-        \hline
-        \texttt{APPROVED}
-            & Approved and ready to publish. \\
-        \hline
-        \texttt{PUBLISHED}
-            & Learners can access it. \\
-        \hline
-        \texttt{UNPUBLISHED}
-            & Hidden from learners; instructor may republish. \\
-        \hline
-        \texttt{ARCHIVED}
-            & Stored for history; not shown by default. \\
-        \hline
-    \end{tabular}
-\end{table}
+\begin{itemize}
+    \item \textbf{Asynchronous Job State (BullMQ)} -- broker-level
+          retry/dead-letter semantics, intentionally decoupled from
+          business state
+          (Appendix~\ref{appendix:state-async-job}).
+    \item \textbf{Content Review State (LessonCard / QuizItem)} --
+          Human-in-the-Loop lifecycle
+          \texttt{GENERATED\_DRAFT} $\to$ \texttt{REVIEWING} $\to$
+          \texttt{APPROVED} $\to$ \texttt{PUBLISHED}
+          (Appendix~\ref{appendix:state-content-review}).
+\end{itemize}
 
 \section{Observability and Monitoring Design}
 
@@ -2532,24 +2137,6 @@ The CI/CD pipeline contains four stages:
 
 Tooling: GitHub Actions or GitLab CI.
 
-\subsection{Kubernetes Direction}
-
-When production scale or multi-tenancy is needed:
-
-\begin{itemize}
-    \item Each runtime becomes a separate Deployment, replicated by load.
-    \item PostgreSQL moves to managed service (RDS, Cloud SQL) or a
-          Postgres operator.
-    \item Qdrant and Neo4j have separate Helm charts.
-    \item Ingress Controller (NGINX or Traefik) for web-bff.
-    \item Secret management through Vault or External Secrets Operator.
-    \item Service mesh (Istio/Linkerd) for internal mTLS if high security
-          is required.
-\end{itemize}
-
-Within the thesis scope, Kubernetes is a direction rather than an
-implemented target. Docker Compose is sufficient for demo and evaluation.
-
 \subsection{Scaling Strategy}
 
 \textbf{Vertical scaling (single-node):} increase CPU/RAM for the heaviest
@@ -2608,8 +2195,8 @@ level:
     \item \textbf{Observability} covers the three pillars: structured
           logging, Prometheus metrics, and OpenTelemetry distributed
           tracing, with separate AI cost monitoring.
-    \item \textbf{Deployment} uses Docker Compose for the thesis and
-          defines Kubernetes as the future production direction.
+    \item \textbf{Deployment} uses Docker Compose for the thesis,
+          packaged as three layered files (base, dev override, GPU override).
 \end{itemize}
 
 This design allows \textbf{parallel development} among team members thanks
