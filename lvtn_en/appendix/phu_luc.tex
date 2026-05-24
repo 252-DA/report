@@ -38,6 +38,18 @@ can focus on the main architectural narrative.
             & Detailed state machines
             & Operational and review lifecycle states separated from the main design flow. \\
         \hline
+        Appendix~\ref{appendix:security-details}
+            & Detailed security controls
+            & Full OWASP LLM risk analysis and mitigation notes. \\
+        \hline
+        Appendix~\ref{appendix:ui-details}
+            & Detailed interface design
+            & Sitemap and screen-level UI descriptions. \\
+        \hline
+        Appendix~\ref{appendix:operational-details}
+            & Operational and integration details
+            & Proto contracts, observability fields, and deployment topology details. \\
+        \hline
     \end{tabular}
 \end{table}
 
@@ -453,6 +465,58 @@ file includes:
           current LO version; \texttt{v\_lo\_mastery\_summary} aggregates
           mastery data for the instructor dashboard in Phase 2.
 \end{itemize}
+
+\subsection*{Schema Design Notes}
+
+\textbf{Versioning Learning Outcomes.} The table
+\texttt{learning\_outcomes} includes \texttt{academic\_year} and
+\texttt{version} to track changes to LOs by academic year. This novelty
+requirement allows the Knowledge Graph to represent curriculum evolution.
+The \texttt{is\_current} flag marks the version used in RAG retrieval,
+while old versions are kept for tracing learning history by cohort.
+
+\textbf{Denormalized \texttt{course\_id}.} Tables frequently filtered by
+course -- \texttt{chunks}, \texttt{video\_segments},
+\texttt{lesson\_cards}, \texttt{quiz\_items}, \texttt{quiz\_attempts},
+\texttt{chat\_messages} -- carry \texttt{course\_id} even when it could
+be derived by traversal. The purpose is to reduce RAG queries to one
+table and synchronize directly into Qdrant payload for hard tenant
+filtering.
+
+\textbf{Status enum consistent with State Machine.} The
+\texttt{lesson\_cards} and \texttt{quiz\_items} tables use CHECK
+constraints with seven states exactly matching the state machine in
+Section~\ref{sec:state-machine-design}
+(\texttt{GENERATED\_DRAFT} $\to$ \texttt{REVIEWING} $\to$
+\texttt{CHANGES\_REQUESTED} $\to$ \texttt{APPROVED} $\to$
+\texttt{PUBLISHED} $\to$ \texttt{UNPUBLISHED} $\to$ \texttt{ARCHIVED}).
+Partial indexes on status allow review-inbox and learner-serving queries
+to avoid full table scans.
+
+\textbf{Time-ordered primary keys (UUIDv7).} High-write tables --
+\texttt{chunks}, \texttt{learning\_events}, \texttt{chat\_messages},
+\texttt{outbox\_events} -- use UUIDv7 as primary keys. PostgreSQL 18+
+uses the built-in \texttt{uuidv7()} function; older versions use the
+\texttt{pg\_uuidv7} extension. The embedded timestamp makes B-Tree index
+inserts near-sequential, avoiding index-page fragmentation and improving
+bulk insert speed.
+
+\textbf{Outbox pattern.} Every change that must be synchronized to Neo4j
+or downstream services is written to \texttt{outbox\_events} in the same
+transaction as the business action. The table includes
+\texttt{aggregate\_type}, \texttt{aggregate\_id},
+\texttt{processed\_at}, and \texttt{last\_error} for synchronization
+tracking and debugging failed jobs. The Outbox Poller daemon in
+\texttt{core-api} periodically reads this table and pushes jobs to
+BullMQ; the appropriate worker (\texttt{document-worker} for indexing and
+graph sync, \texttt{enrichment-worker} for LLM tasks) consumes the job and
+projects it to Neo4j or emits downstream events, ensuring eventual
+consistency.
+
+\textbf{Auth delegation.} The system does not store user passwords. User
+authentication is delegated to Canvas through LTI 1.3. An internal user is
+only \texttt{(internal\_user\_id, display\_name, role)} mapped from
+\texttt{lms\_user\_mappings}.
 
 The Qdrant collection design (dense and sparse named vectors, payload
 indexes, hard filters by \texttt{course\_id}, \texttt{source\_type},

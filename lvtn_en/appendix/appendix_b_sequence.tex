@@ -2,11 +2,11 @@
 \chapter{Detailed Sequence Diagrams}
 \label{appendix:sequence-diagrams}
 
-This appendix collects detailed sequence diagrams for the main
-asynchronous and cross-runtime flows of the system. The LTI Launch
-sequence is kept in Chapter~\ref{chap:phan-tich-thiet-ke} because it
-is central to the security and integration argument; all other
-sequences live here.
+This appendix collects detailed sequence diagrams and auxiliary
+operational flows for the main asynchronous and cross-runtime behavior
+of the system. The LTI Launch sequence is kept in
+Chapter~\ref{chap:phan-tich-thiet-ke} because it is central to the
+security and integration argument; all other sequences live here.
 
 \section{Document Upload and Processing}
 \label{appendix:seq-document}
@@ -44,6 +44,67 @@ sequences live here.
           Neo4j, then publishes \texttt{TextIndexed}.
     \item \texttt{web-bff} streams progress to browser through SSE.
 \end{enumerate}
+
+\section{Document Deletion Pipeline (Delete Saga)}
+\label{appendix:delete-saga}
+
+Requirement US-IN-11 specifies that deleting a document must remove all
+derived artifacts (chunks, cards, quizzes, vector embeddings, graph
+nodes, raw file) and that repeated deletion is idempotent. Because the
+artifacts span five stores (PostgreSQL, Qdrant, Neo4j, MinIO, and
+optionally Redis cache), this is implemented as a \emph{saga} driven by
+the Outbox pattern, not by SQL \texttt{ON DELETE CASCADE} (which would
+not propagate to non-relational stores).
+
+\textbf{Step 1 - Soft delete in the source of truth.} \texttt{core-api}
+handles \texttt{DELETE /documents/\{id\}} by running a single
+transaction that:
+\begin{itemize}
+    \item sets \texttt{documents.deleted\_at = now()};
+    \item soft-deletes \texttt{chunks} where
+          \texttt{document\_id = :id};
+    \item soft-deletes \texttt{lesson\_cards} and \texttt{quiz\_items}
+          whose \texttt{source\_chunk\_ids[]} overlaps any deleted
+          chunk (computed via a join against the deleted chunks set);
+    \item inserts one \texttt{outbox\_events} row with
+          \texttt{event\_type = DocumentDeleted} and payload
+          \texttt{\{document\_id, chunk\_ids[], card\_ids[],
+          quiz\_ids[]\}}.
+\end{itemize}
+Foreign keys remain \texttt{ON DELETE RESTRICT}; rows are never hard
+deleted at this stage so the saga can replay safely.
+
+\textbf{Step 2 - Outbox Poller dispatch.} The Outbox Poller in
+\texttt{core-api} picks up \texttt{DocumentDeleted} and enqueues a
+\texttt{cleanup-saga-job} on the \texttt{outbox-relay-q} queue.
+
+\textbf{Step 3 - Cleanup worker (idempotent steps).}
+\texttt{document-worker} consumes the job and runs the following steps
+in order; each step is idempotent so the job can be retried at any
+point:
+\begin{enumerate}
+    \item \texttt{Qdrant.delete(filter=\{document\_id\})} -- removes
+          every vector whose payload references the deleted document.
+    \item \texttt{Neo4j MATCH (c:Chunk \{document\_id\}) DETACH DELETE
+          c} -- removes Chunk nodes and any \texttt{[:SUPPORTS]} edges.
+    \item \texttt{MinIO.removeObject(file\_path)} -- removes the raw
+          file; \texttt{NoSuchKey} errors are ignored.
+    \item \texttt{Redis.DEL course:\{course\_id\}:cache:*} (best
+          effort) -- invalidates any cached retrieval results.
+    \item PostgreSQL update: set \texttt{outbox\_events.status =
+          PROCESSED} and stamp \texttt{processed\_at}.
+\end{enumerate}
+
+\textbf{Step 4 - Optional hard delete.} After 30 days, a scheduled job
+hard-deletes rows whose \texttt{deleted\_at} is older than the
+retention window. Until then the soft-deleted rows preserve audit
+trail and allow undo.
+
+\textbf{Idempotency.} A re-issued \texttt{DELETE /documents/\{id\}}
+returns 204 even if the document is already soft-deleted; the saga
+simply finds no new outbox event to enqueue. If the cleanup worker
+crashes mid-saga, retrying the job is safe because every step uses
+filter-based deletion or unconditional removal.
 
 \section{Video Upload and Processing}
 \label{appendix:seq-video}

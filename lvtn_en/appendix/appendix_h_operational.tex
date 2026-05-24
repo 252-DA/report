@@ -1,0 +1,335 @@
+% !TeX root = ../main.tex
+\chapter{Operational and Integration Details}
+\label{appendix:operational-details}
+
+This appendix collects technical details that are useful for
+implementation review but too specific for the main Chapter~4 design
+narrative.
+
+\section{gRPC Internal API Details}
+\label{appendix:grpc-proto-details}
+
+\textbf{Protocol boundary.} The system uses three distinct communication
+channels, each with a clear purpose:
+
+\begin{itemize}
+    \item \textbf{HTTP (REST + SSE):} only between the browser and
+          \texttt{web-bff}, because browsers cannot speak gRPC directly.
+          SSE is also used to stream chat tokens and pipeline progress
+          back to the browser.
+    \item \textbf{gRPC:} all synchronous backend-to-backend service
+          calls, leveraging Protocol Buffers for cross-language type
+          safety (TypeScript NestJS, Python FastAPI).
+    \item \textbf{BullMQ events on Redis:} all asynchronous worker
+          interactions; workers never call each other directly.
+\end{itemize}
+
+\textbf{Diagram convention.} Sequence and dataflow diagrams in
+Chapter~\ref{chap:phan-tich-thiet-ke} use HTTP-style shorthand (e.g.
+\texttt{POST /documents/upload-session}) for readability, but the
+underlying call between \texttt{web-bff} and \texttt{core-api} is a
+gRPC method invocation
+(\texttt{CoreApiService.CreateUploadSession}). The mapping between the
+two notations is one-to-one: each REST verb in a diagram corresponds
+to exactly one gRPC method on the service contract.
+
+\textbf{Service contracts.} Two gRPC services are defined:
+
+\begin{itemize}
+    \item \textbf{\texttt{CoreApiService}} (served by \texttt{core-api}):
+          the main business surface, called by \texttt{web-bff} for
+          resource CRUD (\texttt{CreateUploadSession},
+          \texttt{ConfirmUpload}, \texttt{ListDocuments},
+          \texttt{PublishContent}) and by \texttt{chat-service} for
+          permission/context resolution (\texttt{GetUserContext},
+          \texttt{CheckCourseAccess}, \texttt{ListLOByCourse},
+          \texttt{GetChunkMetadata}). The latter is called once at SSE
+          handshake to populate the JWT ticket with
+          \texttt{allowed\_lo\_ids} and \texttt{allowed\_document\_ids}
+          so subsequent retrieval is scoped without further round trips.
+    \item \textbf{\texttt{ChatService}} (served by \texttt{chat-service}):
+          synchronous query surface called by \texttt{core-api}
+          (\texttt{GetChatHistory}, \texttt{ListChatSessions},
+          \texttt{SearchVideos}) for analytics dashboards and audit.
+          The chat token stream itself is \emph{not} a gRPC method; it is
+          exposed on \texttt{/chat/stream} as Server-Sent Events because
+          the browser consumes it directly through \texttt{web-bff}.
+\end{itemize}
+
+\begin{lstlisting}[caption=Representative internal gRPC proto contract]
+syntax = "proto3";
+package ai_lms.v1;
+
+service CoreApiService {
+  rpc CreateUploadSession(CreateUploadSessionRequest)
+      returns (CreateUploadSessionResponse);
+  rpc ConfirmUpload(ConfirmUploadRequest)
+      returns (DocumentSummary);
+  rpc ListDocuments(ListDocumentsRequest)
+      returns (ListDocumentsResponse);
+  rpc PublishContent(PublishContentRequest)
+      returns (PublishContentResponse);
+  rpc GetUserContext(GetUserContextRequest)
+      returns (UserContext);
+  rpc CheckCourseAccess(CheckCourseAccessRequest)
+      returns (AccessDecision);
+  rpc ListLOByCourse(ListLOByCourseRequest)
+      returns (ListLOByCourseResponse);
+  rpc GetChunkMetadata(GetChunkMetadataRequest)
+      returns (ChunkMetadata);
+}
+
+service ChatService {
+  rpc GetChatHistory(GetChatHistoryRequest)
+      returns (GetChatHistoryResponse);
+  rpc ListChatSessions(ListChatSessionsRequest)
+      returns (ListChatSessionsResponse);
+  rpc SearchVideos(SearchVideosRequest)
+      returns (SearchVideosResponse);
+}
+
+message CreateUploadSessionRequest {
+  string course_id = 1;
+  string file_name = 2;
+  string mime_type = 3;
+  int64 size_bytes = 4;
+}
+
+message CreateUploadSessionResponse {
+  string document_id = 1;
+  string upload_url = 2;
+  string storage_key = 3;
+  PipelineStatus status = 4;
+}
+
+message UserContext {
+  string user_id = 1;
+  string course_id = 2;
+  repeated Role roles = 3;
+  repeated string allowed_document_ids = 4;
+  repeated string allowed_lo_ids = 5;
+}
+
+message Citation {
+  string source_id = 1;
+  string source_type = 2;
+  string title = 3;
+  int32 page_number = 4;
+  int32 start_ms = 5;
+  int32 end_ms = 6;
+}
+
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_LEARNER = 1;
+  ROLE_INSTRUCTOR = 2;
+  ROLE_ADMIN = 3;
+}
+
+enum PipelineStatus {
+  PIPELINE_STATUS_UNSPECIFIED = 0;
+  QUEUED = 1;
+  PARSING = 2;
+  CHUNKING = 3;
+  EMBEDDING = 4;
+  INDEXED = 5;
+  ERROR = 6;
+}
+\end{lstlisting}
+
+\textbf{Shared types.} \texttt{shared.proto} defines common messages
+(\texttt{Citation}, \texttt{Role} enum, \texttt{PipelineStatus} enum)
+imported by both services, ensuring the same vocabulary across
+runtimes.
+
+\textbf{Authentication.} Each gRPC request carries the internal JWT in
+the \texttt{authorization} metadata header. The server verifies the
+token signature using the BFF's public key (for web-bff $\to$ core-api)
+or core-api's public key (for chat-service $\to$ core-api). Token
+scopes determine whether the call is permitted.
+
+\textbf{What gRPC does not carry.} Asynchronous worker results are
+never delivered via gRPC. Workers write to PostgreSQL (source of truth)
+and publish BullMQ events on Redis; consumers learn about new state by
+subscribing to events or polling the database. Pipeline progress
+updates also avoid gRPC: workers publish through Redis Pub/Sub,
+\texttt{web-bff} subscribes, and the browser receives updates via SSE.
+This separation removes temporal coupling between long-running jobs and
+the request/response services.
+
+\section{Observability Details}
+\label{appendix:observability-details}
+
+\subsection{Structured Logging}
+
+Each runtime emits JSON logs through \texttt{structlog} (Python) or
+\texttt{pino} (NestJS). Required fields:
+
+\begin{itemize}
+    \item \texttt{timestamp}: ISO8601.
+    \item \texttt{level}: \texttt{debug}/\texttt{info}/\texttt{warn}/\texttt{error}.
+    \item \texttt{service}: runtime name.
+    \item \texttt{trace\_id}, \texttt{span\_id}: OpenTelemetry standard,
+          automatically injected into each log record by SDK.
+    \item \texttt{user\_id}, \texttt{course\_id}: if business context
+          exists.
+    \item \texttt{message}: human-readable.
+    \item \texttt{extra}: structured payload (input size, duration,
+          error\_class).
+\end{itemize}
+
+Logs are aggregated by Loki (lightweight) or Elasticsearch (production).
+Grafana provides query UI and allows jumping directly from a log entry to
+the corresponding distributed trace through the shared \texttt{trace\_id}.
+
+\textbf{Log sampling:} \texttt{debug} level is enabled only for sampled
+traces (\texttt{traceflags=01}) or when the client attaches baggage
+\texttt{debug=1}, preventing log volume explosion.
+
+\subsection{Metrics Collection}
+
+Prometheus scrapes each service's \texttt{/metrics} endpoint every 15s.
+Metrics are grouped into three categories.
+
+\textbf{Application metrics:}
+\begin{itemize}
+    \item \texttt{http\_request\_duration\_seconds} (histogram, labels
+          method/route/status).
+    \item \texttt{http\_requests\_total} (counter).
+    \item \texttt{grpc\_request\_duration\_seconds}.
+    \item \texttt{job\_duration\_seconds} (per worker queue).
+    \item \texttt{job\_queue\_depth} (gauge).
+    \item \texttt{llm\_call\_duration\_seconds}, \texttt{llm\_token\_total}.
+    \item \texttt{embedding\_duration\_seconds}.
+    \item \texttt{vector\_search\_duration\_seconds}.
+\end{itemize}
+
+\textbf{Business metrics:}
+\begin{itemize}
+    \item \texttt{document\_uploaded\_total}, \texttt{video\_uploaded\_total}.
+    \item \texttt{content\_generated\_total} (label type=card/quiz).
+    \item \texttt{content\_published\_total},
+          \texttt{content\_rejected\_total}.
+    \item \texttt{quiz\_attempts\_total}, \texttt{chat\_messages\_total}.
+    \item \texttt{lo\_coverage\_ratio} (gauge per course).
+\end{itemize}
+
+\textbf{System metrics:} CPU, RAM, disk, and network of containers/host
+(node\_exporter, cAdvisor).
+
+Grafana dashboards contain panels for each service plus golden signals
+(latency, throughput, error rate, saturation).
+
+\subsection{Distributed Tracing}
+
+OpenTelemetry SDK is used in each service, with automatic instrumentation
+for HTTP/gRPC/SQL clients. Traces propagate through the
+\texttt{traceparent} header.
+
+\textbf{Main spans:}
+\begin{itemize}
+    \item HTTP request entry span.
+    \item Use case execution span.
+    \item Adapter call span (DB, Qdrant, Neo4j, LLM, MinIO).
+    \item Worker job span.
+\end{itemize}
+
+Traces are exported through OTLP to Tempo (lightweight) or Jaeger. Trace
+ID is attached to logs for cross-reference during debugging.
+
+\subsection{AI Cost Monitoring}
+
+LLM calls are the largest cost source. The system tracks:
+
+\begin{itemize}
+    \item \texttt{llm\_token\_input\_total}, \texttt{llm\_token\_output\_total}
+          (counter, labels model/provider/use\_case).
+    \item \texttt{llm\_cost\_usd\_total} (counter, computed from provider
+          pricing table).
+    \item Per-user, per-course, per-day breakdown in PostgreSQL table
+          \texttt{llm\_usage\_logs}.
+\end{itemize}
+
+Cost spike alert: Prometheus rule
+\texttt{rate(llm\_cost\_usd\_total[1h]) > threshold}.
+
+\textbf{Cost optimization:}
+\begin{itemize}
+    \item Cache prompt results when input hash is identical for
+          deterministic generation.
+    \item Use smaller models (Gemini Flash) for tasks that do not require
+          large models.
+    \item Limit context window: send only top-N chunks rather than the
+          full document.
+\end{itemize}
+
+\subsection{Error Tracking}
+
+Sentry integrates with \texttt{web-bff} and \texttt{core-api}:
+
+\begin{itemize}
+    \item Capture exceptions with stack trace + context (user, route).
+    \item Group by fingerprint and deduplicate.
+    \item Alert by email/Slack when error rate spikes.
+\end{itemize}
+
+Worker exceptions are structured-logged and pushed into the dead letter
+queue, with an internal endpoint for inspection and requeue.
+
+\section{Deployment Details}
+\label{appendix:deployment-details}
+
+\subsection{Docker Compose Topology}
+
+The project is deployed with Docker Compose using two stacks:
+
+\textbf{Stack \texttt{ai-system}} (main system):
+\begin{itemize}
+    \item Services: \texttt{web-bff}, \texttt{core-api},
+          \texttt{chat-service}, \texttt{document-worker},
+          \texttt{enrichment-worker}, \texttt{video-worker}.
+    \item Data: \texttt{postgres}, \texttt{redis}, \texttt{qdrant},
+          \texttt{neo4j}, \texttt{minio}.
+    \item Observability: \texttt{prometheus}, \texttt{grafana},
+          \texttt{tempo}, \texttt{loki}.
+    \item Total: around 15 containers.
+\end{itemize}
+
+\textbf{Stack \texttt{lms}} (optional in demo/dev environment):
+\begin{itemize}
+    \item Canvas LMS is used as the LTI Platform in internal demo
+          scenarios; it can be Canvas Cloud or self-hosted Canvas Open
+          Source.
+    \item If self-hosted Canvas is used, LMS has its own database and does
+          not share a database with \texttt{ai-system}.
+\end{itemize}
+
+In production or real pilot environments, Canvas is usually an external
+system; only \texttt{web-bff} needs to expose a public HTTPS endpoint to
+receive OIDC/LTI launches from Canvas. In self-hosted demos, the two
+stacks can communicate through the shared Docker network
+\texttt{lms\_shared}.
+
+\subsection{Network and Volume}
+
+\textbf{Network:}
+\begin{itemize}
+    \item \texttt{ai\_internal}: internal network among AI services, not
+          exposed externally.
+    \item \texttt{lms\_shared}: bridge between \texttt{ai-system} and
+          \texttt{lms}; only \texttt{web-bff} is exposed here.
+    \item \texttt{public}: only reverse proxy (Caddy) is exposed to the
+          host network.
+\end{itemize}
+
+\textbf{Volume:}
+\begin{itemize}
+    \item \texttt{pgdata}: PostgreSQL data, named volume, daily backup.
+    \item \texttt{minio-data}: object storage data, named volume.
+    \item \texttt{qdrant-storage}: vector data, named volume.
+    \item \texttt{neo4j-data}: graph data, named volume.
+    \item \texttt{redis-data}: AOF persistence, named volume.
+    \item \texttt{models}: BGE-M3 model weights (around 2GB), shared
+          read-only mount for \texttt{document-worker} and
+          \texttt{enrichment-worker}.
+\end{itemize}

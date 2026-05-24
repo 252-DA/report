@@ -1,0 +1,104 @@
+% !TeX root = ../main.tex
+\chapter{Detailed Interface Design}
+\label{appendix:ui-details}
+
+This appendix contains sitemap and screen-level interface descriptions.
+Chapter~\ref{chap:phan-tich-thiet-ke} keeps the UI/UX philosophy and one
+representative wireframe.
+
+\section{Sitemap}
+\label{appendix:ui-sitemap}
+
+The system has three UI surfaces aligned with the three human actors
+(Instructor, Learner, System Administrator).
+
+\textbf{Learner:}
+\begin{itemize}
+    \item \texttt{/learn/dashboard} -- progress overview.
+    \item \texttt{/learn/courses/\{id\}} -- list of lessons in a course.
+    \item \texttt{/learn/lessons/\{id\}} -- lesson card view.
+    \item \texttt{/learn/lessons/\{id\}/quiz} -- take quiz.
+    \item \texttt{/learn/lessons/\{id\}/video} -- video learning view.
+    \item \texttt{/learn/chat} -- AI Tutor Chatbot.
+    \item \texttt{/learn/progress} -- detailed progress by LO.
+\end{itemize}
+
+\textbf{Instructor:}
+\begin{itemize}
+    \item \texttt{/manage/dashboard} -- course, document, content statistics.
+    \item \texttt{/manage/documents} -- document list and upload.
+    \item \texttt{/manage/videos} -- video list and upload.
+    \item \texttt{/manage/curricula} -- syllabus ingestion, LO management.
+    \item \texttt{/manage/review} -- inbox of content requiring review.
+    \item \texttt{/manage/lessons/\{id\}/edit} -- edit and publish.
+    \item \texttt{/manage/analytics} -- learning analytics dashboard.
+\end{itemize}
+
+\textbf{System Administrator:} the admin surface intentionally reuses
+operational tools rather than building bespoke pages, since the
+administrator is responsible for AI quota, cost, and incident
+monitoring (Actor AC-05) rather than for academic content.
+
+\begin{itemize}
+    \item \texttt{/admin/lti-tools} -- LTI tool registration and
+          Developer Key configuration.
+    \item \texttt{/admin/quota} -- per-course and per-instructor AI
+          quota / cost budget configuration (FR-AD-04).
+    \item \textbf{Grafana} (separate HTTPS subdomain) -- operational
+          dashboards: error rate, latency, queue depth, LLM cost,
+          alert thresholds.
+    \item \textbf{Bull-board} (admin-only HTTP basic auth) -- BullMQ
+          queue inspection, failed-job inspection, and manual requeue.
+\end{itemize}
+
+\section{Instructor Dashboard}
+\label{appendix:ui-instructor-dashboard}
+
+The dashboard displays: number of processed documents, number of draft
+content items requiring review, percentage of LOs with supporting content
+(coverage), and the weakest students by LO. It supports quick actions:
+upload a new document, open review inbox, and generate quiz from chapter.
+
+The layout has three parts: a header with overview metrics (4--5 KPI
+cards), a middle section with review inbox and coverage chart, and a
+bottom recent-activity feed.
+
+\section{Learning UI}
+\label{appendix:ui-learning}
+
+\textbf{Card view:} each card displays title, 3--5 bullets, key insight,
+and source link to the original document page. Navigation supports tap to
+expand details, swipe, or Next/Prev buttons. A progress bar at the top
+shows card index / total.
+
+\textbf{Quiz view:} one question per screen. MCQ has 4 choices and tap to
+select. After submitting the whole lesson, the UI shows total score,
+right/wrong per question, explanation, and links to related cards for
+review.
+
+\section{Chatbot UI}
+\label{appendix:ui-chatbot}
+
+The chat interface is minimal: message bubbles (user on the right, bot on
+the left), inline citations (numbered circles, tap to view original
+chunk), streaming text with blinking caret during generation. The input
+box at the bottom has a suggestive placeholder (``Ask about this
+lesson...''). No fixed quick-reply suggestions are used to avoid
+dependency on rigid patterns.
+
+\section{Video Learning UI}
+\label{appendix:ui-video-learning}
+
+The main video player appears at the top, with timestamped transcript
+below (click to jump). Segments cut by the system are highlighted with
+segment titles. The right side shows cards related to the currently
+viewed segment and auto-updates by timestamp.
+
+\section{Review Interface}
+\label{appendix:ui-review}
+
+The review interface is the core UX for instructors. Each item (card or
+quiz) displays content, source chunk preview, and an ``AI-generated''
+badge. The three main actions are Approve (green), Edit (yellow), and
+Reject (red). Bulk actions support many items at once. Diff view tracks
+changes during editing, with an audit-log timeline on the side.
