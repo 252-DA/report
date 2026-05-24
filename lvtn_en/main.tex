@@ -138,7 +138,7 @@
 
 \fancyfoot[L]{\scriptsize LMS for Automatically Generating Micro-Content \& Quizzes Using Generative AI}
 \fancyfoot[C]{}
-\fancyfoot[R]{\scriptsize Page \thepage/\pageref{LastPage}}
+\fancyfoot[R]{\scriptsize \thepage}
 
 \renewcommand{\headrulewidth}{0.4pt}
 \renewcommand{\footrulewidth}{0.4pt}
@@ -163,7 +163,7 @@
   }%
   \fancyfoot[L]{\scriptsize LMS for Automatically Generating Micro-Content \& Quizzes Using Generative AI}%
   \fancyfoot[C]{}%
-  \fancyfoot[R]{\scriptsize Page \thepage/\pageref{LastPage}}%
+  \fancyfoot[R]{\scriptsize \thepage}%
   \renewcommand{\headrulewidth}{0.4pt}%
   \renewcommand{\footrulewidth}{0.4pt}%
 }
@@ -238,9 +238,12 @@
 
   {\footnotesize HO CHI MINH CITY, \the\year\par}
 \end{titlepage}
-\hypersetup{pageanchor=true}
 
-\newpage
+\clearpage
+\hypersetup{pageanchor=true}
+\pagenumbering{roman}
+\setcounter{page}{1}
+
 \include{frontmatter/loi_cam_doan}
 
 \newpage
@@ -250,20 +253,24 @@
 \include{frontmatter/tom_tat}
 
 \newpage
+\phantomsection
 \tableofcontents
 
 \newpage
-\listoftables
 \addcontentsline{toc}{chapter}{List of Tables}
+\listoftables
 
 \newpage
-\listoffigures
 \addcontentsline{toc}{chapter}{List of Figures}
+\listoffigures
 
 \newpage
 \include{frontmatter/danh_muc_viet_tat}
 
-\newpage
+\clearpage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
 \include{chapters/c1_gioi_thieu}
 
 \newpage
