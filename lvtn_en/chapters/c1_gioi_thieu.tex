@@ -419,44 +419,22 @@ to, and which concept needs review when they answer incorrectly.
 
 \section{Practical and Academic Significance}
 
-From a practical perspective, the thesis helps reduce instructors'
-workload in preparing digital learning materials. The system can
-automatically create draft Micro-content and quizzes from academic
-materials, while still preserving an instructor-review mechanism so that
-content quality remains under human control. This design also supports
-more diverse forms of assessment because quizzes can be generated,
-reviewed, edited, and aligned with the intended learning objectives before
-being published.
+Practically, the system reduces the effort instructors spend preparing
+digital materials: PDFs, slides, and lecture videos are converted into
+draft micro-content and quizzes that the instructor reviews, edits, and
+aligns with intended learning outcomes before publishing. Learners gain
+material that has been broken into smaller, focused units suited to
+limited study time, with quizzes that check understanding and
+explanations linked back to the original sources. For institutions, the
+hybrid deployment (external LLM API or locally hosted open-source
+model) lets cost, latency, and data-privacy trade-offs be tuned per
+deployment, including on-premise operation for sensitive content.
 
-For learners, the system transforms long learning materials into smaller
-units that can be reviewed quickly. Micro-content in the form of concise
-summaries, key concepts, and short quiz items is suitable for distributed
-learning habits and limited study time. Instead of reading a whole
-document again, learners can revisit focused learning units, check their
-understanding, and receive explanations connected to the original course
-materials.
-
-For educational institutions and training organizations, the system offers
-several operational benefits. By automating the initial creation of
-Micro-content and multiple-choice questions from PDF documents and lecture
-videos, it can reduce the time instructors spend preparing digital
-materials and lower the cost of hiring specialists to produce online
-learning content. This is especially useful for large-scale training
-programs such as MOOCs or corporate internal training. In addition, the
-hybrid deployment model supports both external AI APIs (such as OpenAI and
-Gemini) and locally hosted open-source models (such as LLaMA and
-Mistral), allowing institutions to balance cost, performance, and data
-privacy requirements. For sensitive materials, an on-premise deployment
-can keep data inside the organization's own infrastructure.
-
-From an academic perspective, the thesis illustrates how Micro-learning,
-Bloom taxonomy, RAG, Knowledge Graph, curriculum-aware GraphRAG, and
-Human-in-the-Loop Review can be combined in a complete EdTech system.
-Instead of studying question generation or chatbots in isolation, the
-thesis places these techniques into an end-to-end workflow: ingesting
-learning materials, retrieving source-grounded context, generating
-Micro-content and quizzes, reviewing AI outputs, integrating with Canvas,
-and evaluating the system.
+Academically, the thesis is notable for combining Micro-learning, Bloom
+taxonomy, RAG, Knowledge Graph, curriculum-aware GraphRAG, and
+human-in-the-loop review into a single end-to-end pipeline -- ingestion,
+source-grounded retrieval, generation, review, LMS integration, and
+evaluation -- rather than studying each technique in isolation.
 
 % \section{System Evaluation Criteria}
 
@@ -497,34 +475,19 @@ and evaluating the system.
 
 \section{Thesis Structure}
 
-The thesis is organized into 7 chapters:
-\begin{itemize}
-    \item \textbf{Chapter 1 --- Topic Overview:} presents the context,
-          motivation, research problem, objectives, scope, target users,
-          significance, and system evaluation criteria.
-    \item \textbf{Chapter 2 --- Survey and System Analysis:} surveys
-          current E-learning practices, existing AI solutions in education,
-          analyzes actors, user stories, use cases, functional requirements,
-          and non-functional requirements.
-    \item \textbf{Chapter 3 --- Theoretical and Technological Foundations:}
-          presents Micro-learning, Bloom taxonomy, LLMs, Generative AI, RAG,
-          GraphRAG, LMS integration standards (LTI 1.3), knowledge graph,
-          speech-to-text, AI orchestration, and the core technologies used.
-    \item \textbf{Chapter 4 --- System Analysis and Design:} presents the
-          overall architecture, Canvas/LTI integration, AI pipelines, data
-          design, Knowledge Graph, internal communication, and main
-          processing flows.
-    \item \textbf{Chapter 5 --- Implementation and Deployment:} describes the
-          development environment, frontend, backend, workers, Canvas
-          integration, operational configuration, and deployment packaging.
-    \item \textbf{Chapter 6 --- System Evaluation Framework:} presents
-          evaluation methods and planned criteria for functionality,
-          integration, retrieval, generated-content quality, performance,
-          and user experience.
-    \item \textbf{Chapter 7 --- Conclusion and Future Development:}
-          summarizes achieved results, remaining limitations, and future
-          development directions.
-\end{itemize}
+The thesis is organized into seven chapters: Topic Overview (this
+chapter), Survey and System Analysis
+(Chapter~\ref{chap:khao-sat-phan-tich-he-thong}), Theoretical and
+Technological Foundations
+(Chapter~\ref{chap:co-so-ly-thuyet-cong-nghe}), System Analysis and
+Design (Chapter~\ref{chap:phan-tich-thiet-ke}), Implementation and
+Deployment (Chapter~\ref{chap:hien-thuc-trien-khai}), System
+Evaluation Framework (Chapter~\ref{chap:system-evaluation}), and
+Conclusion and Future Development
+(Chapter~\ref{chap:ket-luan-huong-phat-trien}). Supporting material --
+detailed use case specifications, sequence/activity/class diagrams,
+OWASP risk analysis, UI breakdowns, and operational configuration --
+is collected in Appendices A--H.
 
 \section{Chapter Summary}
 

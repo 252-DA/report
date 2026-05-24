@@ -333,3 +333,285 @@ stacks can communicate through the shared Docker network
           read-only mount for \texttt{document-worker} and
           \texttt{enrichment-worker}.
 \end{itemize}
+
+\section{System Environment and Sizing}
+\label{appendix:system-environment}
+
+This section consolidates the operational sizing reference used by
+Chapter~\ref{chap:hien-thuc-trien-khai}: per-container RAM allocation,
+pinned versions of runtime and infrastructure components, the external
+network/domain footprint, and the resource/healthcheck declarations used
+in Docker Compose.
+
+\subsection{RAM Allocation per Container}
+\label{appendix:ram-allocation}
+
+Table~\ref{tab:ram-allocation} describes the expected RAM allocation for
+each service in the Docker Compose stack. The minimum dev load is around
+10GB, while the pilot load is around 20GB, excluding Docker daemon
+overhead ($\approx$ 500MB) and the host OS ($\approx$ 1--2GB).
+
+\begin{longtable}{|p{3.7cm}|p{1.5cm}|p{1.8cm}|p{6cm}|}
+\caption{Expected RAM allocation for each service.}
+\label{tab:ram-allocation} \\
+\hline
+\textbf{Service} & \textbf{Dev} & \textbf{Pilot} & \textbf{Configuration notes} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Service} & \textbf{Dev} & \textbf{Pilot} & \textbf{Configuration notes} \\
+\hline
+\endhead
+
+PostgreSQL 16/17 & 512MB & 2GB
+    & \texttt{shared\_buffers} 25\% of container RAM,
+      \texttt{work\_mem} 16MB, \texttt{effective\_cache\_size} 50\%. \\
+\hline
+Redis 7 & 256MB & 1GB
+    & AOF persistence; stores BullMQ queues and LTI sessions. \\
+\hline
+Qdrant 1.10+ & 512MB & 2GB
+    & Int8 quantization for dense vectors (4x smaller footprint);
+      \texttt{available\_on\_ram=true} for the hot collection. \\
+\hline
+Neo4j 5 Community & 1GB & 2GB
+    & Heap 50\%, page cache 50\%; \textit{property-based multi-tenancy},
+      not multi-instance. \\
+\hline
+MinIO & 256MB & 512MB & Small cache; data persists on disk. \\
+\hline
+\texttt{web-bff} (Next.js 14) & 256MB & 512MB
+    & SSR + LTI routes; node --max-old-space-size=384. \\
+\hline
+\texttt{core-api} (NestJS 10) & 512MB & 1GB
+    & DB connection pool 20, Outbox poller daemon. \\
+\hline
+\texttt{chat-service} (FastAPI) & 512MB & 1GB
+    & Uvicorn 2 workers, SSE streaming; concurrency 50/worker. \\
+\hline
+\texttt{document-worker} & 3GB & 4GB
+    & \textbf{BGE-M3 model $\approx$ 2GB} (FP16) plus parser/PDF buffer
+      1GB. \\
+\hline
+\texttt{enrichment-worker} & 512MB & 1GB
+    & I/O-bound, calls LLM APIs; does not load a model. \\
+\hline
+\texttt{video-worker} (Go) & 2GB & 4GB
+    & \textbf{Whisper model 1--1.5GB} plus FFmpeg subprocess buffer. \\
+\hline
+Prometheus & 256MB & 1GB & Scrape interval 15s; 7-day retention. \\
+\hline
+Grafana & 256MB & 512MB & UI only; does not store data. \\
+\hline
+Loki & 256MB & 1GB & Log aggregation with compactor. \\
+\hline
+Tempo & 256MB & 1GB & Trace storage; 10\% sampling. \\
+\hline
+Caddy & 64MB & 128MB & Reverse proxy + Let's Encrypt ACME. \\
+\hline
+\textbf{Total} & \textbf{$\approx$10GB} & \textbf{$\approx$20GB}
+    & Excludes Docker daemon and host OS overhead. \\
+\hline
+\end{longtable}
+
+\textbf{Scaling note:} If the pilot expands to $\geq 50$ concurrent
+students, Qdrant RAM should be increased to 4GB and PostgreSQL to 4GB;
+\texttt{chat-service} should scale to 3 replicas with 1GB per replica.
+When total load exceeds 32GB, PostgreSQL and Qdrant should be moved to
+managed services or separate nodes.
+
+\subsection{Pinned Technology Versions}
+\label{appendix:tech-versions}
+
+Table~\ref{tab:tech-versions} lists the pinned versions of runtime and
+infrastructure components in the pilot stack. Versions are selected by
+three criteria: (i) generally available for at least 6 months, (ii)
+supported by an active community, and (iii) compatible with Ubuntu
+22.04 LTS through official repositories (APT or official Docker Hub).
+
+\begin{longtable}{|p{4.3cm}|p{3.7cm}|p{5.5cm}|}
+\caption{Pinned technology versions for the pilot tier.}
+\label{tab:tech-versions} \\
+\hline
+\textbf{Component} & \textbf{Version} & \textbf{Notes} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Component} & \textbf{Version} & \textbf{Notes} \\
+\hline
+\endhead
+
+Host OS & Ubuntu Server 22.04 LTS & HWE 6.x kernel if a newer GPU is
+    required. \\
+\hline
+Docker Engine & 25.0+ & API 1.44, BuildKit enabled by default. \\
+\hline
+Docker Compose & v2.24+ & Supports \texttt{deploy.resources} for
+    non-swarm deployments. \\
+\hline
+\texttt{nvidia-container-}\allowbreak\texttt{toolkit} & 1.15+ & GPU passthrough for
+    \texttt{video-worker}. \\
+\hline
+Node.js & 20 LTS (Iron) & \texttt{web-bff} + \texttt{core-api}. \\
+\hline
+Next.js & 14.2+ & App Router + Server Actions + Streaming SSE. \\
+\hline
+NestJS & 10.3+ & Fastify adapter; module per bounded context. \\
+\hline
+Python & 3.11 & \texttt{document-worker}, \texttt{enrichment-worker},
+    \texttt{chat-service}. \\
+\hline
+FastAPI & 0.110+ & Native SSE streaming through
+    \texttt{StreamingResponse}. \\
+\hline
+Go & 1.22+ & \texttt{video-worker}; uses \texttt{goroutine} for the
+    FFmpeg pipeline. \\
+\hline
+PostgreSQL & 18 recommended & Native \texttt{uuidv7()} from 18;
+    on PG 16/17, install the \texttt{pg\_uuidv7} extension. \\
+\hline
+Redis & 7.2 & Streams + Pub/Sub for BullMQ. \\
+\hline
+Qdrant & 1.10+ & Hybrid search (dense + sparse) + payload index. \\
+\hline
+Neo4j & 5.x Community & Range Index for property-based multi-tenancy. \\
+\hline
+MinIO & RELEASE.2024-Q3+ & S3 API compatibility, presigned URLs. \\
+\hline
+BullMQ & 5.x & Queue + Worker + Sandbox processor. \\
+\hline
+BGE-M3 (embedding) & v1.0 & Multilingual + sparse + dense + ColBERT. \\
+\hline
+Whisper & \texttt{small}/\allowbreak\texttt{medium}/\allowbreak\texttt{large-v3} & Depends
+    on VRAM; fallback to OpenAI Whisper API. \\
+\hline
+Gemini API & \texttt{gemini-1.5-pro},
+    \texttt{gemini-1.5-flash} & Pro for cards/quizzes, Flash for
+    curriculum extraction. \\
+\hline
+Caddy & 2.7+ & Reverse proxy + automatic ACME. \\
+\hline
+Prometheus / Grafana / Loki / Tempo
+    & v2.x / v11.x / v3.x / v2.x & OpenTelemetry stack. \\
+\hline
+\end{longtable}
+
+\subsection{Network and Domain Requirements}
+\label{appendix:network-req}
+
+\begin{itemize}
+    \item \textbf{Inbound:} public 443/tcp for LTI launches from Canvas
+          and for instructor/student access. Port 80 only redirects
+          301 to HTTPS and does not serve real traffic.
+    \item \textbf{Outbound:} 443/tcp to Canvas (LTI AGS callback,
+          JWKS), Gemini API
+          (\texttt{generativelanguage.googleapis.com}), and the fallback
+          STT provider (OpenAI/AssemblyAI if configured).
+    \item \textbf{Internal Docker network:} \texttt{ai\_internal}
+          bridge, with \textit{no database container ports exposed to
+          the host} in production. Only \texttt{caddy} binds to the
+          host network.
+    \item \textbf{Domain name:} one subdomain with a valid SSL
+          certificate (Let's Encrypt through Caddy automatically), for
+          example \texttt{lvtn-ai.example.edu.vn}. Canvas only accepts
+          an LTI Tool with valid HTTPS; a self-signed certificate cannot
+          be used.
+\end{itemize}
+
+\subsection{Container Resource Limits}
+\label{appendix:container-limits}
+
+Each service declares \texttt{deploy.resources.limits} according to
+Table~\ref{tab:ram-allocation}. Example snippet for
+\texttt{document-worker}:
+
+\begin{lstlisting}[caption={Resource limit for \texttt{document-worker}.}]
+document-worker:
+  image: lvtn-ai/document-worker:${TAG}
+  deploy:
+    resources:
+      limits:
+        cpus: '2.0'
+        memory: 4G
+      reservations:
+        memory: 3G
+        devices:
+          - capabilities: [gpu]
+            count: 1
+            driver: nvidia
+  environment:
+    - EMBEDDING_PROVIDER=bge-m3-local
+    - LLM_PROVIDER=gemini
+\end{lstlisting}
+
+\subsection{Healthcheck and Restart Policy}
+\label{appendix:healthcheck}
+
+Every service has a healthcheck:
+
+\begin{itemize}
+    \item HTTP services (\texttt{web-bff}, \texttt{core-api},
+          \texttt{chat-service}): \texttt{GET /health} every 30s.
+    \item Workers: call \texttt{redis-cli PING} or expose a Prometheus
+          metrics port with endpoint \texttt{/healthz}.
+    \item Databases: use the built-in healthcheck of the image
+          (\texttt{pg\_isready}, \texttt{redis-cli ping},
+          \texttt{curl} to Qdrant \texttt{/healthz}).
+\end{itemize}
+
+\texttt{restart: unless-stopped} is used for every service except
+one-shot containers such as the migration runner.
+
+\subsection{Secret and Environment Variable Management}
+\label{appendix:secrets}
+
+\begin{itemize}
+    \item \textbf{Dev:} \texttt{.env.local} (gitignored), containing
+          dev-tier LLM API keys.
+    \item \textbf{CI:} GitHub Actions Secrets, injected into jobs
+          through \texttt{secrets.*}.
+    \item \textbf{Pilot:} a \texttt{.env} file on the VPS host with mode
+          \texttt{600}, never committed. It can later move to
+          \texttt{docker secret} or HashiCorp Vault in production.
+\end{itemize}
+
+Table~\ref{tab:env-vars} groups the main environment variables into
+five functional groups:
+
+\begin{longtable}{|p{3cm}|p{10.5cm}|}
+\caption{Main environment variables grouped by function.}
+\label{tab:env-vars} \\
+\hline
+\textbf{Group} & \textbf{Variables and description} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Group} & \textbf{Variables and description} \\
+\hline
+\endhead
+
+Data store
+    & \texttt{POSTGRES\_URL}, \texttt{REDIS\_URL}, \texttt{QDRANT\_URL},
+      \texttt{NEO4J\_URI/USER/PASSWORD},
+      \texttt{MINIO\_ENDPOINT/ACCESS\_KEY/SECRET\_KEY}. \\
+\hline
+Provider switching
+    & \texttt{LLM\_PROVIDER} (\texttt{gemini}/\texttt{openai}),
+      \texttt{EMBEDDING\_PROVIDER}
+      (\texttt{bge-m3-local}/\texttt{openai}),
+      \texttt{STT\_PROVIDER}
+      (\texttt{whisper-local}/\texttt{openai}/\texttt{assemblyai}),
+      \texttt{GEMINI\_API\_KEY}, \texttt{OPENAI\_API\_KEY}. \\
+\hline
+LTI / Canvas
+    & \texttt{LTI\_CLIENT\_ID}, \texttt{LTI\_DEPLOYMENT\_ID},
+      \texttt{LTI\_ISSUER}, \texttt{LTI\_JWKS\_URL}. \\
+\hline
+Internal JWT
+    & \texttt{BFF\_JWT\_PRIVATE\_KEY}, \texttt{BFF\_JWT\_PUBLIC\_KEY}
+      (Ed25519 key pair for BFF-to-Core JWT). \\
+\hline
+Observability
+    & \texttt{OTEL\_EXPORTER\_OTLP\_ENDPOINT}, \texttt{SENTRY\_DSN}. \\
+\hline
+\end{longtable}

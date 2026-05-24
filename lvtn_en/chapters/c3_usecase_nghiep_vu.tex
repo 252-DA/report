@@ -1289,181 +1289,6 @@ provide the richest context for Generative AI \cite{baltrusaitis2018multimodal}.
           quiz context.
 \end{itemize}
 
-\section{AI Orchestration Frameworks and Supporting Libraries}
-In complex Generative AI applications, a Large Language Model rarely works
-alone. To build a multimodal pipeline from video cutting and transcript
-reading to quiz generation, the system needs an ``orchestrator'' to
-coordinate data, manage memory, and connect tasks. AI Orchestration
-Frameworks solve this problem.
-
-\subsection{LangChain}
-LangChain is a leading open-source platform designed to simplify the
-development of LLM-based applications \cite{chase2022langchain}. In the
-LMS system, LangChain acts as a framework connecting models such as
-Whisper or GPT-4 with lecture data and internal databases. Core LangChain
-components applied in the system include:
-
-\begin{itemize}
-    \item[\textbf{a.}] \textbf{Document Loader:} \\
-    This is the first step in the data-processing flow. Document Loader
-    provides standard interfaces to extract data from many formats and
-    sources, such as TXT, JSON, PDF lecture slides, or video transcripts.
-    In the LMS context, loaders take raw data from speech recognition
-    (Whisper) and OCR, then normalize them into \texttt{Document} objects
-    containing text and metadata such as timestamps for later analysis.
-
-    \item[\textbf{b.}] \textbf{Retriever:} \\
-    This component is the heart of Retrieval-Augmented Generation
-    \cite{lewis2020retrieval}. When the LMS needs to create a quiz for a
-    video segment from minute 05:00 to 10:00, the Retriever finds and
-    extracts the correct transcript passages, slide content, and key
-    concepts for that time range from the Vector Store. This gives the LLM
-    accurate context and prevents hallucination during question generation.
-
-    \item[\textbf{c.}] \textbf{Prompt Template:} \\
-    Prompt Template parameterizes and reuses prompts sent to the LLM
-    \cite{white2023prompt}. Instead of rewriting prompts from scratch for
-    each video segment, the system uses dynamic templates. For example:
-    \textit{"Based on the lecture transcript: \{transcript\_segment\} and
-    board content: \{ocr\_data\}, create \{num\_questions\}
-    multiple-choice questions at difficulty \{difficulty\_level\}."}
-    LangChain injects these variables into the prompt before calling the
-    language model API.
-
-    \item[\textbf{d.}] \textbf{Chain Orchestration:} \\
-    This mechanism links multiple sequential or parallel processing steps
-    into a complete pipeline \cite{wu2022promptchainer}. In the
-    micro-content generation system, a typical LLMChain proceeds as:
-    (1) load data from Document Loader $\rightarrow$
-    (2) Retriever fetches relevant context $\rightarrow$
-    (3) pass data into Prompt Template $\rightarrow$
-    (4) send to the LLM for question generation $\rightarrow$
-    (5) pass through an Output Parser to coerce output into a standard
-    format such as JSON before saving it to the LMS database. Chains allow
-    the process to be automated without manual intervention between steps.
-\end{itemize}
-
-\subsection{LangGraph}
-Although LangChain provides powerful tools for connecting tasks (Chains),
-those chains are usually linear and less flexible for complex scenarios
-requiring loops. LangGraph extends the LangChain ecosystem by allowing LLM
-applications to be built as cyclic graphs with complex state management
-\cite{langgraph2024}. In the LMS system, LangGraph provides
-infrastructure for reliable automated content generation through three
-core properties:
-
-\begin{itemize}
-    \item[\textbf{a.}] \textbf{Stateful Workflow:} \\
-    Unlike stateless chains, LangGraph maintains a Global State throughout
-    execution. In the LMS context, this state may store the original
-    video, the transcript being processed, extracted key concepts, and the
-    generated quiz questions. As data passes through nodes in the graph,
-    for example from video cutting to question generation, this state is
-    continuously updated and inherited, so the system does not lose
-    context in long multi-step workflows.
-
-    \item[\textbf{b.}] \textbf{Agentic Pipeline:} \\
-    LangGraph allows the system to be designed as multiple autonomous AI
-    Agents that coordinate with each other \cite{wang2023survey}. Instead
-    of using one LLM for everything, the LMS can split tasks into: (1)
-    \textit{Extraction Agent} for semantic analysis and video cutting, (2)
-    \textit{Quiz Generation Agent} for multiple-choice question
-    generation, and (3) \textit{Reviewer Agent} for quality control. These
-    agents can call tools and communicate, creating a specialized and more
-    optimized processing pipeline.
-
-    \item[\textbf{c.}] \textbf{Branching Flow:} \\
-    The major strength of graphs is conditional edges. Instead of always
-    moving from A to B, the system can branch or loop based on evaluation
-    results \cite{wei2022chain}. For example, after the Quiz Generation
-    Agent creates a question, the workflow moves to review. If the
-    question lacks an answer or does not follow the source transcript, the
-    workflow loops back to the generation node with an error message for
-    the LLM to repair. This self-correction branching helps ensure that
-    micro-content and quizzes satisfy pedagogical quality before entering
-    the LMS database.
-\end{itemize}
-
-\subsection{Document Processing Libraries}
-Besides audio and visual data from video, the LMS system often needs to
-process attached documents such as lecture slides (PowerPoint), textbooks
-(PDF), or text documents (Word). Document Processing Libraries extract raw
-text, tables, and metadata from these files, converting them into a
-structured format for the RAG system to generate quiz questions.
-
-\begin{itemize}
-    \item[\textbf{a.}] \textbf{Docling:} \\
-    Docling is an advanced open-source library developed by IBM for
-    parsing and understanding complex documents \cite{docling2024}. In an
-    LMS, Docling is especially useful for PDFs containing mathematical
-    formulas, scientific tables, and diagrams. It can extract and preserve
-    document structure in Markdown or JSON, helping the LLM maintain
-    context when reading complex academic content.
-
-    \item[\textbf{b.}] \textbf{Unstructured:} \\
-    Unstructured is a standard library in the RAG ecosystem for extracting
-    unstructured data \cite{unstructured2024}. It provides unified APIs to
-    read dozens of formats such as HTML, PDF, TXT, and EPUB. In the
-    micro-content generation system, Unstructured works well with
-    LangChain for Document Chunking, splitting textbooks into meaningful
-    short passages so the Vector Database can retrieve them easily.
-
-    \item[\textbf{c.}] \textbf{PyMuPDF:} \\
-    PyMuPDF is a high-performance PDF processing library based on the
-    MuPDF engine \cite{mckennon2024pymupdf}. Its strength in the LMS
-    pipeline is very fast text extraction and direct rendering of PDF
-    pages into image frames. The system can use PyMuPDF to extract text
-    from PDF slides and align it with video display time.
-
-    \item[\textbf{d.}] \textbf{python-docx:} \\
-    This is the standard Python library for creating and updating
-    Microsoft Word (.docx) files \cite{python_docx2024}. In this system,
-    it has two purposes: (1) read and extract scripts or lesson plans
-    uploaded by instructors; (2) export generated results, for example a
-    set of 50 multiple-choice questions with answers, into a formatted
-    Word file so instructors can download and manually edit them if
-    needed.
-
-    \item[\textbf{e.}] \textbf{PPTX Parser (python-pptx):} \\
-    Lecture slides are a core knowledge source. \texttt{python-pptx}
-    allows the system to inspect .pptx files and extract text from each
-    Text Box and Speaker Notes on each slide \cite{python_pptx2024}. This
-    data is then aligned with the video transcript to create a highly
-    accurate multimodal learning context.
-\end{itemize}
-
-\subsection{Video Processing Libraries}
-After AI Agents such as LLMs analyze semantics and decide the video cut
-points, for example cutting from second 120 to 340 to form micro-content
-lesson 1, the system needs low-level tools to execute heavy media-file
-processing.
-
-\begin{itemize}
-    \item[\textbf{a.}] \textbf{FFmpeg:} \\
-    FFmpeg is the ``gold standard'' in multimedia processing
-    \cite{tomar2006converting}. In the LMS system, FFmpeg runs at the
-    operating-system level and performs the heaviest tasks at high speed
-    with efficient resource usage: extracting the audio stream (.wav) from
-    the original lecture video (.mp4) for speech recognition, or extracting
-    batches of frames for Computer Vision analysis.
-
-    \item[\textbf{b.}] \textbf{MoviePy:} \\
-    MoviePy is a Python library providing a high-level, easy-to-use API
-    around the FFmpeg engine \cite{moviepy2024}. The system uses MoviePy
-    to execute automatic subclip cutting, video concatenation, fade-in and
-    fade-out effects, and insertion of text or watermarks such as the
-    university logo or micro-lesson title over the output video before
-    storing it in LMS storage.
-
-    \item[\textbf{c.}] \textbf{Whisper (Library Integration):} \\
-    Besides being an AI model, Whisper is also available as the open-source
-    Python library \texttt{openai-whisper} \cite{radford2023robust}. This
-    library integrates closely with PyTorch and FFmpeg, allowing the system
-    to programmatically load models to GPU, set decoding parameters,
-    perform language detection, and return JSON objects containing
-    transcripts with detailed word-level timestamps.
-\end{itemize}
-
 \section{Technology Selection Rationale}
 \label{sec:technology-selection-rationale}
 
@@ -1510,6 +1335,18 @@ foundations.
     \item \textbf{Docker} \cite{merkel2014docker}: selected to package the
           mixed runtime stack consistently across local and deployment
           environments.
+    \item \textbf{Document parsers (PyMuPDF, Docling, python-pptx,
+          python-docx)} \cite{mckennon2024pymupdf,docling2024,python_pptx2024,python_docx2024}:
+          selected as a complementary stack because instructor materials
+          arrive in heterogeneous formats; PyMuPDF handles fast text PDF
+          extraction, Docling preserves layout for math/table-heavy
+          documents, and the python-pptx/python-docx pair covers Office
+          inputs.
+    \item \textbf{FFmpeg + Whisper} \cite{tomar2006converting,radford2023robust}:
+          selected for the video pipeline because FFmpeg gives stable
+          OS-level media manipulation and Whisper provides robust
+          word-level timestamps required for transcript-aligned
+          micro-content cutting.
 \end{itemize}
 
 These choices are not the research contribution by themselves. Their role

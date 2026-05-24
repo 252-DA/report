@@ -598,93 +598,48 @@ This is the space targeted by the proposed system.
 
 \subsection{Approach Analysis for the Proposed System}
 
+Three approaches were considered before settling on the AI Extension
+Layer model.
+
 \subsubsection*{a. Building a complete LMS from scratch}
 
-The first approach is to build a new LMS from the ground up, including user
-management, courses, content, quizzes, gradebook, discussions, notifications,
-and analytics. Its advantage is full control over product design and data
-architecture.
-
-However, the disadvantage is a much larger development scope. Building a
-complete LMS requires many foundational features that are not directly related
-to the main contribution of the thesis. If too much effort is spent on the LMS
-core, fewer resources remain for RAG, micro-content generation, quiz
+This option offers full control over product design and data
+architecture but pulls a large share of the team's effort into
+re-implementing baseline LMS features (users, courses, gradebook,
+notifications, analytics), which are not the contribution of the
+thesis. Less effort would then remain for RAG, micro-content/quiz
 generation, curriculum mapping, and AI safety.
 
 \subsubsection*{b. Integrating AI into an open-source LMS}
 
-The second approach is to choose an open-source LMS such as Moodle, Canvas Open
-Source, or Open edX, then develop plugins or modify the core to add AI. This
-reuses an existing LMS and allows deeper customization than closed commercial
-platforms.
+Modifying Moodle, Canvas Open Source, or Open edX reuses an existing
+LMS and allows deeper customization than closed platforms, but
+modifying core code raises maintenance cost across version upgrades,
+and standalone plugins tend to produce a fragmented experience.
+Plugin architectures also differ across LMSs, so a platform change
+later would require substantial rework.
 
-However, modifying LMS core increases maintenance cost and complicates version
-upgrades. If many separate plugins are developed, the user experience may be
-fragmented. In addition, each LMS has a different plugin architecture, so
-migrating to another platform requires substantial work.
+\subsubsection*{c. Building an AI Extension Layer for LMS (selected)}
 
-\subsubsection*{c. Building an AI Extension Layer for LMS}
+The selected approach is to build an independent AI layer integrated
+with the LMS through LTI 1.3 / LTI Advantage
+\cite{lti-advantage}. Canvas continues to own LMS responsibilities
+(courses, users, roles, assignments, gradebook); the proposed system
+owns AI responsibilities: document/video ingestion, micro-content and
+quiz generation, embedding and semantic retrieval, the RAG-based AI
+Tutor, the human-in-the-loop review pipeline, asynchronous progress
+tracking, and grade passback when required.
 
-The selected approach is to build an independent AI layer that integrates with
-the LMS through LTI 1.3 / LTI Advantage \cite{lti-advantage}. In this model,
-Canvas LMS still handles core LMS functions such as courses, users, roles,
-assignments, and gradebook. The proposed system handles AI functions:
-
-\begin{itemize}
-    \item Upload and process documents / videos.
-    \item Generate micro-content, flashcards, and quizzes.
-    \item Store embeddings and perform semantic retrieval.
-    \item Provide an RAG-based AI Tutor Chatbot.
-    \item Manage content review and publishing.
-    \item Track processing progress with asynchronous jobs and streaming
-          updates.
-    \item Record learning results and synchronize quiz scores to the LMS when
-          needed.
-\end{itemize}
-
-This approach has several advantages:
-
-\begin{itemize}
-    \item \textbf{Reduced LMS-core scope.} The system does not reimplement the
-          complete LMS feature set.
-    \item \textbf{Better integration potential.} LTI is a common standard
-          between LMSs and external tools, enabling future expansion to other
-          LMSs.
-    \item \textbf{Clear responsibility separation.} The LMS manages the class;
-          the AI Extension Layer handles AI pipelines and micro-learning
-          experiences.
-    \item \textbf{Better AI data control.} Documents, chunks, embeddings,
-          generated results, and review states are managed in the AI system.
-    \item \textbf{Fit with the research direction.} The thesis can focus on
-          document processing, RAG, structured generation, review workflow,
-          security, and observability.
-\end{itemize}
-
-\subsubsection*{d. Rationale for the selected approach}
-
-Based on the survey, the proposed system selects the \textbf{AI Extension Layer
-for Canvas LMS} model. This balances practicality and research value: it reuses
-an existing LMS while allowing a specialized AI pipeline to be designed
-independently.
-
-With this approach, the main contribution is not creating another LMS, but
-building an AI layer capable of:
-
-\begin{itemize}
-    \item transforming academic documents and lecture videos into structured
-          micro-content;
-    \item generating quizzes with explanations, metadata, and Learning Outcome
-          links;
-    \item providing a chatbot that retrieves from course materials;
-    \item supporting instructor review before publishing;
-    \item integrating with Canvas through LTI 1.3;
-    \item satisfying security, cost-control, and observability requirements.
-\end{itemize}
-
-Thus, the proposed system addresses the gap between two existing solution
-groups: LMSs that are strong in administration but whose AI remains fragmented,
-and AI learning tools that are strong in generation but lack official LMS
-integration.
+This option keeps the LMS-core scope small, provides a clear
+responsibility boundary between LMS and AI extension, gives the team
+full control over AI data (documents, chunks, embeddings, generated
+content, review state), and remains portable across LMSs that follow
+LTI 1.3 -- letting the thesis focus on RAG, structured generation,
+review workflow, security, and observability rather than on
+reimplementing classroom administration. It therefore closes the gap
+between LMSs that are strong in administration but whose AI is
+fragmented and AI tools that are strong in generation but lack
+official LMS integration.
 
 \section{System Actor Analysis}
 \label{sec:phan-tich-tac-nhan-he-thong}
@@ -1189,292 +1144,57 @@ UC-AD-03 & Configure LMS integration & US-AD-01; LTI/OIDC configuration & The ad
 \subsection{Detailed Specifications of Main Use Cases}
 \label{subsec:main-use-case-specs}
 
-The seven main use cases below are specified in full because they
+The seven main use cases listed in Table~\ref{tab:main-uc-summary}
 exercise the load-bearing architectural decisions of the thesis: LTI
 integration, the document/AI pipeline, the human-in-the-loop review
-gate, and the RAG-grounded learner experience. The remaining eleven
-secondary use cases are specified with the same template in
+gate, the publish gate, and the RAG-grounded learner experience. Each
+specification uses the same template (Primary actor, Secondary actors,
+Preconditions, Main flow, Postconditions, Alternate flows); the full
+specifications are placed in
+Appendix~\ref{appendix:main-use-case-reference} to keep this chapter
+focused on requirement-level scope. Secondary use cases are listed in
 Appendix~\ref{appendix:use-case-reference}.
 
-\subsubsection*{UC-IN-01 -- Upload Learning Resources}
+\begin{table}[H]
+    \centering
+    \caption{Main use cases referenced in
+    Appendix~\ref{appendix:main-use-case-reference}.}
+    \label{tab:main-uc-summary}
+    \begin{tabular}{|p{2.4cm}|p{4.4cm}|p{7.5cm}|}
+        \hline
+        \textbf{Code} & \textbf{Name} & \textbf{Architectural decision exercised} \\
+        \hline
+        UC-IN-01 & Upload Learning Resources
+            & Async ingestion handoff between BFF, core, and the AI
+              pipeline; presigned-URL upload to object storage. \\
+        \hline
+        UC-IN-03 & Review AI Content
+            & Human-in-the-loop gate before publishing; citation-backed
+              edit with audit log. \\
+        \hline
+        UC-IN-04 & Publish Learning Resources
+            & Publish transition with outbox-driven graph sync and
+              learner-visibility flip. \\
+        \hline
+        UC-LE-01 & Learn Micro-content and Videos
+            & Learner consumption of cards plus video-anchored timestamps;
+              progress event capture. \\
+        \hline
+        UC-LE-03 & Take Quizzes
+            & Quiz attempt, automatic grading, and LTI AGS score passback
+              to Canvas. \\
+        \hline
+        UC-LE-04 & Ask AI Tutor
+            & RAG-grounded streaming answer with hybrid retrieval and
+              refusal on insufficient sources. \\
+        \hline
+        UC-LMS-01 & LTI Launch
+            & OIDC + LTI 1.3 launch, JWT verification, and session +
+              user/course upsert. \\
+        \hline
+    \end{tabular}
+\end{table}
 
-\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
-\hline
-\textbf{Field} & \textbf{Specification} \\
-\hline
-\endhead
-Primary actor & Instructor (AC-01) \\
-\hline
-Secondary actors & Canvas LMS (LTI launch context), AI Pipeline (triggered) \\
-\hline
-Preconditions & Instructor launched the tool from Canvas with role
-    \texttt{Instructor}; an internal session exists; the target course
-    is bound via \texttt{lms\_course\_ref}. \\
-\hline
-Main flow &
-    1.\ Instructor selects PDF/DOCX/PPTX (or video) on the upload page.
-    2.\ \texttt{web-bff} requests an upload session from \texttt{core-api}.
-    3.\ \texttt{core-api} creates a \texttt{documents} row in status
-    \texttt{UPLOADING} and returns a MinIO presigned URL.
-    4.\ Browser uploads the file directly to MinIO.
-    5.\ \texttt{web-bff} confirms the upload; \texttt{core-api} flips
-    status to \texttt{QUEUED} and publishes
-    \texttt{DocumentUploaded}/\texttt{VideoUploaded} on BullMQ. \\
-\hline
-Postconditions & A row exists in PostgreSQL, the file lives in MinIO,
-    and the document/video pipeline (UC-IN-02) is triggered
-    asynchronously. \\
-\hline
-Alternate flows &
-    \emph{A1} - Invalid file type or size: \texttt{core-api} returns
-    HTTP 422; status set to \texttt{ERROR}; instructor sees an inline
-    error.
-    \emph{A2} - Upload aborted by browser: the presigned URL expires;
-    the row remains in \texttt{UPLOADING} and is garbage-collected by a
-    scheduled job after 24h.
-    \emph{A3} - Syllabus upload: the curriculum extractor creates a
-    draft Course/Chapter/LO structure for instructor confirmation.
-    \emph{A4} - Video upload: \texttt{VideoUploaded} starts transcript
-    extraction and timestamp-based segment processing. \\
-\hline
-\end{longtable}
-
-\subsubsection*{UC-IN-03 -- Review AI Content}
-
-\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
-\hline
-\textbf{Field} & \textbf{Specification} \\
-\hline
-\endhead
-Primary actor & Instructor (AC-01) \\
-\hline
-Preconditions & At least one card or quiz item exists with status
-    \texttt{GENERATED\_DRAFT} or \texttt{CHANGES\_REQUESTED} for a
-    course owned by the instructor. \\
-\hline
-Main flow &
-    1.\ Instructor opens \texttt{/manage/review}; \texttt{web-bff}
-    fetches the review inbox grouped by lesson.
-    2.\ Instructor opens a draft item; the system shows content plus
-    citations (source chunks / video timestamps).
-    3.\ Instructor edits inline; \texttt{core-api} persists the change
-    and writes a \texttt{review\_audit\_logs} row.
-    4.\ Instructor can add a manual quiz item or request selective
-    regeneration for one card, section, or quiz set.
-    5.\ Instructor chooses Approve, Request Changes, or Reject.
-    6.\ \texttt{core-api} transitions the status accordingly and
-    records the actor and diff in audit log. \\
-\hline
-Postconditions & Item is in \texttt{APPROVED} (eligible to publish),
-    \texttt{CHANGES\_REQUESTED} (returned for regeneration), or
-    \texttt{REVIEWING} (still in progress). Audit log captures all
-    transitions. \\
-\hline
-Alternate flows &
-    \emph{A1} - Instructor requests regeneration: a new
-    \texttt{ContentGenerationRequested} event is enqueued; the old
-    draft is archived.
-    \emph{A2} - Bulk approve: instructor selects multiple items; the
-    same flow runs in a single transaction. \\
-\hline
-\end{longtable}
-
-\subsubsection*{UC-IN-04 -- Publish Learning Resources}
-
-\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
-\hline
-\textbf{Field} & \textbf{Specification} \\
-\hline
-\endhead
-Primary actor & Instructor (AC-01) \\
-\hline
-Secondary actor & Canvas LMS (receives published resource via LTI Deep
-    Linking when applicable). \\
-\hline
-Preconditions & All required cards/quiz items in the target Lesson are
-    in status \texttt{APPROVED}. \\
-\hline
-Main flow &
-    1.\ Instructor clicks Publish on a Lesson.
-    2.\ \texttt{core-api} runs one PostgreSQL transaction:
-    update status \texttt{APPROVED} $\to$ \texttt{PUBLISHED}, insert
-    \texttt{outbox\_events} (\texttt{CardPublishedEvent} /
-    \texttt{QuizPublishedEvent}).
-    3.\ Outbox Poller dispatches a graph-sync job; worker MERGEs
-    \texttt{Card}/\texttt{QuizItem} nodes into Neo4j with
-    \texttt{EXPLAINS}/\texttt{ASSESSES} edges.
-    4.\ Updates chunk Qdrant payload visibility to
-    \texttt{all} so learners can retrieve them. \\
-\hline
-Postconditions & Learners can access the published content; the
-    Knowledge Graph is eventually consistent with PostgreSQL. \\
-\hline
-Alternate flows &
-    \emph{A1} - Not all items approved: Publish button is disabled
-    with explanation.
-    \emph{A2} - Unpublish: a reverse transition is recorded; visibility
-    rolls back to \texttt{instructor} only. \\
-\hline
-\end{longtable}
-
-\subsubsection*{UC-LE-01 -- Learn Micro-content and Videos}
-
-\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
-\hline
-\textbf{Field} & \textbf{Specification} \\
-\hline
-\endhead
-Primary actor & Learner (AC-02) \\
-\hline
-Preconditions & Learner launched the tool from Canvas with role
-    \texttt{Learner}; at least one Lesson or video segment in the course
-    is \texttt{PUBLISHED}. \\
-\hline
-Main flow &
-    1.\ Learner opens \texttt{/learn/lessons/\{id\}}; \texttt{web-bff}
-    fetches published cards and optional video segment metadata.
-    2.\ System displays cards in order; if the lesson has video
-    timestamps, the player shows markers linked to the corresponding
-    cards.
-    3.\ \texttt{web-bff} reports view events to
-    \texttt{learning\_events} for progress tracking.
-    4.\ Learner can flip a card into flashcard mode and persist
-    mastered / review-again state, or jump from a card to the matching
-    video timestamp. \\
-\hline
-Postconditions & \texttt{learning\_events} and
-    \texttt{flashcard\_reviews} updated; learner sees an updated
-    progress indicator. \\
-\hline
-Alternate flows &
-    \emph{A1} - Learner leaves mid-way: last position is autosaved;
-    next launch resumes from there. \\
-\hline
-\end{longtable}
-
-\subsubsection*{UC-LE-03 -- Take Quizzes}
-
-\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
-\hline
-\textbf{Field} & \textbf{Specification} \\
-\hline
-\endhead
-Primary actor & Learner (AC-02) \\
-\hline
-Secondary actor & Canvas LMS (receives score via LTI AGS when the
-    activity is gradable). \\
-\hline
-Preconditions & Quiz items in \texttt{PUBLISHED} status exist for the
-    selected Lesson; a corresponding \texttt{lti\_line\_items} row
-    exists if AGS passback is enabled. \\
-\hline
-Main flow &
-    1.\ Learner opens \texttt{/learn/lessons/\{id\}/quiz}.
-    2.\ Quiz items shown one by one; learner answers; system records
-    \texttt{quiz\_attempts} with chosen answer.
-    3.\ On submit, system grades and shows immediate feedback +
-    explanation per item.
-    4.\ If AGS-linked, \texttt{core-api} posts the score to
-    \texttt{lti\_line\_items.lms\_line\_item\_url}; status flips
-    \texttt{PENDING} $\to$ \texttt{POSTED}. \\
-\hline
-Postconditions & \texttt{quiz\_attempts} captures the score and
-    grading; Canvas Gradebook reflects the score within $\leq 5$
-    seconds. \\
-\hline
-Alternate flows &
-    \emph{A1} - AGS POST fails: status \texttt{FAILED}; a retry job is
-    scheduled.
-    \emph{A2} - Quiz not gradable: skip AGS; status
-    \texttt{NOT\_REQUIRED}. \\
-\hline
-\end{longtable}
-
-\subsubsection*{UC-LE-04 -- Ask AI Tutor}
-
-\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
-\hline
-\textbf{Field} & \textbf{Specification} \\
-\hline
-\endhead
-Primary actor & Learner (AC-02) \\
-\hline
-Secondary actor & LLM Provider (AC-04) -- supplies the streamed
-    answer. \\
-\hline
-Preconditions & Course has at least one \texttt{PUBLISHED} content
-    item; Qdrant has corresponding chunks with
-    \texttt{visibility=all}. \\
-\hline
-Main flow &
-    1.\ Learner types a question in the chat UI.
-    2.\ \texttt{web-bff} requests a short-lived JWT from
-    \texttt{core-api}; the JWT carries
-    \texttt{allowed\_lo\_ids}/\texttt{allowed\_document\_ids}.
-    3.\ \texttt{web-bff} opens SSE to \texttt{chat-service} with the
-    JWT and question.
-    4.\ \texttt{chat-service} runs hybrid retrieval on Qdrant (dense +
-    sparse + RRF), graph-aware rerank on Neo4j, then calls the LLM
-    streaming.
-    5.\ Tokens stream back through SSE to the browser with inline
-    citations. \\
-\hline
-Postconditions & \texttt{chat\_messages} stores question, answer,
-    \texttt{chunks\_used}, and latency. \\
-\hline
-Alternate flows &
-    \emph{A1} - Retrieval returns no relevant chunks: chat-service
-    replies ``insufficient source material'' rather than fabricating
-    an answer (refusal rule).
-    \emph{A2} - LLM rate-limit/error: client receives an SSE error
-    event and can retry. \\
-\hline
-\end{longtable}
-
-\subsubsection*{UC-LMS-01 -- LTI Launch}
-
-\begin{longtable}{|p{3.2cm}|p{10.3cm}|}
-\hline
-\textbf{Field} & \textbf{Specification} \\
-\hline
-\endhead
-Primary actor & Canvas LMS (AC-03) -- initiates the launch on behalf
-    of a Canvas user. \\
-\hline
-Secondary actors & Instructor or Learner (AC-01/AC-02) -- the human
-    triggering the launch. \\
-\hline
-Preconditions & The system is registered in Canvas as an LTI 1.3 tool
-    with a Developer Key; the user is enrolled in the course. \\
-\hline
-Main flow &
-    1.\ User clicks the LTI activity in Canvas.
-    2.\ Canvas calls \texttt{/lti/login} with
-    \texttt{iss}, \texttt{client\_id}, \texttt{login\_hint}.
-    3.\ \texttt{web-bff} stores state/nonce in Redis and redirects to
-    Canvas \texttt{authorize\_redirect}.
-    4.\ Canvas authenticates the user, POSTs \texttt{id\_token} back
-    to \texttt{/lti/launch}.
-    5.\ \texttt{web-bff} verifies the JWT (issuer, audience, signature
-    via Canvas JWKS, exp, nonce, deployment\_id).
-    6.\ Claims (\texttt{sub}, \texttt{context.id}, \texttt{roles},
-    \texttt{custom.lesson\_id}) are extracted; \texttt{core-api}
-    upserts \texttt{lms\_user\_mappings},
-    \texttt{lms\_course\_ref}, \texttt{course\_memberships}.
-    7.\ Server-side session is created in Redis; HttpOnly cookie set;
-    user is redirected to the role-appropriate route. \\
-\hline
-Postconditions & The user has a valid internal session; user/course
-    rows are kept in sync with the latest LTI claims; subsequent gRPC
-    calls carry the BFF-signed internal JWT. \\
-\hline
-Alternate flows &
-    \emph{A1} - JWT validation fails: HTTP 401; session not created;
-    incident logged.
-    \emph{A2} - State/nonce mismatch: launch rejected to prevent
-    replay attacks. \\
-\hline
-\end{longtable}
 
 \section{Functional Requirements by Module}
 \label{sec:yeu-cau-chuc-nang-theo-module}
