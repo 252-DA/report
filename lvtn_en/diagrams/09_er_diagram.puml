@@ -4,7 +4,7 @@ skinparam defaultFontName Arial
 skinparam defaultFontSize 10
 skinparam EntityBackgroundColor #EBF5FB
 
-title Entity-Relationship Diagram - PostgreSQL Schema (31 tables)
+title Entity-Relationship Diagram - PostgreSQL Schema (31 core tables + 2 concept extensions)
 
 ' ===== Subsystem 1: Identity & LMS Integration =====
 entity "lms_user_mappings" as users {

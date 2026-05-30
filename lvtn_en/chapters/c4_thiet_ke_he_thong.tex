@@ -689,16 +689,19 @@ therefore provided in Appendix~\ref{appendix:delete-saga}.
 \subsection{PostgreSQL Schema}
 \label{subsec:postgres-schema}
 
-PostgreSQL is the source of truth for all business data. The schema is
-divided into seven logical subsystems with a total of \textbf{31 tables}
-covering identity / LTI integration, ingestion, generated content,
-analytics, cost tracking, and async dispatch. The full DDL is listed in
+PostgreSQL is the source of truth for all business data. The core schema
+is divided into seven logical subsystems with a total of \textbf{31 core
+tables} covering identity / LTI integration, ingestion, generated
+content, analytics, cost tracking, and async dispatch. The implementation
+adds two extension tables, \texttt{concepts} and
+\texttt{chunk\_concepts}, to persist deterministic concept tags generated
+by the Python pipeline. The full DDL is listed in
 Appendix~\ref{appendix:db-schema}; this section summarizes the overall
 structure.
 
 \begin{table}[H]
     \centering
-    \caption{Seven logical subsystems in PostgreSQL (31 tables).}
+    \caption{Seven logical subsystems in PostgreSQL (31 core tables, plus 2 concept-tag extension tables).}
     \label{tab:postgres-tables}
     \begin{tabular}{|p{4cm}|p{9.5cm}|}
         \hline
@@ -715,7 +718,8 @@ structure.
         \hline
         3. Document Ingestion
             & \texttt{documents}, \texttt{chunks},
-              \texttt{chunk\_lo\_mappings} \\
+              \texttt{chunk\_lo\_mappings}; implementation extension:
+              \texttt{concepts}, \texttt{chunk\_concepts} \\
         \hline
         4. Video Pipeline
             & \texttt{videos}, \texttt{video\_segments},
@@ -1769,7 +1773,8 @@ level:
           Micro-Content, quiz, review/publish) orchestrated through
           Redis + BullMQ event-driven processing.
     \item \textbf{Five data stores} (Postgres, Qdrant, Neo4j, Redis,
-          MinIO), with PostgreSQL as the source of truth (31 tables);
+          MinIO), with PostgreSQL as the source of truth (31 core tables
+          plus 2 concept-tag extension tables);
           other stores are derived and synchronized through the outbox
           pattern.
     \item \textbf{Security} follows OWASP Top 10 for LLM Applications with

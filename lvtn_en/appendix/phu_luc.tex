@@ -720,7 +720,7 @@ readable while preserving an implementation-ready schema artifact. The
 file includes:
 
 \begin{itemize}
-    \item \textbf{31 tables for Phase 1:} identity and LMS integration
+    \item \textbf{31 core tables for Phase 1:} identity and LMS integration
           (lms\_user\_mappings, courses, lms\_course\_ref,
           lti\_resource\_links, lti\_line\_items, course\_memberships),
           curriculum (chapters, learning\_outcomes with academic-year
@@ -732,7 +732,13 @@ file includes:
           analytics and audit (quiz\_attempts, chat\_messages,
           learning\_events, review\_audit\_logs, llm\_usage\_logs,
           user\_llm\_quota, scope\_llm\_quota), asynchronous outbox,
-          content generation requests, and engine cache
+          content generation requests, and engine cache.
+    \item \textbf{2 implementation extension tables:}
+          \texttt{concepts} and \texttt{chunk\_concepts} persist
+          deterministic concept tags attached to chunks by the Python
+          pipeline. They are documented separately because the concept
+          graph is an implementation extension, not part of the core DDL
+          table count.
           (content\_generation\_requests, outbox\_events,
           youtube\_search\_cache).
     \item \textbf{Three Phase-2 extension tables for adaptive learning:}
@@ -784,13 +790,13 @@ Section~\ref{sec:state-machine-design}
 Partial indexes on status allow review-inbox and learner-serving queries
 to avoid full table scans.
 
-\textbf{Time-ordered primary keys (UUIDv7).} High-write tables --
-\texttt{chunks}, \texttt{learning\_events}, \texttt{chat\_messages},
-\texttt{outbox\_events} -- use UUIDv7 as primary keys. PostgreSQL 18+
-uses the built-in \texttt{uuidv7()} function; older versions use the
-\texttt{pg\_uuidv7} extension. The embedded timestamp makes B-Tree index
-inserts near-sequential, avoiding index-page fragmentation and improving
-bulk insert speed.
+\textbf{Time-ordered primary keys (UUIDv7).} All surrogate UUID primary
+keys use UUIDv7 defaults. PostgreSQL 18+ uses the built-in
+\texttt{uuidv7()} function; older versions require the
+\texttt{pg\_uuidv7} extension. Composite and natural primary keys remain
+unchanged. The embedded timestamp makes B-Tree index inserts
+near-sequential, avoiding index-page fragmentation and improving bulk
+insert speed.
 
 \textbf{Outbox pattern.} Every change that must be synchronized to Neo4j
 or downstream services is written to \texttt{outbox\_events} in the same

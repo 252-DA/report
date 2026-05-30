@@ -1,19 +1,17 @@
 -- ============================================================================
 -- COMPLETE DATABASE SPECIFICATION
 -- LMS for Automatically Generating Micro-Content and Quizzes Using Generative AI
--- Source of Truth: PostgreSQL (31 tables)
+-- Source of Truth: PostgreSQL (31 core tables + 2 implementation extensions)
 -- ============================================================================
 -- Environment requirements:
 --   - PostgreSQL 18+ (native uuidv7() function)
 --   - For PostgreSQL 16/17: install the pg_uuidv7 extension instead
---   - Extension pgcrypto (gen_random_uuid fallback if pg_uuidv7 is missing)
+--   - Extension pgcrypto for digest/random helpers used by implementation code
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
--- CREATE EXTENSION IF NOT EXISTS pg_uuidv7;
--- Without pg_uuidv7 installed, table defaults below use gen_random_uuid().
--- For production on PG 18+, replace defaults with uuidv7() to take advantage
--- of near-sequential B-Tree index insertion (principle 4.1.2 #5).
+-- Surrogate UUID primary keys below use uuidv7() for near-sequential B-Tree
+-- insertion. Composite/natural keys remain unchanged.
 
 -- ============================================================================
 -- ENUM TYPES (inline CHECK constraints for portability)
@@ -29,7 +27,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- 1. User mapping between the internal system and Canvas (LTI 1.3)
 CREATE TABLE lms_user_mappings (
-    internal_user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    internal_user_id UUID PRIMARY KEY DEFAULT uuidv7(),
     lms_type VARCHAR(50) NOT NULL DEFAULT 'canvas',
     lms_sub VARCHAR(255) NOT NULL,
     display_name VARCHAR(255) NOT NULL,
@@ -44,7 +42,7 @@ CREATE TABLE lms_user_mappings (
 
 -- 2. Courses synchronized from the LMS
 CREATE TABLE courses (
-    course_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_id UUID PRIMARY KEY DEFAULT uuidv7(),
     lms_id VARCHAR(100) UNIQUE,
     code VARCHAR(50) NOT NULL UNIQUE,            -- e.g. CO2003
     name VARCHAR(255) NOT NULL,
@@ -56,7 +54,7 @@ CREATE TABLE courses (
 
 -- 3. LTI context reference and custom settings
 CREATE TABLE lms_course_ref (
-    course_ref_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_ref_id UUID PRIMARY KEY DEFAULT uuidv7(),
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
     lms_context_id VARCHAR(255) NOT NULL,
     lms_custom_settings JSONB DEFAULT '{}'::jsonb,
@@ -68,7 +66,7 @@ CREATE TABLE lms_course_ref (
 -- 3b. LTI Resource Links (Deep Linking activities created in Canvas).
 --     Each activity points to a card / lesson on our side via custom claims.
 CREATE TABLE lti_resource_links (
-    resource_link_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    resource_link_id UUID PRIMARY KEY DEFAULT uuidv7(),
     course_ref_id UUID NOT NULL REFERENCES lms_course_ref(course_ref_id) ON DELETE RESTRICT,
     lms_resource_link_id VARCHAR(255) NOT NULL,   -- as sent by Canvas
     target_kind VARCHAR(30) NOT NULL              -- 'lesson' | 'card' | 'quiz_set' | 'chat' | 'video'
@@ -82,7 +80,7 @@ CREATE TABLE lti_resource_links (
 
 -- 3c. LTI Line Items (AGS grade sync). One row per gradable activity.
 CREATE TABLE lti_line_items (
-    line_item_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    line_item_id UUID PRIMARY KEY DEFAULT uuidv7(),
     resource_link_id UUID NOT NULL REFERENCES lti_resource_links(resource_link_id) ON DELETE RESTRICT,
     lms_line_item_url VARCHAR(512) NOT NULL,      -- AGS endpoint for posting scores
     score_maximum NUMERIC(7,2) NOT NULL DEFAULT 100.00,
@@ -111,7 +109,7 @@ CREATE TABLE course_memberships (
 
 -- 4. Chapters
 CREATE TABLE chapters (
-    chapter_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chapter_id UUID PRIMARY KEY DEFAULT uuidv7(),
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
     title VARCHAR(255) NOT NULL,
     sort_order INT NOT NULL,
@@ -122,7 +120,7 @@ CREATE TABLE chapters (
 -- 5. Learning Outcomes (LO) mapped to CDIO -- versioned by academic year
 --    Novelty: track LO changes per year (Knowledge Graph evolves)
 CREATE TABLE learning_outcomes (
-    lo_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lo_id UUID PRIMARY KEY DEFAULT uuidv7(),
     chapter_id UUID NOT NULL REFERENCES chapters(chapter_id) ON DELETE RESTRICT,
     code VARCHAR(50) NOT NULL,                   -- L.O.X.Y
     statement_vi TEXT NOT NULL,
@@ -139,7 +137,7 @@ CREATE TABLE learning_outcomes (
 
 -- 6. Assessment items
 CREATE TABLE assessments (
-    assessment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    assessment_id UUID PRIMARY KEY DEFAULT uuidv7(),
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
     title VARCHAR(255) NOT NULL,
     max_points NUMERIC(5,2) NOT NULL DEFAULT 100.00,
@@ -164,7 +162,7 @@ CREATE TABLE lo_assessments (
 
 -- 8. Raw documents
 CREATE TABLE documents (
-    document_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID PRIMARY KEY DEFAULT uuidv7(),
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
     title VARCHAR(255) NOT NULL,
     file_path VARCHAR(512) NOT NULL,
@@ -179,7 +177,7 @@ CREATE TABLE documents (
 
 -- 9. Text chunks (high-write; UUIDv7 reduces B-Tree fragmentation)
 CREATE TABLE chunks (
-    chunk_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chunk_id UUID PRIMARY KEY DEFAULT uuidv7(),
     document_id UUID NOT NULL REFERENCES documents(document_id) ON DELETE RESTRICT,
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,  -- denormalized for RAG filter
     content TEXT NOT NULL,
@@ -200,6 +198,36 @@ CREATE TABLE chunk_lo_mappings (
     PRIMARY KEY (chunk_id, lo_id)
 );
 
+-- Implementation extension: deterministic concept graph tags for chunks.
+-- These two tables are not part of the 31 core DDL tables above/below; they
+-- support heading/concept enrichment in the Python pipeline. concepts.id is a
+-- stable text slug by design, so it is the one intentional non-UUID extension PK.
+CREATE TABLE concepts (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    canonical_name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    domain TEXT,
+    category TEXT NOT NULL DEFAULT 'other',
+    language TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_concepts_slug ON concepts(slug);
+
+CREATE TABLE chunk_concepts (
+    chunk_id UUID NOT NULL REFERENCES chunks(chunk_id) ON DELETE RESTRICT,
+    concept_id TEXT NOT NULL REFERENCES concepts(id) ON DELETE CASCADE,
+    confidence NUMERIC(3,2) NOT NULL DEFAULT 1.00 CHECK (confidence BETWEEN 0.00 AND 1.00),
+    source TEXT NOT NULL DEFAULT 'heading',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (chunk_id, concept_id)
+);
+
+CREATE INDEX idx_chunk_concepts_concept_id ON chunk_concepts(concept_id);
+
 
 -- ============================================================================
 -- SUBSYSTEM 4: VIDEO AND MULTIMEDIA SEGMENTATION (VIDEO PIPELINE)
@@ -207,7 +235,7 @@ CREATE TABLE chunk_lo_mappings (
 
 -- 11. Lecture videos
 CREATE TABLE videos (
-    video_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    video_id UUID PRIMARY KEY DEFAULT uuidv7(),
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
     title VARCHAR(255) NOT NULL,
     file_path VARCHAR(512) NOT NULL,
@@ -222,7 +250,7 @@ CREATE TABLE videos (
 
 -- 12. Video segments (30-90s clips)
 CREATE TABLE video_segments (
-    segment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    segment_id UUID PRIMARY KEY DEFAULT uuidv7(),
     video_id UUID NOT NULL REFERENCES videos(video_id) ON DELETE RESTRICT,
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,  -- denormalized
     start_ms INT NOT NULL,
@@ -237,7 +265,7 @@ CREATE TABLE video_segments (
 
 -- 13. Timestamped transcript (finer than a segment, 1-n with segment)
 CREATE TABLE transcript_segments (
-    transcript_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    transcript_id UUID PRIMARY KEY DEFAULT uuidv7(),
     segment_id UUID NOT NULL REFERENCES video_segments(segment_id) ON DELETE RESTRICT,
     text TEXT NOT NULL,
     start_ms INT NOT NULL,
@@ -256,7 +284,7 @@ CREATE TABLE transcript_segments (
 -- 14. Lessons (a curated grouping of cards + quizzes for one Learning Outcome,
 --     used as the unit of Deep Linking and the lesson_id surfaced in LTI custom claims)
 CREATE TABLE lessons (
-    lesson_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    lesson_id UUID PRIMARY KEY DEFAULT uuidv7(),
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
     lo_id UUID NOT NULL REFERENCES learning_outcomes(lo_id) ON DELETE RESTRICT,
     title VARCHAR(255) NOT NULL,
@@ -271,7 +299,7 @@ CREATE TABLE lessons (
 
 -- 15. Lesson Cards
 CREATE TABLE lesson_cards (
-    card_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    card_id UUID PRIMARY KEY DEFAULT uuidv7(),
     lesson_id UUID NOT NULL REFERENCES lessons(lesson_id) ON DELETE RESTRICT,
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,  -- denormalized
     lo_id UUID REFERENCES learning_outcomes(lo_id) ON DELETE RESTRICT,
@@ -296,7 +324,7 @@ CREATE TABLE card_video_attachments (
 
 -- 17. Quiz Items
 CREATE TABLE quiz_items (
-    quiz_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    quiz_id UUID PRIMARY KEY DEFAULT uuidv7(),
     lesson_id UUID NOT NULL REFERENCES lessons(lesson_id) ON DELETE RESTRICT,
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,  -- denormalized
     lo_id UUID REFERENCES learning_outcomes(lo_id) ON DELETE RESTRICT,
@@ -320,7 +348,7 @@ CREATE TABLE quiz_items (
 --     A flashcard is the "flip" presentation of a lesson_card (front=title,
 --     back=key_insight). This table stores spaced-repetition state per learner.
 CREATE TABLE flashcard_reviews (
-    review_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    review_id UUID PRIMARY KEY DEFAULT uuidv7(),
     user_id UUID NOT NULL REFERENCES lms_user_mappings(internal_user_id) ON DELETE RESTRICT,
     card_id UUID NOT NULL REFERENCES lesson_cards(card_id) ON DELETE RESTRICT,
     state VARCHAR(20) NOT NULL DEFAULT 'NEW'
@@ -341,7 +369,7 @@ CREATE TABLE flashcard_reviews (
 --     resource_link_id is filled in only when the attempt is reached via an
 --     LTI launch; it provides the key to look up the AGS line_item for grade passback.
 CREATE TABLE quiz_attempts (
-    attempt_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    attempt_id UUID PRIMARY KEY DEFAULT uuidv7(),
     user_id UUID NOT NULL REFERENCES lms_user_mappings(internal_user_id) ON DELETE RESTRICT,
     quiz_id UUID NOT NULL REFERENCES quiz_items(quiz_id) ON DELETE RESTRICT,
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
@@ -360,7 +388,7 @@ CREATE TABLE quiz_attempts (
 
 -- 20. Chat messages (high-write, UUIDv7)
 CREATE TABLE chat_messages (
-    message_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    message_id UUID PRIMARY KEY DEFAULT uuidv7(),
     session_id UUID NOT NULL,
     user_id UUID NOT NULL REFERENCES lms_user_mappings(internal_user_id) ON DELETE RESTRICT,
     course_id UUID REFERENCES courses(course_id) ON DELETE RESTRICT,
@@ -373,7 +401,7 @@ CREATE TABLE chat_messages (
 
 -- 21. Learning events (append-only stream, no soft delete)
 CREATE TABLE learning_events (
-    event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_id UUID PRIMARY KEY DEFAULT uuidv7(),
     user_id UUID NOT NULL REFERENCES lms_user_mappings(internal_user_id) ON DELETE RESTRICT,
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
     event_type VARCHAR(100) NOT NULL,            -- VIEW_CARD, READ_DURATION, VIDEO_PLAY, QUIZ_SUBMIT
@@ -386,7 +414,7 @@ CREATE TABLE learning_events (
 
 -- 22. Review audit logs (append-only, no soft delete)
 CREATE TABLE review_audit_logs (
-    log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    log_id UUID PRIMARY KEY DEFAULT uuidv7(),
     action VARCHAR(100) NOT NULL,                -- EDIT_CARD, DELETE_QUIZ, PUBLISH_CONTENT
     entity_type VARCHAR(50) NOT NULL,
     entity_id UUID NOT NULL,
@@ -399,7 +427,7 @@ CREATE TABLE review_audit_logs (
 --     Each LLM/embedding call is recorded to support AI Cost Monitoring
 --     (Section 4.10.4) and to break down spend per user / course / day.
 CREATE TABLE llm_usage_logs (
-    usage_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usage_id UUID PRIMARY KEY DEFAULT uuidv7(),
     user_id UUID REFERENCES lms_user_mappings(internal_user_id) ON DELETE SET NULL,
     course_id UUID REFERENCES courses(course_id) ON DELETE SET NULL,
     provider VARCHAR(50) NOT NULL,               -- gemini, openai, bge-m3
@@ -452,7 +480,7 @@ CREATE TABLE scope_llm_quota (
 --     Surfaced to the instructor as a single request_id with progress.
 --     Workers update status as they consume the corresponding outbox event.
 CREATE TABLE content_generation_requests (
-    request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    request_id UUID PRIMARY KEY DEFAULT uuidv7(),
     course_id UUID NOT NULL REFERENCES courses(course_id) ON DELETE RESTRICT,
     requested_by UUID REFERENCES lms_user_mappings(internal_user_id) ON DELETE RESTRICT,
     type VARCHAR(20) NOT NULL CHECK (type IN ('card','quiz')),
@@ -468,7 +496,7 @@ CREATE TABLE content_generation_requests (
 -- 27. Outbox events (synced to Neo4j via the poller daemon in core-api;
 --     Qdrant upserts happen inline in the worker job and do NOT use Outbox)
 CREATE TABLE outbox_events (
-    event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_id UUID PRIMARY KEY DEFAULT uuidv7(),
     event_type VARCHAR(100) NOT NULL,            -- CARD_PUBLISHED, CHUNK_INDEXED, LO_CREATED, ...
     aggregate_type VARCHAR(50),                  -- 'lesson_card','chunk','learning_outcome', ...
     aggregate_id UUID,
