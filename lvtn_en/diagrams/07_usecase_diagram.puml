@@ -84,13 +84,17 @@ Canvas <-- UC_LMSConfig
 LLM <-- UC_Review
 LLM <-- UC_Chat
 
-' ===== Standard UML stereotypes only =====
-UC_Upload ..> UC_Watch  : <<trigger>>
-UC_Quiz   ..> UC_AGS    : <<extend>>
-UC_Quiz   ..> UC_Progress : <<include>>
-UC_Learn  ..> UC_Progress : <<include>>
-UC_Flash  ..> UC_Progress : <<include>>
-UC_Search ..> UC_Chat : <<extend>>
+' ===== Standard UML relationship =====
+' Only the conditional extend is kept. Progress update, RAG retrieval,
+' LLM calls and job-queue sync are internal behaviour -> sequence/dataflow
+' diagrams, not use-case relationships.
+' Extend arrow points FROM the extension (Score Sync) TO the base (Take Quizzes).
+UC_AGS ..> UC_Quiz : <<extend>>
+note on link
+  <b>condition:</b> {quiz is gradable
+  AND LTI AGS line item configured}
+  <b>extension point:</b> ScoreFinalized
+end note
 
 note bottom of Canvas
   Canvas is the LMS platform: it initiates
@@ -100,8 +104,8 @@ end note
 
 note bottom of LLM
   LLM Provider is a supporting external system
-  used by Review (AI generation) and Ask AI
-  Tutor (RAG answer).
+  used by Review (selective regeneration) and
+  Ask AI Tutor (RAG answer).
 end note
 
 @enduml

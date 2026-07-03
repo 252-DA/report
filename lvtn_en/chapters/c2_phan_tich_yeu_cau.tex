@@ -18,7 +18,7 @@ The rapid development of Generative AI opens the possibility of transforming an
 LMS from a content storage and distribution system into an intelligent support
 layer that can analyze documents, create micro-learning materials, generate
 questions, support context-aware Q\&A, and provide learning signals for
-instructors. Therefore, before designing the proposed system, this thesis
+instructors. Therefore, before designing the proposed system, this project
 surveys current E-learning workflows, bottlenecks in learning-material
 creation, and core AI needs in modern LMSs.
 
@@ -181,7 +181,7 @@ flashcards, or taking an easier exercise set before returning to the main
 quiz. In this approach, the LMS is no longer a static content list but a
 learning environment that responds to individual progress.
 
-Within this thesis, Adaptive Learning is positioned at a curriculum-aware
+Within this project, Adaptive Learning is positioned at a curriculum-aware
 level: the system links micro-content and quizzes to Learning Outcomes, making
 it possible to monitor mastery and recommend suitable review content.
 
@@ -218,7 +218,7 @@ anomaly detection to support online exam monitoring. This feature group is
 often mentioned in modern LMSs, especially for remote assessment.
 
 However, AI Proctoring raises privacy, accuracy, model bias, and learner
-experience issues. Therefore, in this thesis, AI Proctoring is considered a
+experience issues. Therefore, in this project, AI Proctoring is considered a
 market reference capability rather than a core implemented feature. The
 proposed system focuses on learning-material generation, quizzes, RAG tutor,
 review workflow, curriculum-aware learning, and LMS integration.
@@ -310,7 +310,7 @@ Current AI solutions in education can be grouped into three main categories:
 commercial LMSs with built-in AI, learning platforms or EdTech tools using
 Generative AI, and open-source LMSs that can be extended through plugins or
 integration standards. Each group has strengths and limitations when compared
-with the problem targeted by this thesis.
+with the problem targeted by this project.
 
 \subsection{Commercial LMSs with Built-in AI}
 
@@ -324,7 +324,7 @@ in newer product packages \cite{instructure-ai}.
 
 Canvas is strong because it provides a complete LMS ecosystem: course
 management, assignments, quizzes, gradebook, roles, APIs, and LTI support. For
-this thesis, Canvas is suitable as the base LMS, while the proposed AI system
+this project, Canvas is suitable as the base LMS, while the proposed AI system
 operates as an external tool integrated through LTI 1.3.
 
 However, Canvas commercial AI capabilities depend on Instructure's service
@@ -355,7 +355,7 @@ Docebo suits organizations that need large-scale training, learner grouping by
 job role, and skill management in business contexts.
 
 Docebo's value lies in content intelligence and skill-based learning. However,
-for this thesis, Docebo is not the optimal base because the system must focus
+for this project, Docebo is not the optimal base because the system must focus
 on academic-course environments, course materials, micro-content, quizzes by
 Learning Outcome, and self-hosted or deeply Canvas-integrated deployment.
 
@@ -368,7 +368,7 @@ existing content help instructors/trainers shorten course design time
 \cite{talentlms-ai}.
 
 TalentLMS is easy to approach and suitable for corporate training or short
-courses. However, from the research requirements of this thesis, it is not an
+courses. However, from the research requirements of this project, it is not an
 open platform for implementing customized AI pipelines such as
 document-grounded RAG, dedicated vector databases, curriculum graphs, and Canvas
 gradebook integration through LTI.
@@ -382,7 +382,7 @@ participates from course design to learner-experience operation.
 
 CYPHER is strong in authoring automation. Similar to other commercial LMSs,
 however, it is bounded by vendor architecture and customization options. For a
-thesis that must demonstrate technical design, building an AI Extension Layer
+specialized project that must demonstrate technical design, building an AI Extension Layer
 makes the architectural decisions clearer: chunking, embedding, RAG,
 asynchronous pipelines, human review, and observability.
 
@@ -421,7 +421,7 @@ notable because it does not simply provide direct answers; it guides, prompts,
 and helps learners reason.
 
 Khanmigo demonstrates the strong potential of AI Tutors in education. However,
-it mainly operates within Khan Academy's content ecosystem. In this thesis, an
+it mainly operates within Khan Academy's content ecosystem. In this project, an
 important requirement is that the chatbot must retrieve each LMS course's own
 materials and connect with instructor-provided micro-content, quizzes, and
 Learning Outcomes.
@@ -462,7 +462,7 @@ provider \cite{moodle-ai}.
 
 Moodle's strengths are openness, community, and customizability. However, the
 plugin model can also lead to fragmented experiences if AI features are added
-separately. For this thesis, Moodle is a feasible AI integration option, but
+separately. For this project, Moodle is a feasible AI integration option, but
 the system prioritizes Canvas because it needs to exploit LTI 1.3, APIs,
 gradebook, and the project's concrete deployment context.
 
@@ -500,7 +500,7 @@ extensibility, and academic use cases.
 Compared with Moodle, Canvas, or Open edX, the popular AI ecosystem around
 Sakai is less prominent. AI integration usually requires custom tools or
 external services. Therefore, Sakai is considered a reference platform for LMS
-extensibility comparison, but not the main choice in this thesis.
+extensibility comparison, but not the main choice in this project.
 
 \subsection{Comparison of Solution Groups}
 
@@ -532,12 +532,12 @@ Data and model control & Limited by vendor dependency & Limited & Higher if self
 \hline
 Observability and cost control & Vendor-dependent & Usually limited & Must be built & Explicit logging, metrics, and cost tracking \\
 \hline
-Fit for this thesis & Useful reference & Useful reference for learning UX & Useful reference for extensibility & Best fit for the research objective \\
+Fit for this project & Useful reference & Useful reference for learning UX & Useful reference for extensibility & Best fit for the research objective \\
 \hline
 \end{longtable}
 \endgroup
 
-The comparison shows that no existing group fully satisfies the thesis
+The comparison shows that no existing group fully satisfies the project
 requirements. Commercial LMSs are strong in administration and internal
 integration but difficult to customize deeply. EdTech tools are strong in
 learning experience and quick material generation but are not complete LMSs.
@@ -607,7 +607,7 @@ This option offers full control over product design and data
 architecture but pulls a large share of the team's effort into
 re-implementing baseline LMS features (users, courses, gradebook,
 notifications, analytics), which are not the contribution of the
-thesis. Less effort would then remain for RAG, micro-content/quiz
+project. Less effort would then remain for RAG, micro-content/quiz
 generation, curriculum mapping, and AI safety.
 
 \subsubsection*{b. Integrating AI into an open-source LMS}
@@ -634,7 +634,7 @@ This option keeps the LMS-core scope small, provides a clear
 responsibility boundary between LMS and AI extension, gives the team
 full control over AI data (documents, chunks, embeddings, generated
 content, review state), and remains portable across LMSs that follow
-LTI 1.3 -- letting the thesis focus on RAG, structured generation,
+LTI 1.3 -- letting the project focus on RAG, structured generation,
 review workflow, security, and observability rather than on
 reimplementing classroom administration. It therefore closes the gap
 between LMSs that are strong in administration but whose AI is
@@ -674,13 +674,13 @@ AC-05 & System Administrator & Human & Operates quotas, cost, observability, and
 \subsection{Instructor}
 
 \textbf{Role.} The instructor creates and reviews learning content. In the
-thesis's \textit{Human-in-the-loop Review} philosophy, the instructor is the
+project's \textit{Human-in-the-loop Review} philosophy, the instructor is the
 final checkpoint that ensures content quality before learners access it. AI
 creates drafts, while the instructor approves and holds academic responsibility.
 
 \textbf{Access channel.} Instructors do not log directly into the AI system.
 They work inside Canvas LMS and click the registered External Tool in the
-course. Canvas initiates an LTI launch and redirects to the thesis AI
+course. Canvas initiates an LTI launch and redirects to the project AI
 interface, carrying instructor identity and course context. Protocol details
 are presented in the system design chapter.
 
@@ -730,7 +730,7 @@ knowledge is required.
 \subsection{LMS / External System}
 
 \textbf{Role.} The external system provides \textbf{identity, course context,
-and gradebook} for the AI system through LTI 1.3. Within this thesis, the main
+and gradebook} for the AI system through LTI 1.3. Within this project, the main
 LMS is \textbf{Canvas LMS}; because the design follows LTI, the same
 communication model can technically be moved to other LTI 1.3-enabled LMSs
 such as Moodle 4.x, Open edX, or Sakai if needed.
@@ -950,7 +950,7 @@ interactions from the system-level diagram. The remainder of this section
 first lists every use case in tables with coverage columns grouped by actor
 (Sections~\ref{subsec:use-case-tong-quan}--\ref{subsec:use-case-tich-hop-lms}),
 then provides detailed specifications for the use cases that are
-load-bearing for the thesis defense
+load-bearing for the project defense
 (Section~\ref{subsec:main-use-case-specs}). Detailed specifications for
 the remaining secondary use cases are gathered in
 Appendix~\ref{appendix:use-case-reference}.
@@ -1145,7 +1145,7 @@ UC-AD-03 & Configure LMS integration & US-AD-01; LTI/OIDC configuration & The ad
 \label{subsec:main-use-case-specs}
 
 The seven main use cases listed in Table~\ref{tab:main-uc-summary}
-exercise the load-bearing architectural decisions of the thesis: LTI
+exercise the load-bearing architectural decisions of the project: LTI
 integration, the document/AI pipeline, the human-in-the-loop review
 gate, the publish gate, and the RAG-grounded learner experience. Each
 specification uses the same template (Primary actor, Secondary actors,

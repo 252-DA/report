@@ -90,8 +90,9 @@ Main flow &
     \texttt{DocumentUploaded}/\texttt{VideoUploaded} on BullMQ. \\
 \hline
 Postconditions & A row exists in PostgreSQL, the file lives in MinIO,
-    and the document/video pipeline (UC-IN-02) is triggered
-    asynchronously. \\
+    and the document/video processing pipeline is triggered
+    asynchronously (its progress is observable through UC-IN-02
+    Monitor Processing). \\
 \hline
 Alternate flows &
     \emph{A1} - Invalid file type or size: \texttt{core-api} returns
@@ -115,6 +116,9 @@ Alternate flows &
 \hline
 \endhead
 Primary actor & Instructor (AC-01) \\
+\hline
+Secondary actor & LLM Provider (AC-04) -- invoked for selective
+    regeneration of a card, section, or quiz set (alternate flow A1). \\
 \hline
 Preconditions & At least one card or quiz item exists with status
     \texttt{GENERATED\_DRAFT} or \texttt{CHANGES\_REQUESTED} for a
@@ -356,7 +360,7 @@ detailed specifications of the remaining eleven secondary use cases
 using the same template (Primary actor, Preconditions, Main flow,
 Postconditions, Alternate flows). They are placed here because their
 flows are operational or auxiliary rather than load-bearing for the
-main thesis defense.
+main project defense.
 
 \subsection{UC-IN-02 -- Monitor Processing}
 

@@ -33,7 +33,7 @@ Learning Outcome should be reviewed. Third, it provides a clear output
 format for AI generation: from one document chunk, the system can
 generate a structured set of cards and quizzes.
 
-For this thesis, micro-learning is not only a presentation interface but
+For this project, micro-learning is not only a presentation interface but
 also a direct influence on the document-processing pipeline. Input
 documents must be extracted, chunked, attached with source metadata, and
 then transformed into short learning units that can be reviewed and
@@ -99,7 +99,7 @@ Create & design, build, propose, create & Tests the ability to produce a new pro
 \hline
 \end{longtable}
 
-Within this thesis, Remember, Understand, Apply, and Analyze are the most
+Within this project, Remember, Understand, Apply, and Analyze are the most
 suitable levels for automatic multiple-choice quizzes. Evaluate and
 Create are still stored in the metadata model for future expansion, but
 they are not the focus of the MVP because they usually require essay
@@ -193,7 +193,7 @@ models, the prompt is not only the user's question but also includes
 system instructions, roles, retrieved context, output examples, and
 format constraints.
 
-In this thesis, LLMs are used for tasks that require knowledge
+In this project, LLMs are used for tasks that require knowledge
 interpretation:
 
 \begin{itemize}
@@ -242,7 +242,7 @@ A quiz-generation prompt in the system usually contains:
     \label{tab:prompt-engineering-techniques}
     \begin{tabular}{p{3.4cm}p{4.6cm}p{5.5cm}}
         \toprule
-        \textbf{Technique} & \textbf{Description} & \textbf{Application in this thesis} \\
+        \textbf{Technique} & \textbf{Description} & \textbf{Application in this project} \\
         \midrule
         Role Prompting & Assigns a professional role to the model. & ``You are a university instructor preparing quizzes for learners''. \\
         Constraint Prompting & Sets constraints on quantity, length, difficulty, and language. & Generate exactly 5 questions, each with 4 options and a short explanation. \\
@@ -763,7 +763,7 @@ nDCG@K & Evaluates ranking when results have multiple relevance levels. & Suitab
 \hline
 \end{longtable}
 
-For this thesis, the retrieval evaluation set should include sample
+For this project, the retrieval evaluation set should include sample
 questions for each course, correct chunks labeled by instructors or
 developers, embedding/index/top-K configurations, and measured Recall@K,
 Precision@K, and MRR. These metrics evaluate semantic search itself and
@@ -782,7 +782,7 @@ standards such as Learning Tools Interoperability (LTI), OAuth2, and
 OpenID Connect are used to standardize how LMS platforms connect with
 external learning tools \cite{lti-advantage,openedx-lti}.
 
-For this thesis, the micro-content, quiz, and AI Tutor Chatbot system is
+For this project, the micro-content, quiz, and AI Tutor Chatbot system is
 treated as an external learning tool. The LMS is the main platform for
 managing courses and learners, while the proposed system provides
 specialized AI functions. This approach prevents dependence on a single
@@ -833,11 +833,11 @@ which retrieve membership lists and roles in a learning context.
 \caption{LTI Advantage services related to the system}
 \label{tab:lti-advantage-services}\\
 \hline
-\textbf{Service} & \textbf{Purpose} & \textbf{Application in this thesis} \\
+\textbf{Service} & \textbf{Purpose} & \textbf{Application in this project} \\
 \hline
 \endfirsthead
 \hline
-\textbf{Service} & \textbf{Purpose} & \textbf{Application in this thesis} \\
+\textbf{Service} & \textbf{Purpose} & \textbf{Application in this project} \\
 \hline
 \endhead
 Deep Linking & Select or create content from the tool to attach to the LMS. & Instructors insert flashcard sets, quizzes, or chatbot activities into a course. \\
@@ -895,7 +895,7 @@ the system knows what content to display.
 Deep Linking also reduces UI dependence. The LMS remains the main place
 for course organization and navigation, while the AI system is responsible
 for creating, managing, and distributing specialized content. This aligns
-with the thesis goal of building an AI tool that can be integrated into
+with the project goal of building an AI tool that can be integrated into
 an LMS instead of replacing the entire LMS.
 
 \subsection{Assignment and Grade Services (AGS)}
@@ -907,7 +907,7 @@ can have a corresponding line item in the gradebook. On the tool side,
 after a learner completes a quiz or learning activity, the tool can send
 the score back to the LMS through that line item.
 
-In this thesis, AGS can be used for automatically generated quizzes or
+In this project, AGS can be used for automatically generated quizzes or
 micro-learning completion activities. For example, when a learner takes a
 quiz, the system stores an internal submission containing answers, score,
 time, and question sources. If the activity is linked to the LMS
@@ -934,7 +934,7 @@ Therefore, the system should place LTI/OIDC/AGS in an adapter layer, while
 the domain/application core works with abstract concepts such as user,
 role, course, activity, and grade result.
 
-A suitable integration architecture for this thesis includes:
+A suitable integration architecture for this project includes:
 
 \begin{itemize}
     \item \textbf{LMS Platform:} Moodle, Canvas, or Open edX, where
@@ -988,7 +988,7 @@ explanation, and structured learning-progress analytics
 \cite{hogan2021knowledgegraphs}.
 
 Curriculum Mapping links learning content with curriculum structure,
-especially Learning Outcomes, topics, and assessments. In this thesis,
+especially Learning Outcomes, topics, and assessments. In this project,
 Curriculum Mapping helps the system understand which Outcome a chunk
 supports, which competency a quiz measures, and which knowledge group a
 learner is weak in. It is the foundation for Bloom-level quiz generation,
@@ -1293,7 +1293,7 @@ provide the richest context for Generative AI \cite{baltrusaitis2018multimodal}.
 \label{sec:technology-selection-rationale}
 
 This section does not repeat textbook definitions of common tools. The
-important point for this thesis is why each technology fits the proposed
+important point for this project is why each technology fits the proposed
 AI-enabled LMS architecture. The theoretical core of the chapter remains
 RAG, GraphRAG, chunking, Bloom-aware quiz generation, and LTI 1.3; the
 following technologies are implementation choices that support those

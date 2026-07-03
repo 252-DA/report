@@ -103,7 +103,7 @@ Assessment ..> AssessmentType
 
 note bottom of LearningOutcome
   Versioning by academic_year + version + is_current
-  is the novelty contribution of this thesis:
+  is the novelty contribution of this project:
   the Knowledge Graph evolves as the curriculum
   changes year by year.
 end note

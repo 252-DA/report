@@ -13,7 +13,7 @@ infrastructure are clearly separated. The goal is to make each component
 replaceable without changing the core business logic, while allowing each
 pipeline to scale independently as load increases.
 
-Within the scope of this thesis, \textbf{Canvas LMS is the only target
+Within the scope of this project, \textbf{Canvas LMS is the only target
 LMS}. It provides identity, course context, authorization, and gradebook
 integration through LTI 1.3. Because the system operates as an IMS-compliant
 LTI Tool, it can technically integrate with other LMS platforms that
@@ -1642,7 +1642,7 @@ Appendix~\ref{appendix:state-machines}:
 \label{sec:observability-monitoring-design}
 
 Observability follows three standard pillars, with AI cost monitoring as
-a fourth thesis-specific concern. Detailed log fields, metric names,
+a fourth project-specific concern. Detailed log fields, metric names,
 trace spans, and alert examples are provided in
 Appendix~\ref{appendix:observability-details}.
 
@@ -1729,7 +1729,7 @@ Tooling: GitHub Actions or GitLab CI.
 
 \textbf{Vertical scaling (single-node):} increase CPU/RAM for the heaviest
 containers (\texttt{document-worker}, \texttt{enrichment-worker},
-\texttt{video-worker}). This is enough for the thesis project.
+\texttt{video-worker}). This is enough for the project project.
 
 \textbf{Horizontal scaling (multi-node, production):}
 \begin{itemize}
@@ -1784,7 +1784,7 @@ level:
     \item \textbf{Observability} covers the three pillars: structured
           logging, Prometheus metrics, and OpenTelemetry distributed
           tracing, with separate AI cost monitoring.
-    \item \textbf{Deployment} uses Docker Compose for the thesis,
+    \item \textbf{Deployment} uses Docker Compose for the project,
           packaged as three layered files (base, dev override, GPU override).
 \end{itemize}
 

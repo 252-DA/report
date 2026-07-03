@@ -47,6 +47,4 @@ Canvas --> UC_Launch
 Canvas <-- UC_AGS
 LLM <-- UC_Chat
 
-UC_Search ..> UC_Chat : <<extend>>
-
 @enduml

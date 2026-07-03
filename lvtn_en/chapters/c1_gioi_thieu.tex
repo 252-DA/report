@@ -74,7 +74,7 @@ of self-assessment, and supports review before exams or major assignments.
 Nevertheless, Micro-learning is valuable only when short content still
 preserves academic context. If materials are merely split by word count, the
 system may lose relationships among concepts, examples, formulas, and learning
-objectives. Therefore, this thesis treats Micro-learning as a knowledge
+objectives. Therefore, this project treats Micro-learning as a knowledge
 processing problem: chunking, semantic retrieval, learning outcomes, and
 instructor review must be combined to create small but accurate and
 pedagogically meaningful learning units.
@@ -105,16 +105,16 @@ GraphRAG, and Human-in-the-Loop Review.
 
 \subsection{Research Problem}
 
-From the contexts above, this thesis defines the research problem as follows:
+From the contexts above, this project defines the research problem as follows:
 to build an AI system integrated with an LMS that can transform academic
 documents and lecture videos into Micro-content, quizzes, and an AI tutor using
 Generative AI, while ensuring that generated content is source-grounded,
 reviewable by instructors, and connectable to course learning outcomes.
 
-Within this thesis, Canvas LMS is selected as the experimental platform because
+Within this project, Canvas LMS is selected as the experimental platform because
 it supports LTI 1.3/OIDC, Developer Keys, and External Tools. This choice fits
-the model in which Canvas acts as the learning platform and the thesis system
-acts as an AI extension tool. It allows the thesis to focus on practical
+the model in which Canvas acts as the learning platform and the project system
+acts as an AI extension tool. It allows the project to focus on practical
 integration without modifying Canvas source code or installing a custom Canvas
 plugin.
 
@@ -139,11 +139,11 @@ The problem includes the following main questions:
 
 \subsection{General Objective}
 
-The general objective of this thesis is to design and prototype a Generative
+The general objective of this project is to design and prototype a Generative
 AI system integrated with Canvas LMS to automatically create Micro-content and
 quizzes from academic materials, support lecture-video processing, provide an
 AI Tutor Chatbot, and allow instructors to review content before publishing it
-to learners. The thesis also defines an evaluation framework for later pilot
+to learners. The project also defines an evaluation framework for later pilot
 measurement instead of presenting unverified experimental results. The system
 is intended to serve as an AI extension layer for Canvas, where Canvas is the
 LTI platform and the DA/Next.js application is the LTI tool launched from a
@@ -151,7 +151,7 @@ course or assignment.
 
 \subsection{Technical Objectives}
 
-Technically, the thesis targets the following objectives:
+Technically, the project targets the following objectives:
 \begin{enumerate}
     \item Design a system architecture consisting of a frontend/BFF, backend
           services, asynchronous workers, relational database, vector
@@ -209,7 +209,7 @@ position, or related passage for traceability. This information is important
 because AI-generated content must be traceable back to the original document
 when instructors review it or learners need verification.
 
-Within the scope of this thesis, the system focuses on digital documents with
+Within the scope of this project, the system focuses on digital documents with
 readable quality. OCR for low-quality scanned documents is treated as a future
 extension rather than the main evaluation focus.
 
@@ -268,7 +268,7 @@ respond that there is insufficient source evidence.
 
 \subsection{Curriculum-aware Learning}
 
-Curriculum-aware Learning in this thesis refers to organizing and retrieving
+Curriculum-aware Learning in this project refers to organizing and retrieving
 content based on the course structure. Instead of storing isolated text
 passages, the system represents entities such as Course, Chapter, Learning
 Outcome, Assessment, Document, Chunk, Card, and Quiz. Relationships among these
@@ -301,7 +301,7 @@ content.
 
 \subsection{AI Extension Layer for LMS}
 
-This thesis does not aim to build a new LMS to replace Canvas. Instead, the
+This project does not aim to build a new LMS to replace Canvas. Instead, the
 system is designed as an AI Extension Layer for Canvas LMS. This layer has
 three main characteristics:
 
@@ -316,7 +316,7 @@ three main characteristics:
           extension layer is designed as a web service / microservice that
           can connect to common LMS platforms through REST APIs or LTI
           Advantage. Therefore, although Canvas is the selected experimental
-          platform in this thesis, the same direction can later be adapted as
+          platform in this project, the same direction can later be adapted as
           a plugin-like extension for Moodle, Canvas, or other learning
           platforms.
     \item \textbf{Prompt and context management:} the layer includes a Prompt
@@ -358,7 +358,7 @@ are difficult to verify.
 \subsection{Hybrid Deployment Model and Data Sovereignty}
 
 In education, learning data, internal materials, and user information must be
-managed carefully. Therefore, the self-hosted direction of this thesis refers
+managed carefully. Therefore, the self-hosted direction of this project refers
 to the system infrastructure and processing pipeline, not necessarily to
 self-hosting every large language model. Services such as the backend, workers,
 relational database, vector database, graph database, object storage, and
@@ -377,7 +377,7 @@ secret-management mechanism in production deployments.
 
 \subsection{Retrieval-first AI Architecture}
 
-An important principle of this thesis is retrieval-first. Before asking an LLM
+An important principle of this project is retrieval-first. Before asking an LLM
 to generate an answer, the system must retrieve relevant sources from
 documents, transcripts, cards, or the knowledge graph. The prompt sent to the
 model should contain selected context, metadata, and constraints such as
@@ -432,7 +432,7 @@ hybrid deployment (external LLM API or locally hosted open-source
 model) lets cost, latency, and data-privacy trade-offs be tuned per
 deployment, including on-premise operation for sensitive content.
 
-Academically, the thesis is notable for combining Micro-learning, Bloom
+Academically, the project is notable for combining Micro-learning, Bloom
 taxonomy, RAG, Knowledge Graph, curriculum-aware GraphRAG, and
 human-in-the-loop review into a single end-to-end pipeline -- ingestion,
 source-grounded retrieval, generation, review, LMS integration, and
@@ -440,7 +440,7 @@ evaluation -- rather than studying each technique in isolation.
 
 % \section{System Evaluation Criteria}
 
-% To evaluate the system comprehensively, the thesis considers the following
+% To evaluate the system comprehensively, the project considers the following
 % groups of criteria:
 % \begin{itemize}
 %     \item \textbf{Functional evaluation:} test the main flows such as document
@@ -470,14 +470,14 @@ evaluation -- rather than studying each technique in isolation.
 %           Compose deployment in local/staging environments.
 % \end{itemize}
 
-% Within the thesis scope, criteria with experimental data are presented clearly
+% Within the project scope, criteria with experimental data are presented clearly
 % in the evaluation chapter. Criteria that cannot yet be measured at large scale
 % are recorded as evaluation plans or future work, avoiding conclusions that
 % exceed the collected evidence.
 
-\section{Thesis Structure}
+\section{Project Report Structure}
 
-The thesis is organized into seven chapters: Topic Overview (this
+The project is organized into seven chapters: Topic Overview (this
 chapter), Survey and System Analysis
 (Chapter~\ref{chap:khao-sat-phan-tich-he-thong}), Theoretical and
 Technological Foundations
@@ -493,7 +493,7 @@ is collected in Appendices A--H.
 
 \section{Chapter Summary}
 
-This chapter presented the context that motivates the thesis, starting from
+This chapter presented the context that motivates the project, starting from
 limitations of traditional E-learning, difficulties in creating digital
 learning materials, the need for Micro-learning, and the potential of
 Generative AI in education. From this context, the chapter defined the research
