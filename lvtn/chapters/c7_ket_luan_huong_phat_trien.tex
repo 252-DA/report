@@ -4,47 +4,99 @@
 
 \section{Kết quả đạt được}
 
-Luận văn đã đề xuất và xây dựng nền tảng cho một hệ thống LMS tích hợp
-Generative AI nhằm tự động tạo Micro-Content và Quiz từ tài liệu học thuật.
-Hệ thống không chỉ dừng ở việc gọi LLM để sinh nội dung, mà còn thiết kế một
-pipeline xử lý tri thức gồm trích xuất tài liệu, chunking, embedding,
-retrieval, Knowledge Graph và Human-in-the-Loop review.
+Luận văn đã đề xuất và hiện thực thành công hệ thống LMS mở rộng tích hợp
+Generative AI với trọng tâm là phân hệ \textbf{Interactive Micro Content}
+(Video bài giảng tương tác kèm câu hỏi củng cố) và cơ chế tích hợp chuẩn
+LTI 1.3 Advantage trên nền tảng Canvas LMS. Hệ thống không chỉ dừng ở việc
+gọi LLM để sinh văn bản, mà đã thiết lập một chu trình hoàn chỉnh từ trích
+xuất tri thức, sinh kịch bản sư phạm, tổng hợp video đa phương tiện, phòng
+chống gian lận học tập, cho đến đánh giá và phản hồi tức thì cho người học.
 
-Các kết quả chính:
-\begin{itemize}
-    \item Thiết kế kiến trúc tổng thể gồm frontend, backend gRPC, worker,
-          queue và các hệ lưu trữ PostgreSQL, MinIO, Qdrant, Neo4j.
-    \item Áp dụng Hexagonal Architecture/DDD để tách use case khỏi adapter hạ
-          tầng.
-    \item Xây dựng pipeline xử lý tài liệu: parse, chunk, embed, lưu vector và
-          sinh nội dung AI.
-    \item Thiết kế Curriculum-Aware Layer để trích xuất Learning Outcome và
-          ánh xạ chunk với LO.
-    \item Tích hợp hướng LTI 1.3/OIDC để hệ thống hoạt động như công cụ bên
-          ngoài cho LMS.
-    \item Xây dựng khung đánh giá chức năng, tích hợp, retrieval, chất lượng
-          nội dung sinh ra và hiệu năng, với nguyên tắc không báo cáo số liệu
-          khi chưa đo.
-\end{itemize}
+Trên nhánh phát triển \texttt{feat/micro-content-feature}, toàn bộ 6
+Milestone kỹ thuật trọng điểm (M1 đến M6) đã được hoàn thành 100\%:
+\begin{enumerate}
+    \item \textbf{M1: Thiết kế và di chuyển CSDL (Database Schema):} Thiết kế
+          và triển khai 5 bảng dữ liệu quan hệ trong PostgreSQL (\texttt{micro\_contents},
+          \texttt{micro\_content\_questions}, \texttt{micro\_content\_progress},
+          \texttt{micro\_content\_attempts}, \texttt{micro\_content\_answers})
+          đáp ứng quản lý metadata, câu hỏi đa định dạng, lịch sử làm bài và
+          theo dõi tiến độ chi tiết.
+    \item \textbf{M2: Chuẩn hoá giao tiếp nội bộ gRPC (Internal API Contract):}
+          Định nghĩa và hiện thực đầy đủ 17 RPCs trong \texttt{core\_api.proto}
+          bao phủ toàn bộ các luồng nghiệp vụ: CRUD bài giảng, quản lý câu hỏi,
+          upload video presigned URL, điều phối AI Video Studio, báo cáo
+          heartbeat, và nộp bài chấm điểm.
+    \item \textbf{M3: Giao diện Người dùng Tương tác (UI/UX Frontend):} Xây
+          dựng giao diện quản trị 4 tab hiện đại cho giảng viên trên Next.js 14
+          App Router và giao diện học tập tập trung cho sinh viên, tích hợp
+          trình phát video tuỳ chỉnh, bộ câu hỏi tương tác và modal phản hồi
+          kết quả.
+    \item \textbf{M4: Cơ chế Chống Gian lận và Chấm điểm Tự động:} Hiện thực
+          thuật toán gộp khoảng thời gian xem (Heartbeat Interval Merging)
+          ngăn chặn hoàn toàn hành vi tua video; xây dựng cơ chế chấm điểm tức
+          thì server-side cho 3 dạng câu hỏi khách quan và tích hợp worker
+          chấm tự luận ngắn qua LLM.
+    \item \textbf{M5: AI Video Studio Tự động hoá:} Xây dựng pipeline
+          Text-to-Video hoàn chỉnh kết hợp Gemini 1.5 Pro (sinh kịch bản),
+          Pillow (vẽ slide HD $1280 \times 720$), Edge-TTS với giọng đọc tiếng Việt
+          chất lượng cao (\texttt{vi-VN-HoaiMyNeural}), và FFmpeg (biên dịch,
+          ghép nối clip và chèn cờ \texttt{-movflags +faststart}).
+    \item \textbf{M6: Tích hợp Canvas LMS qua Chuẩn LTI 1.3 Advantage:} Hiện
+          thực quy trình Deep Linking 2.0 cho phép giảng viên chọn và gắn bài
+          học Micro Content trực tiếp vào module Canvas; ứng dụng cơ chế cookie
+          phân vùng CHIPS (\textit{Cookies Having Independent Partitioned State})
+          giải quyết triệt để vấn đề chặn third-party cookie trong iframe.
+\end{enumerate}
+
+Bên cạnh đó, hệ thống tiếp tục duy trì và củng cố các nền tảng kỹ thuật cốt lõi:
+kiến trúc Hexagonal kết hợp Domain-Driven Design, pipeline xử lý tài liệu PDF
+với hybrid search (BGE-M3 + Qdrant), mô hình Curriculum-Aware Layer đồng bộ
+Neo4j, và quy trình CI/CD kiểm thử tự động.
 
 \section{Hạn chế của hệ thống}
 
-Dù hệ thống đã có nền tảng kỹ thuật tương đối đầy đủ, một số hạn chế vẫn cần
-được giải quyết trước khi triển khai thực tế ở quy mô lớp học:
+Dù hệ thống đã có nền tảng kỹ thuật vững chắc và kiểm chứng được các flow chính,
+một số hạn chế vẫn cần được tiếp tục hoàn thiện:
 \begin{itemize}
-    \item Chưa có đánh giá thực nghiệm đủ lớn với nhiều môn học và nhiều giảng
-          viên.
-    \item Chất lượng quiz phụ thuộc vào LLM, prompt và chất lượng chunk đầu
-          vào.
-    \item OCR cho tài liệu scan và tài liệu nhiều công thức chưa được hoàn
-          thiện ở mức production.
-    \item GraphRAG mới ở mức thiết kế/MVP curriculum-aware retrieval, chưa có
-          benchmark so sánh đầy đủ với RAG thuần.
-    \item Dashboard phân tích học tập, recommendation và adaptive learning
-          chưa hoàn thiện như một module sản phẩm đầy đủ.
-    \item Triển khai production cần thêm monitoring, backup, secret management
-          và autoscaling.
+    \item Cần mở rộng quy mô thử nghiệm thực tế trên nhiều môn học và đa dạng
+          đối tượng sinh viên trong các học kỳ tiếp theo.
+    \item Chất lượng câu hỏi kiểm tra vẫn có sự phụ thuộc vào độ chính xác và tính
+          chuẩn mực của tài liệu nguồn do giảng viên cung cấp.
+    \item Khả năng xử lý tài liệu scan chất lượng thấp hoặc chứa nhiều biểu thức
+          toán học phức tạp cần tối ưu thêm tầng OCR chuyên biệt.
+    \item Module phân tích hành vi học tập và gợi ý bài học cá nhân hoá cần
+          được xây dựng hoàn thiện hơn ở các phiên bản tiếp theo.
 \end{itemize}
+
+\section{Hướng phát triển tiếp theo}
+\label{sec:future-work}
+
+Dựa trên kết quả thực nghiệm và phản hồi thực tế từ quá trình tích hợp, ba hướng
+phát triển tiếp theo trọng tâm bao gồm:
+
+\begin{enumerate}
+    \item \textbf{In-Video Interactive Checkpoints (Điểm dừng tương tác trên dòng thời gian video):}
+          Nâng cấp trình phát video để hỗ trợ các mốc dừng hình (pause checkpoints)
+          tại các mốc thời gian xác định trên video timeline (tương tự mô hình
+          Edpuzzle hoặc Coursera). Khi video phát đến mốc quy định, luồng phát sẽ
+          tự động tạm dừng và hiển thị câu hỏi kiểm tra tương tác ngay trên màn
+          hình video. Học viên bắt buộc phải trả lời câu hỏi trước khi video cho
+          phép phát tiếp, giúp tăng cường tối đa sự tập trung và khắc sâu kiến thức.
+    \item \textbf{Đa dạng hoá Giọng đọc và Tự động xuất Phụ đề (Subtitles \& VTT):}
+          Mở rộng AI Video Studio cho phép giảng viên lựa chọn nhiều chất giọng
+          vùng miền khác nhau (Bắc, Trung, Nam) cũng như giọng đọc nam/nữ phù hợp
+          với từng chủ đề bài giảng. Đồng thời, tận dụng dữ liệu căn chỉnh thời
+          gian từ \texttt{ffprobe} và transcript để tự động xuất file phụ đề chuẩn
+          WebVTT (\texttt{.vtt}), hiển thị phụ đề đồng bộ ngay trên trình phát video
+          cho học viên.
+    \item \textbf{Báo cáo Learning Analytics và Bản đồ nhiệt (Heatmaps) cho Giảng viên:}
+          Phát triển trang tổng quan phân tích dữ liệu học tập chuyên sâu: trực
+          quan hoá biểu đồ tỷ lệ hoàn thành bài học, thống kê tỷ lệ trả lời đúng/sai
+          cho từng câu hỏi củng cố, và đặc biệt là xây dựng bản đồ nhiệt (video
+          engagement heatmaps) thể hiện trực quan các đoạn video được học viên xem
+          lại nhiều nhất hoặc các đoạn bị bỏ qua nhiều nhất. Đây là nguồn dữ liệu
+          phản hồi vô giá giúp giảng viên liên tục hoàn thiện nội dung sư phạm.
+\end{enumerate}
 
 \section{Kế hoạch triển khai 15 tuần giai đoạn 2 (LVTN)}
 \label{sec:plan-gd2}

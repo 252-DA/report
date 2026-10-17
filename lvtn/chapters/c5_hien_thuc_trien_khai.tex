@@ -459,9 +459,13 @@ Cấu trúc route chính (App Router):
     \item \texttt{app/manage/review/page.tsx}: review inbox, list card/quiz
           draft, action approve/reject/edit.
     \item \texttt{app/manage/documents/page.tsx}: upload + danh sách tài liệu.
+    \item \texttt{app/manage/micro-content/page.tsx}: danh sách bài giảng Micro Content của khoá học, trạng thái xuất bản, bộ lọc.
+    \item \texttt{app/manage/micro-content/[id]/edit/page.tsx}: trình biên tập tương tác 4 tab (Chi tiết, Video, Câu hỏi củng cố, Xuất bản và điều kiện), hỗ trợ tải video và studio sinh video AI 4 bước.
     \item \texttt{app/learn/lessons/[id]/page.tsx}: card view + nav.
     \item \texttt{app/learn/lessons/[id]/quiz/page.tsx}: làm quiz.
+    \item \texttt{app/learn/micro-content/[id]/page.tsx}: giao diện học tập: video player kèm heartbeat chống tua gian lận, bộ câu hỏi 4 dạng bài tập, thanh tiến trình mở khoá nộp bài và modal kết quả chấm điểm.
     \item \texttt{app/learn/chat/page.tsx}: AI Tutor chatbot.
+    \item \texttt{app/api/media/[...path]/route.ts}: streaming proxy hỗ trợ chuẩn HTTP 206 Partial Content (header \texttt{Range}, \texttt{Content-Range}) trực tiếp từ MinIO storage.
     \item \texttt{app/api/sse-chat/route.ts}: proxy SSE từ
           \texttt{chat-service} về browser, không buffer.
 \end{itemize}
@@ -478,10 +482,10 @@ giảm overhead so với Express, đóng vai trò trung tâm nghiệp vụ:
 
 \begin{itemize}
     \item Quản lý metadata: \texttt{documents}, \texttt{videos},
-          \texttt{lesson\_cards}, \texttt{quiz\_items}, \texttt{courses}.
+          \texttt{lesson\_cards}, \texttt{quiz\_items}, \texttt{micro\_contents}, \texttt{courses}.
     \item Phân quyền: kiểm tra role \texttt{Instructor}/\texttt{Learner}
           theo course context trích từ JWT.
-    \item Review/Publish: state machine của card/quiz, ghi audit log.
+    \item Review/Publish: state machine của card/quiz và micro-content, ghi audit log.
     \item Điều phối job: publish event vào BullMQ (gọi qua HTTP
           \texttt{BullMQ Pro} hoặc trực tiếp Redis client).
     \item Chứa Outbox Poller daemon chạy in-process.
@@ -489,9 +493,15 @@ giảm overhead so với Express, đóng vai trò trung tâm nghiệp vụ:
 
 Module structure (NestJS): mỗi bounded context một module
 (\texttt{CourseModule}, \texttt{DocumentModule}, \texttt{ContentModule},
-\texttt{ReviewModule}, \texttt{AnalyticsModule}, \texttt{OutboxModule}),
+\texttt{MicroContentModule}, \texttt{ReviewModule}, \texttt{AnalyticsModule}, \texttt{OutboxModule}),
 mỗi module có
 \texttt{*.controller.ts}/\texttt{*.service.ts}/\texttt{*.repository.ts}/\texttt{*.dto.ts}.
+
+Trong đó, \texttt{MicroContentModule} hiện thực hai service nghiệp vụ trọng tâm:
+\begin{itemize}
+    \item \texttt{micro-content.service.ts}: Xử lý phân quyền tác giả (\texttt{assertCourseAccess} bảo đảm chỉ giảng viên sở hữu khoá học mới có quyền chỉnh sửa), quản lý metadata bài giảng, cấp presigned URL tải lên video MP4, điều phối quy trình xuất bản (\texttt{DRAFT} $\to$ \texttt{PUBLISHED}), và hiện thực cơ chế bảo mật ẩn đáp án đúng (\texttt{correct\_answer}, giải thích và rubric) khi serialize câu hỏi trả về cho học viên.
+    \item \texttt{micro-content-attempt.service.ts}: Xử lý toàn bộ logic học tập và đánh giá: thuật toán gộp interval heartbeat (\texttt{reportProgress}) nhằm chống gian lận tua video, kiểm tra điều kiện mở khoá nộp bài (\texttt{unlocked}), chấm điểm tức thì phía server cho 3 dạng câu hỏi khách quan (trắc nghiệm, đúng/sai, điền khuyết), và kích hoạt outbox event \texttt{MicroContentGradingRequested} cho worker AI chấm tự luận ngắn.
+\end{itemize}
 
 ORM: Prisma cho query và migration; lý do chọn Prisma thay vì TypeORM:
 generated type-safe client, schema khai báo single source, có CLI
@@ -597,6 +607,38 @@ Vì thời gian xử lý 1 video 60' có thể vượt 30 phút --- ngưỡng st
 job mặc định của BullMQ --- worker gọi \texttt{job.updateProgress()}
 mỗi 10 giây để xác nhận tiến độ.
 
+\subsection{\texttt{micro-content-video-worker} (Python)}
+\label{subsec:micro-content-video-worker}
+
+Worker \texttt{da-micro-content-video-worker-1} chịu trách nhiệm xử lý tác vụ tính toán nặng và sinh nội dung đa phương tiện cho AI Video Studio. Khác với \texttt{video-worker} (Go) chuyên cắt ghép và trích xuất transcript từ video có sẵn của giảng viên, worker này là một pipeline sinh video bài giảng AI tổng hợp từ đầu (Text-to-Video generation) dựa trên Python 3.11 và BullMQ.
+
+Worker lắng nghe queue \texttt{micro\_content\_video} và xử lý hai tác vụ chính:
+\begin{enumerate}
+    \item \textbf{Sinh kịch bản sư phạm (\texttt{GenerateMicroContentScriptUseCase}):}
+          Tiếp nhận prompt chủ đề và mục tiêu bài học từ giảng viên, gọi mô hình Gemini 1.5 Pro với chế độ JSON mode nghiêm ngặt để sinh danh sách các phân cảnh (\texttt{scenes}). Mỗi phân cảnh bao gồm tiêu đề (\texttt{title}), các ý chính hiển thị dạng danh sách (\texttt{bullet\_points}), và lời thuyết minh tương ứng (\texttt{narration}).
+    \item \textbf{Dựng video hoàn chỉnh (\texttt{RenderMicroContentVideoUseCase}):}
+          Quy trình dựng video gồm 4 tầng xử lý liên hoàn:
+          \begin{itemize}
+              \item \textbf{Tạo ảnh slide (\texttt{SlideGenerator}):} Sử dụng thư viện đồ họa Pillow, sinh tự động các khung hình tĩnh tỷ lệ 16:9 độ phân giải HD ($1280 \times 720$ pixel) với giao diện tối hiện đại (nền slate), typography phân cấp rõ ràng, tự động tính toán ngắt dòng chữ (word-wrap) và huy hiệu số thứ tự phân cảnh.
+              \item \textbf{Tổng hợp giọng đọc tiếng Việt (\texttt{EdgeTtsClient}):} Tích hợp thư viện \texttt{edge-tts}~\cite{microsoft_edgetts} giao tiếp với dịch vụ Neural TTS của Microsoft, sử dụng giọng đọc tiếng Việt tự nhiên \texttt{vi-VN-HoaiMyNeural}. File âm thanh MP3 sinh ra được đưa qua công cụ \texttt{ffprobe} để đo đạc thời lượng chính xác đến mili-giây, làm căn cứ kéo dài thời gian hiển thị khung hình slide tương ứng.
+              \item \textbf{Biên dịch phân cảnh:} Với mỗi phân cảnh, worker gọi FFmpeg kết hợp ảnh tĩnh và file âm thanh MP3 để tạo ra một clip MP4 độc lập (\texttt{libx264}, audio \texttt{aac 192k}).
+              \item \textbf{Ghép nối và tối ưu streaming (\texttt{VideoComposer}):} Sử dụng tính năng concat demuxer của FFmpeg để nối liền mạch các clip phân cảnh thành một file MP4 duy nhất, đồng thời thêm cờ \texttt{-movflags +faststart} để đưa atom \texttt{moov} lên đầu file, giúp trình duyệt có thể bắt đầu phát ngay lập tức khi nhận luồng dữ liệu byte-range mà không cần đợi tải hết video. File thành phẩm được đẩy lên MinIO và cập nhật thời lượng \texttt{video\_duration\_ms} vào CSDL PostgreSQL.
+          \end{itemize}
+\end{enumerate}
+
+\subsection{\texttt{answer-grading-worker} (Python)}
+\label{subsec:answer-grading-worker}
+
+Worker \texttt{da-answer-grading-worker-1} đảm nhận việc đánh giá tự động các câu trả lời tự luận ngắn (\texttt{SHORT\_ANSWER}) của học viên bằng Generative AI, giải phóng áp lực chấm bài thủ công cho giảng viên nhưng vẫn bảo đảm phản hồi sư phạm tức thì và sâu sát.
+
+Worker lắng nghe queue \texttt{answer\_grading} và consume sự kiện \texttt{MicroContentGradingRequested} do \texttt{core-api} phát ra qua Outbox. Quy trình xử lý gồm:
+\begin{enumerate}
+    \item Truy vấn thông tin câu hỏi, câu trả lời mẫu (\texttt{correct\_answer}), thang điểm tối đa, tiêu chí chấm (\texttt{rubric}), danh sách từ khoá bắt buộc (\texttt{expected\_keywords}), và câu trả lời thực tế của học viên từ CSDL.
+    \item Xây dựng prompt có cấu trúc chặt chẽ, gửi tới Gemini Pro để đánh giá độ chính xác về mặt nội dung, mức độ bao quát các ý trọng tâm, và độ phù hợp của các khái niệm chuyên môn.
+    \item Nhận kết quả có cấu trúc JSON bao gồm: số điểm đạt được (\texttt{scoreGiven}), nhận xét chi tiết (\texttt{feedback}), và danh sách các từ khoá đã đáp ứng hoặc còn thiếu sót.
+    \item Cập nhật kết quả vào bản ghi \texttt{micro\_content\_answers}, sau đó tính toán lại tổng điểm của bài làm trong \texttt{micro\_content\_attempts} và chuyển trạng thái câu trả lời sang \texttt{GRADED}.
+\end{enumerate}
+
 \section{Hiện thực Adapter của Hexagonal Port}
 \label{sec:adapter-impl}
 
@@ -672,10 +714,10 @@ Dependency Injection ở bootstrap, không thay đổi tại runtime.
 
 \subsection{BullMQ queue layout}
 
-Bốn queue chính trong Redis:
+Sáu queue BullMQ chính trong Redis:
 
-\begin{longtable}{|p{4cm}|p{2.5cm}|p{7cm}|}
-\caption{Bốn queue BullMQ chính.}
+\begin{longtable}{|p{4.2cm}|p{3.8cm}|p{5.5cm}|}
+\caption{Sáu queue BullMQ chính trong hệ thống.}
 \label{tab:bullmq-queues} \\
 \hline
 \textbf{Queue} & \textbf{Consumer} & \textbf{Loại job} \\
@@ -698,6 +740,12 @@ Bốn queue chính trong Redis:
 \texttt{outbox-relay-q} & \texttt{document-worker} (graph) hoặc
     \texttt{core-api} fanout
     & Relay outbox events sang Neo4j hoặc downstream service. \\
+\hline
+\texttt{micro\_content\_video} & \texttt{micro-content-video-worker}
+    & Sinh kịch bản sư phạm và render video bài giảng AI qua FFmpeg/Edge-TTS. \\
+\hline
+\texttt{answer\_grading} & \texttt{answer-grading-worker}
+    & Chấm điểm tự luận ngắn và nhận xét sư phạm theo rubric qua Gemini Pro. \\
 \hline
 \end{longtable}
 
@@ -819,20 +867,49 @@ passback:
     \item Cache token TTL 50 phút (token Canvas TTL 1 giờ).
 \end{enumerate}
 
-\subsection{Deep Linking (cho instructor placement)}
+\subsection{Deep Linking 2.0 (cho placement bài giảng và Micro Content)}
+\label{subsec:deep-linking-impl}
 
-Giảng viên có thể chọn lesson cụ thể để gắn vào activity Canvas qua
-Deep Linking 2.0:
+Quy trình Deep Linking 2.0~\cite{1edtech_lti_dl_2020} cho phép giảng viên chọn trực tiếp bài giảng hoặc bài học Micro Content từ bên trong Canvas LMS để gắn vào các Module học tập:
 
-\begin{itemize}
-    \item Canvas redirect đến \texttt{/lti/deep-link-select} với
-          \texttt{deep\_link\_return\_url}.
-    \item Giảng viên chọn lesson từ UI, BFF sinh
-          \texttt{LtiResourceLinkRequest} JWT và POST về
-          \texttt{deep\_link\_return\_url}.
-    \item Canvas tạo activity với \texttt{custom.lesson\_id} được
-          embed trong launch context tiếp theo.
-\end{itemize}
+\begin{enumerate}
+    \item Giảng viên mở giao diện Canvas Modules, chọn menu thêm nội dung ngoài (\textit{External Tool}) và chọn công cụ DA Platform. Canvas gửi yêu cầu khởi tạo đến \texttt{/lti/login} và chuyển tiếp sang route \texttt{/lti/deep-link-select} kèm theo \texttt{deep\_link\_return\_url} cùng JWT message.
+    \item Tại giao diện chọn nội dung (\texttt{web/src/app/lti/deep-link/quiz-composer.tsx} hoặc micro-content selector), giảng viên có thể duyệt danh sách các bài học Micro Content đã xuất bản (\texttt{PUBLISHED}) kèm thông tin số lượng câu hỏi, thời lượng video và điều kiện hoàn thành.
+    \item Khi giảng viên xác nhận lựa chọn, endpoint \texttt{web/src/app/lti/deep-link/return/route.ts} tạo và ký một JWT phản hồi tuân thủ đặc tả LTI 1.3 Deep Linking Response với khoá riêng của Tool. Payload trả về có dạng:
+\begin{lstlisting}[caption={Payload JWT trả về Canvas qua Deep Linking 2.0.}]
+{
+  "https://purl.imsglobal.org/spec/lti/claim/message_type": "LtiDeepLinkingResponse",
+  "https://purl.imsglobal.org/spec/lti/claim/version": "1.3.0",
+  "https://purl.imsglobal.org/spec/lti-dl/claim/content_items": [
+    {
+      "type": "ltiResourceLink",
+      "title": "Bai giang Micro Content: " + microContent.title,
+      "url": "https://app-binh.canxphung.dev/learn/micro-content/" + id,
+      "custom": {
+        "target_kind": "micro_content",
+        "target_id": id
+      }
+    }
+  ]
+}
+\end{lstlisting}
+    \item Trình duyệt tự động submit một form POST chứa JWT này về \texttt{deep\_link\_return\_url} của Canvas. Canvas tiếp nhận và tự động tạo một module item tương ứng. Đối với Micro Content, hệ thống không đính kèm \texttt{lineItem} của AGS để tránh ghi đè sổ điểm khoá học, vì Micro Content đóng vai trò học tập củng cố và đánh giá quá trình (formative assessment).
+    \item Khi sinh viên click vào item trong Canvas, request LTI Launch gửi về \texttt{web/src/app/lti/launch/route.ts}. Hệ thống nhận diện \texttt{target\_kind === "micro\_content"} và tự động điều hướng thẳng đến trang học tập \texttt{/learn/micro-content/\{id\}}.
+\end{enumerate}
+
+\subsection{Cơ chế Cookie CHIPS cho môi trường nhúng Iframe}
+\label{subsec:chips-cookie-impl}
+
+Khi tích hợp vào Canvas LMS, ứng dụng Web của hệ thống hoạt động bên trong một thẻ \texttt{<iframe>}. Đây là thách thức kỹ thuật lớn trong bối cảnh các trình duyệt web hiện đại (Google Chrome từ phiên bản 115+, Safari với WebKit ITP, Firefox) đều mặc định chặn hoặc siết chặt kiểm soát cookie của bên thứ ba (\textit{Third-party Cookies}) nhằm bảo vệ quyền riêng tư người dùng.
+
+Nếu chỉ sử dụng thuộc tính cookie truyền thống \texttt{SameSite=None; Secure}, trình duyệt sẽ từ chối gửi cookie phiên đăng nhập trong các HTTP request tiếp theo bên trong iframe, dẫn đến việc học viên bị mất phiên đăng nhập liên tục (lỗi 401 Unauthorized hoặc trang trắng không xác thực được).
+
+Để giải quyết triệt để vấn đề này mà vẫn tuân thủ các tiêu chuẩn bảo mật web hiện đại, hệ thống đã ứng dụng cơ chế phân vùng cookie \textbf{CHIPS} (\textit{Cookies Having Independent Partitioned State}) theo đề xuất của W3C~\cite{w3c_chips_2024}. Khi phát hành phiên làm việc sau LTI Launch thành công tại \texttt{/lti/launch}, cookie phiên được cấu hình với thuộc tính \texttt{Partitioned}:
+\begin{lstlisting}[language=bash, caption={Header Set-Cookie sử dụng cơ chế CHIPS.}]
+Set-Cookie: session_id=<jwt_token>; Path=/; Secure; HttpOnly; SameSite=None; Partitioned
+\end{lstlisting}
+
+Nhờ cờ \texttt{Partitioned}, trình duyệt sẽ lưu trữ cookie phiên trong một vùng nhớ riêng biệt được gắn khoá kép (\textit{double-keyed}): gồm nguồn cấp cao nhất (\textit{top-level site}, ví dụ \texttt{https://canvas.instructure.com}) và nguồn gốc của iframe (\textit{embedded site}, ví dụ \texttt{https://app-binh.canxphung.dev}). Cookie này không bị chia sẻ chéo sang các trang web khác ngoài Canvas, đáp ứng đầy đủ yêu cầu chống theo dõi cross-site của trình duyệt, đồng thời bảo đảm phiên làm việc của học viên luôn thông suốt và ổn định trong suốt quá trình xem video và làm bài củng cố.
 
 \section{Đóng gói Docker Compose}
 \label{sec:docker-compose}
@@ -1035,9 +1112,50 @@ Production & BGE-M3 local & Whisper local + AssemblyAI fallback
 \hline
 \end{longtable}
 
+\section{Kỹ thuật xử lý sự cố thực tế trong quá trình triển khai}
+\label{sec:troubleshooting-lvtn}
+
+Trong quá trình phát triển, tích hợp và triển khai thử nghiệm hệ thống LMS mở rộng với module Micro Content và chuẩn LTI 1.3, nhóm tác giả đã gặp và giải quyết thành công nhiều thách thức kỹ thuật phát sinh ở các tầng khác nhau. Bảng~\ref{tab:troubleshooting-lvtn} tổng hợp 5 sự cố tiêu biểu, nguyên nhân gốc rễ và giải pháp kỹ thuật đã áp dụng.
+
+\begin{longtable}{|p{3.5cm}|p{4.5cm}|p{5.5cm}|}
+\caption{Các sự cố kỹ thuật thực tế và biện pháp xử lý.}
+\label{tab:troubleshooting-lvtn} \\
+\hline
+\textbf{Hiện tượng sự cố} & \textbf{Nguyên nhân gốc rễ} & \textbf{Giải pháp kỹ thuật} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Hiện tượng sự cố} & \textbf{Nguyên nhân gốc rễ} & \textbf{Giải pháp kỹ thuật} \\
+\hline
+\endhead
+
+Lỗi 403 Forbidden ("Nguồn yêu cầu không hợp lệ") khi thao tác tạo bài giảng
+    & Middleware chống CSRF kiểm tra cứng header \texttt{origin} phải bằng biến môi trường \texttt{LTI\_REDIRECT\_URI} (chỉ định domain public). Khi chạy test tại \texttt{localhost:3001}, chuỗi kiểm tra không khớp.
+    & Xây dựng hàm kiểm định nguồn \texttt{isValidOrigin()} trong \texttt{route-session.ts}, chấp nhận đa nguồn: domain LTI chính thức, forward host thực tế và các cổng localhost hợp lệ ở chế độ phát triển. \\
+\hline
+Worker Render Video bị Crash (Exit code 1) khi khởi động
+    & Cấu hình Pydantic \texttt{WorkerRuntimeConfig} định nghĩa kiểu \texttt{type} dạng \texttt{Literal} thiếu giá trị \texttt{'micro\_content\_video'}, gây ra lỗi \texttt{ValidationError} làm dừng tiến trình.
+    & Bổ sung giá trị \texttt{'micro\_content\_video'} vào định nghĩa kiểu dữ liệu trong \texttt{worker/config.py} và hàm khởi tạo cài đặt worker. \\
+\hline
+Lỗi cập nhật CSDL \texttt{UndefinedColumn} khi ghi nhận độ dài video
+    & Câu lệnh SQL \texttt{UPDATE} trong worker gọi nhầm tên cột thành \texttt{video\_duration\_seconds}, trong khi Prisma migration đặt tên cột chuẩn là \texttt{video\_duration\_ms} (mili-giây).
+    & Chuẩn hoá tên cột thành \texttt{video\_duration\_ms} và tính toán thời lượng $T_{\text{ms}} = \text{int}(T_{\text{seconds}} \times 1000)$ trước khi thực thi cập nhật CSDL. \\
+\hline
+Video AI phát âm thanh tiếng Beep đơn âm (440Hz)
+    & Image worker chưa khai báo gói thư viện \texttt{edge-tts} trong \texttt{pyproject.toml}, kích hoạt cơ chế fallback về \texttt{MockTtsClient} (sinh sóng sine đơn âm).
+    & Bổ sung \texttt{edge-tts>=7.0.0} vào cấu hình gói, cài đặt dependency và cấu hình sử dụng giọng đọc tự nhiên \texttt{vi-VN-HoaiMyNeural}. \\
+\hline
+Lỗi \texttt{ECONNREFUSED} qua Cloudflare Tunnel khi nhúng vào Canvas
+    & Tiến trình \texttt{cloudflared} phân giải \texttt{localhost} sang địa chỉ IPv6 \texttt{[::1]:3001}, trong khi máy chủ Next.js chỉ bind trên giao diện IPv4 \texttt{127.0.0.1:3001}.
+    & Cấu hình tham số ingress của Cloudflare Tunnel trỏ tường minh vào địa chỉ IPv4 \texttt{http://127.0.0.1:3001} thay vì \texttt{localhost}. \\
+\hline
+\end{longtable}
+
+Các giải pháp kỹ thuật trên không chỉ giúp hệ thống vận hành ổn định trong môi trường thực tế mà còn bảo đảm tính tương thích cao khi triển khai trên nhiều môi trường khác nhau (từ môi trường phát triển cục bộ của lập trình viên đến môi trường pilot kết nối Canvas LMS).
+
 \section{Tổng kết chương}
 
-Chương này đã trình bày các quyết định hiện thực cụ thể:
+Chương này đã trình bày các quyết định hiện thực và triển khai cụ thể:
 
 \begin{itemize}
     \item \textbf{Môi trường mục tiêu:} Ubuntu Server 22.04 LTS cho
@@ -1045,28 +1163,23 @@ Chương này đã trình bày các quyết định hiện thực cụ thể:
           pilot tối thiểu 16GB (không GPU) đến 32GB (có GPU); tổng
           phân bổ container khoảng 20GB.
     \item \textbf{Cấu trúc mã nguồn:} monorepo pnpm + Poetry workspace
-          với 6 app runtime và shared packages; mỗi worker Python theo
+          với các app runtime và shared packages; mỗi worker Python theo
           layout Hexagonal nghiêm ngặt.
-    \item \textbf{6 runtime:} \texttt{web-bff} (Next.js),
-          \texttt{core-api} (NestJS), \texttt{chat-service} (FastAPI),
-          \texttt{document-worker} và \texttt{enrichment-worker}
-          (Python), \texttt{video-worker} (Go).
+    \item \textbf{Hiện thực các runtime:} \texttt{web-bff} (Next.js 14 App Router với streaming proxy HTTP 206),
+          \texttt{core-api} (NestJS 10 với \texttt{MicroContentModule} phân quyền và chấm điểm), \texttt{chat-service} (FastAPI RAG),
+          cùng hệ thống worker xử lý tài liệu, làm giàu nội dung, cắt video (\texttt{video-worker} bằng Go),
+          sinh video AI (\texttt{micro-content-video-worker} bằng Python/Pillow/FFmpeg/Edge-TTS), và chấm tự luận tự động (\texttt{answer-grading-worker}).
     \item \textbf{Adapter switchable theo env:} embedding
           (BGE-M3/OpenAI), STT (Whisper local/OpenAI/AssemblyAI), LLM
           (Gemini/OpenAI) --- cho phép chạy dev không cần GPU.
-    \item \textbf{Outbox poller + BullMQ} đảm bảo eventual consistency
-          giữa PostgreSQL, Qdrant, Neo4j và downstream worker.
-    \item \textbf{Tích hợp Canvas LMS} qua LTI 1.3 OIDC, AGS grade
-          passback và Deep Linking; BFF-to-Core JWT Ed25519 cô lập
-          phiên Canvas khỏi service backend.
+    \item \textbf{Outbox poller + BullMQ} với 6 queue chuyên biệt đảm bảo eventual consistency
+          giữa PostgreSQL, Qdrant, Neo4j và các downstream worker.
+    \item \textbf{Tích hợp Canvas LMS} qua chuẩn LTI 1.3 Advantage: OIDC login, AGS grade passback,
+          LTI Deep Linking 2.0 cho phép gắn bài học Micro Content trực tiếp vào module Canvas, và ứng dụng cơ chế cookie phân vùng CHIPS (\textit{Cookies Having Independent Partitioned State}) giải quyết bài toán chặn third-party cookies trong iframe.
+    \item \textbf{Kỹ thuật xử lý sự cố:} Đúc kết các giải pháp kỹ thuật cụ thể từ thực tiễn phát triển đối với các bài toán chống CSRF đa nguồn, đồng bộ schema CSDL, cấu hình Pydantic runtime, tích hợp Neural TTS, và giải quyết xung đột IPv4/IPv6 qua Cloudflare Tunnel.
     \item \textbf{Docker Compose} với 3 file (base + dev override +
-          gpu override) là cách đóng gói chính; Kubernetes là định
-          hướng tương lai sau bảo vệ.
-    \item \textbf{CI/CD:} GitHub Actions với 4 job song song (lint,
-          test, integration, build); secret quản lý qua env file mode
-          600 hoặc GitHub Actions Secrets.
+          gpu override) là cách đóng gói chính; CI/CD tự động hoá với GitHub Actions.
 \end{itemize}
 
 Chương 6 tiếp theo trình bày phương pháp và kết quả đánh giá hệ thống
-dựa trên dữ liệu pilot thu thập theo kế hoạch ở
-mục~\ref{sec:plan-gd2} trong Chương~\ref{chap:ket-luan-huong-phat-trien}.
+dựa trên kiểm thử chức năng, bộ unit test tự động và dữ liệu thử nghiệm thực tế.

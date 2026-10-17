@@ -545,38 +545,90 @@ grounding. Luồng thực thi chi tiết gồm năm giai đoạn chính:
     \label{fig:dataflow-micro-content}
 \end{figure}
 
-Pipeline sinh nội dung học tập vi mô (Micro-Content) được vận hành bất đồng
-bộ nhằm chuyển đổi các tài liệu thô cồng kềnh thành các thẻ học tập cô đọng,
-dễ tiếp thu. Luồng xử lý chi tiết bao gồm bốn giai đoạn chính:
+Pipeline sinh nội dung học tập vi mô (\textbf{Micro-Content}) được thiết kế
+toàn diện nhằm giải quyết vấn đề quá tải nhận thức của sinh viên và giảm thiểu
+chi phí sản xuất bài giảng của giảng viên. Hệ thống kết hợp giữa video bài giảng
+ngắn (3--5 phút) và bộ câu hỏi củng cố năng lực tức thì (Formative Checkpoints),
+tạo thành một gói học tập vi mô khép kín (\textit{Interactive Micro-Learning Package}).
+Quy trình vận hành bao gồm hai cơ chế cốt lõi: \textbf{AI Video Studio} và
+\textbf{Động cơ kiểm soát học tập chống gian lận (Anti-Cheat Engine)}.
 
+\subsubsection{Quy trình sản xuất bài giảng AI Video Studio}
+Giảng viên chỉ cần nhập chủ đề hoặc tải lên tài liệu học thuật, hệ thống tự động
+sản xuất video bài giảng chuẩn sư phạm thông qua bốn giai đoạn:
 \begin{enumerate}
-    \item \textbf{Gom nhóm và phân chia ngữ cảnh (Context Aggregation):} Hệ
-          thống quét cơ sở dữ liệu để gom nhóm các \texttt{Chunks} văn bản
-          thuộc cùng một đề mục cấp 2 (\texttt{Heading Path} cấp 2, ví dụ:
-          Mục 2.1, Mục 2.2). Điều này đảm bảo nội dung đưa vào LLM có tính
-          liên tục và trọn vẹn về mặt ngữ nghĩa. Tổng số lượng ký tự của
-          mỗi nhóm được giới hạn dưới mức trần 4000 tokens để tối ưu chi
-          phí và tránh suy giảm sự chú ý của mô hình AI.
-    \item \textbf{Trích xuất và liên kết mục tiêu học tập (LO Alignment):}
-          \texttt{enrichment-worker} thiết lập truy vấn ngữ cảnh kết hợp
-          giữa nội dung tài liệu thô và các mục tiêu học tập (\texttt{Learning
-          Outcomes}) tương ứng được định nghĩa trong Đề cương Môn học CDIO.
-          Prompt kỹ thuật được thiết kế để yêu cầu LLM trích xuất chính xác
-          các khái niệm cốt lõi (\texttt{Key Concepts}) và tóm tắt nội dung
-          bài học dưới dạng các thẻ kiến thức (\texttt{Lesson Cards}).
-    \item \textbf{Định dạng cấu trúc nghiêm ngặt (Strict JSON Formatting):}
-          Lời gọi API Gemini 1.5 Pro bắt buộc áp dụng chế độ \texttt{JSON
-          Schema strict mode}. Mô hình bắt buộc phải trả về dữ liệu tuân
-          thủ chặt chẽ định nghĩa cấu trúc của hệ thống, bao gồm các trường
-          bắt buộc như \texttt{title}, \texttt{key\_insights} (mảng chuỗi
-          khái niệm) và \texttt{bullets} (nội dung thẻ bài học dạng gạch
-          đầu dòng). Việc này giúp giảm thiểu tối đa rủi ro lỗi cú pháp khi
-          phân tích phản hồi (parsing error) từ LLM.
-    \item \textbf{Lưu trữ bản nháp (Draft Persistence):} Kết quả sau khi
-          được xác thực cấu trúc thành công sẽ được persist vào bảng
-          \texttt{lesson\_cards} của cơ sở dữ liệu PostgreSQL ở trạng thái
-          \texttt{GENERATED\_DRAFT}.
+    \item \textbf{Sinh kịch bản sư phạm phân cảnh (Pedagogical Scripting):} LLM
+          tiếp nhận prompt yêu cầu và sinh ra cấu trúc kịch bản phân cảnh dạng
+          JSON tuân thủ nghiêm ngặt schema. Mỗi phân cảnh (\textit{scene}) gồm
+          có: tiêu đề phân cảnh (\texttt{title}), danh sách ý chính cô đọng
+          (\texttt{bullets}), và đoạn văn bản thuyết minh chi tiết
+          (\texttt{narration}) bằng tiếng Việt chuẩn sư phạm.
+    \item \textbf{Vẽ Slide bài giảng tự động (Pillow Slide Generation):} Module
+          \texttt{slide\_generator.py} sử dụng thư viện đồ họa Pillow vẽ từng
+          slide thành ảnh tĩnh PNG độ phân giải chuẩn HD 1280x720 (tỷ lệ 16:9).
+          Hệ thống áp dụng bảng màu tối hiện đại (Dark Slate Palette), tự động
+          ngắt dòng (word-wrap) theo độ rộng font chữ, phân cấp độ ưu tiên hiển
+          thị giữa tiêu đề và nội dung, đồng thời đánh số thứ tự phân cảnh để
+          học viên dễ theo dõi.
+    \item \textbf{Tổng hợp giọng đọc tiếng Việt tự nhiên (Neural TTS):} Module
+          \texttt{tts\_client.py} tích hợp thư viện \texttt{edge-tts} sử dụng
+          mô hình giọng đọc nhân tạo \texttt{vi-VN-HoaiMyNeural}. Âm thanh được
+          sinh ra ở định dạng MP3 chất lượng cao. Hệ thống sử dụng công cụ
+          \texttt{ffprobe} để đo đạc thời lượng chính xác đến mili-giây
+          (\texttt{duration\_ms}) của từng phân cảnh âm thanh.
+    \item \textbf{Biên dịch và ghép nối video đa phân cảnh (FFmpeg Composition):}
+          Module \texttt{video\_composer.py} biên dịch từng cặp (Slide PNG, Audio MP3)
+          thành clip ngắn MP4 với codec video \texttt{libx264} (pixel format \texttt{yuv420p})
+          và codec âm thanh \texttt{aac 192k}. Danh sách clip sau đó được ghép nối
+          bằng \textit{FFmpeg concat demuxer} và tối ưu hóa bằng cờ \texttt{-movflags +faststart}.
+          Video hoàn chỉnh được tải trực tiếp lên MinIO S3 bucket và chuyển trạng thái
+          bản ghi sang \texttt{READY}.
 \end{enumerate}
+
+\subsubsection{Cơ chế chống gian lận xem video (Anti-Cheat Heartbeat Tracking)}
+Để ngăn chặn tình trạng học viên tua nhanh video (fast-forwarding) hoặc mở tab
+nền đối phó, hệ thống thiết kế động cơ theo dõi khoảng thời gian xem thực tế:
+\begin{itemize}
+    \item \textbf{Gửi nhịp tim định kỳ (Heartbeat):} Trong quá trình phát video,
+          trình duyệt học viên gửi tín hiệu heartbeat lên máy chủ mỗi 5 giây
+          kèm cặp thông số $[t_{\text{current}}, \Delta t]$.
+    \item \textbf{Gộp khoảng thời gian xem (Interval Merging):} Phía máy chủ
+          (\texttt{micro-content-attempt.service.ts}) liên tục cập nhật và gộp
+          các khoảng thời gian xem liên tục vào mảng \texttt{watched\_intervals}:
+          $$\text{Intervals} = \bigcup [t_{\text{start}}^{(i)}, t_{\text{end}}^{(i)}]$$
+    \item \textbf{Điều kiện mở khóa nộp bài:} Tỷ lệ phần trăm đã xem thực tế được
+          tính bằng tổng độ dài các khoảng thời gian hợp lệ chia cho tổng thời lượng:
+          $$\text{watched\_percent} = \min\left(100, \left\lfloor \frac{\sum_{i} (t_{\text{end}}^{(i)} - t_{\text{start}}^{(i)})}{T_{\text{total}}} \times 100 \right\rfloor \right)$$
+          Chỉ khi $\text{watched\_percent} \ge \text{required\_watch\_percent}$ (mặc định 80--90\%),
+          cờ \texttt{unlocked} mới được kích hoạt sang \texttt{true}, cho phép học viên
+          bấm nút nộp bài kiểm tra.
+\end{itemize}
+
+\begin{algorithm}[H]
+\SetAlgoLined
+\KwIn{Danh sách khoảng thời gian đã xem $I = \{[s_1, e_1], \dots, [s_k, e_k]\}$, khoảng thời gian mới $[t_{\text{start}}, t_{\text{end}}]$, tổng thời lượng video $T_{\text{total}}$, ngưỡng yêu cầu $R_{\text{req}}$}
+\KwOut{Tỷ lệ xem cập nhật $P_{\text{watched}}$, trạng thái mở khóa $\text{is\_unlocked}$}
+\BlankLine
+$I \leftarrow I \cup \{[t_{\text{start}}, t_{\text{end}}]\}$\;
+Sắp xếp các khoảng thời gian trong $I$ theo thứ tự tăng dần của $s_i$\;
+$M \leftarrow \emptyset$\;
+$[c_{\text{start}}, c_{\text{end}}] \leftarrow I[0]$\;
+\For{$i \leftarrow 1$ \KwTo $|I|-1$}{
+    \eIf{$I[i].s \le c_{\text{end}}$}{
+        $c_{\text{end}} \leftarrow \max(c_{\text{end}}, I[i].e)$\;
+    }{
+        $M \leftarrow M \cup \{[c_{\text{start}}, c_{\text{end}}]\}$\;
+        $[c_{\text{start}}, c_{\text{end}}] \leftarrow I[i]$\;
+    }
+}
+$M \leftarrow M \cup \{[c_{\text{start}}, c_{\text{end}}]\}$\;
+$T_{\text{watched}} \leftarrow \sum_{[s, e] \in M} (e - s)$\;
+$P_{\text{watched}} \leftarrow \min(100, \lfloor (T_{\text{watched}} / T_{\text{total}}) \times 100 \rfloor)$\;
+$\text{is\_unlocked} \leftarrow (P_{\text{watched}} \ge R_{\text{req}})$\;
+\Return{$P_{\text{watched}}, \text{is\_unlocked}$}\;
+\caption{Thuật toán gộp khoảng thời gian xem và xác thực mở khóa nộp bài.}
+\label{algo:heartbeat-merging}
+\end{algorithm}
 
 \subsection{Quiz Generation Pipeline}
 
@@ -686,14 +738,14 @@ nghiêm ngặt (human-in-the-loop) với cơ chế đồng bộ hóa bất đồ
 \subsection{PostgreSQL Schema}
 
 PostgreSQL là source of truth cho toàn bộ dữ liệu nghiệp vụ. Schema được
-phân thành bảy phân hệ logic với tổng cộng \textbf{24 bảng} bao phủ
-ingestion, generated content, analytics và cost tracking. Toàn bộ DDL
-chi tiết được liệt kê ở Phụ lục~\ref{appendix:db-schema}; phần này tóm
-tắt cấu trúc tổng quan.
+phân thành tám phân hệ logic với tổng cộng \textbf{29 bảng} bao phủ
+ingestion, generated content, analytics, cost tracking và phân hệ học tập
+vi mô tương tác (\textbf{Micro-Content}). Toàn bộ DDL chi tiết được liệt kê
+ở Phụ lục~\ref{appendix:db-schema}; phần này tóm tắt cấu trúc tổng quan.
 
 \begin{table}[H]
     \centering
-    \caption{Bảy phân hệ logic trong PostgreSQL (24 bảng).}
+    \caption{Tám phân hệ logic trong PostgreSQL (29 bảng).}
     \label{tab:postgres-tables}
     \begin{tabular}{|p{4cm}|p{9.5cm}|}
         \hline
@@ -719,16 +771,31 @@ tắt cấu trúc tổng quan.
             & \texttt{lesson\_cards}, \texttt{card\_video\_attachments},
               \texttt{quiz\_items} \\
         \hline
-        6. Analytics \& Audit
+        6. Micro Content System
+            & \texttt{micro\_contents}, \texttt{micro\_content\_questions},
+              \texttt{micro\_content\_progress}, \texttt{micro\_content\_attempts},
+              \texttt{micro\_content\_answers} \\
+        \hline
+        7. Analytics \& Audit
             & \texttt{quiz\_attempts}, \texttt{chat\_messages},
               \texttt{learning\_events}, \texttt{review\_audit\_logs},
               \texttt{llm\_usage\_logs}, \texttt{user\_llm\_quota} \\
         \hline
-        7. Async / Cache
+        8. Async / Cache
             & \texttt{outbox\_events}, \texttt{youtube\_search\_cache} \\
         \hline
     \end{tabular}
 \end{table}
+
+\textbf{Phân hệ Cơ sở dữ liệu Micro Content.}
+Để phục vụ gói học tập vi mô tương tác, hệ thống tạo migration \texttt{20261016230000\_micro\_content} gồm năm bảng liên kết chặt chẽ:
+\begin{itemize}
+    \item \texttt{micro\_contents}: Lưu thông tin tổng quan bài học vi mô (\texttt{micro\_content\_id} UUIDv7 PK, \texttt{course\_id} FK, \texttt{title}, \texttt{description}, \texttt{video\_source} ['UPLOAD' | 'AI'], \texttt{video\_status} ['NONE' | 'UPLOADING' | 'PROCESSING' | 'READY' | 'FAILED'], \texttt{video\_duration\_ms}, \texttt{passing\_score}, \texttt{required\_watch\_percent}, \texttt{status} ['DRAFT' | 'PUBLISHED']).
+    \item \texttt{micro\_content\_questions}: Ngân hàng câu hỏi đi kèm bài học vi mô (\texttt{question\_id} PK, \texttt{micro\_content\_id} FK, \texttt{position}, \texttt{type} ['MCQ\_SINGLE' | 'TRUE\_FALSE' | 'FILL\_IN\_BLANK' | 'SHORT\_ANSWER'], \texttt{question}, \texttt{options} JSON, \texttt{correct\_answer}, \texttt{explanation}, \texttt{rubric}).
+    \item \texttt{micro\_content\_progress}: Giám sát tiến độ học tập và phòng chống gian lận (\texttt{progress\_id} PK, \texttt{user\_id}, \texttt{micro\_content\_id}, \texttt{watched\_intervals} JSON chứa mảng các cặp giây đã xem $[[s_1, e_1], [s_2, e_2]]$, \texttt{watched\_percent}, \texttt{unlocked} BOOLEAN).
+    \item \texttt{micro\_content\_attempts}: Quản lý lịch sử các lần thi (\texttt{attempt\_id} PK, \texttt{user\_id}, \texttt{micro\_content\_id}, \texttt{attempt\_number}, \texttt{score}, \texttt{is\_passed}, \texttt{started\_at}, \texttt{submitted\_at}).
+    \item \texttt{micro\_content\_answers}: Lưu vết chi tiết câu trả lời của từng học viên cho từng câu hỏi (\texttt{answer\_id} PK, \texttt{attempt\_id} FK, \texttt{question\_id} FK, \texttt{answer\_text}, \texttt{is\_correct}, \texttt{score}, \texttt{ai\_feedback}).
+\end{itemize}
 
 \textbf{Versioning Learning Outcomes.} Bảng \texttt{learning\_outcomes} mang
 thêm trường \texttt{academic\_year} và \texttt{version} để theo dõi sự thay
@@ -1032,13 +1099,31 @@ hợp bao gồm:
 \end{figure}
 
 gRPC được dùng cho giao tiếp đồng bộ hiệu năng cao phục vụ truy vấn dữ liệu
-realtime:
+realtime và kết nối giữa Web BFF (\texttt{web}) với Core Business Service (\texttt{core-api}):
 
 \begin{itemize}
-    \item \texttt{chat-service} gọi \texttt{core-api} để đối chiếu metadata
-          và quyền truy xuất tài liệu của người dùng.
-    \item \texttt{core-api} gọi các API truy vấn của \texttt{chat-service}
-          để hỗ trợ tìm kiếm ngữ cảnh.
+    \item \textbf{Phương pháp tiếp cận Contract-First:} Toàn bộ các định nghĩa
+          thông điệp và phương thức gọi thủ tục từ xa được quy chuẩn tại tập tin
+          \texttt{contracts/proto/core\_api.proto}. Cả Web BFF và Core API đều
+          đọc chung tệp proto này để sinh stub/client và controller xử lý.
+    \item \textbf{Danh mục 17 RPCs phục vụ phân hệ Micro Content:}
+    \begin{itemize}
+        \item \textit{Quản lý bài học và xuất bản:} \texttt{CreateMicroContent},
+              \texttt{GetMicroContent}, \texttt{UpdateMicroContent},
+              \texttt{DeleteMicroContent}, \texttt{ListMicroContents},
+              \texttt{PublishMicroContent}.
+        \item \textit{Ngân hàng câu hỏi củng cố:} \texttt{SaveMicroContentQuestions},
+              \texttt{GetMicroContentQuestions}.
+        \item \textit{Quản lý tải lên và truy xuất video:}
+              \texttt{CreateMicroContentUpload}, \texttt{ConfirmMicroContentUpload},
+              \texttt{GetMicroContentVideoUrl}.
+        \item \textit{AI Video Generation Studio:}
+              \texttt{RequestMicroContentScript}, \texttt{SaveMicroContentScript},
+              \texttt{RequestMicroContentRender}.
+        \item \textit{Tiến độ học tập và kiểm tra:}
+              \texttt{ReportMicroContentProgress}, \texttt{SubmitMicroContent},
+              \texttt{GetMicroContentResult}, \texttt{ListMicroContentAttempts}.
+    \end{itemize}
 \end{itemize}
 
 \textbf{Lưu ý thiết kế:} Hệ thống hạn chế việc dùng gRPC để truyền trực
@@ -1075,6 +1160,14 @@ nghiệp vụ phức tạp. Khi một sự kiện nghiệp vụ xảy ra, sự k
         \item \texttt{ContentGenerationRequested}: Được phát đi khi giảng
               viên yêu cầu sinh lesson card hoặc quiz cho một phạm vi nội
               dung cụ thể, kích hoạt \texttt{enrichment-worker}.
+        \item \texttt{MicroContentVideoRenderRequested}: Được phát đi khi giảng
+              viên xác nhận kịch bản phân cảnh; Outbox Poller đẩy job vào hàng
+              đợi \texttt{micro\_content\_video} để \texttt{video-worker} vẽ slide
+              Pillow, gọi Edge-TTS và ghép nối video qua FFmpeg.
+        \item \texttt{MicroContentGradingRequested}: Được phát đi khi học viên
+              nộp bài Micro Content chứa câu hỏi tự luận ngắn (\texttt{SHORT\_ANSWER});
+              job được đẩy vào hàng đợi \texttt{answer\_grading} để LLM chấm điểm
+              theo rubric.
         \item \texttt{ContentDraftGenerated}: Được phát đi sau khi card hoặc
               quiz draft đã được validate và lưu vào PostgreSQL ở trạng thái
               \texttt{GENERATED\_DRAFT}.
@@ -1092,6 +1185,12 @@ nghiệp vụ phức tạp. Khi một sự kiện nghiệp vụ xảy ra, sự k
 
 \subsection{Streaming Architecture}
 
+Hệ thống triển khai hai cơ chế streaming chuyên biệt cho từng loại trải nghiệm người dùng:
+
+\subsubsection{HTTP 206 Partial Content Video Streaming}
+Đối với trình phát video của phân hệ Micro Content, hệ thống triển khai API tại \texttt{/api/micro-content/[id]/video}. Khi trình duyệt người học phát video, yêu cầu HTTP gửi kèm header \texttt{Range: bytes=start-end}. Tầng Web BFF đọc header này, thiết lập kết nối luồng với MinIO Object Storage thông qua lệnh \texttt{getObject} có chỉ định phạm vi byte, và phản hồi về trình duyệt mã trạng thái \texttt{HTTP 206 Partial Content} cùng các tiêu đề chuẩn: \texttt{Content-Range: bytes start-end/total}, \texttt{Accept-Ranges: bytes}, và \texttt{Content-Length}. Giải pháp này cho phép tua video lập tức tới bất kỳ vị trí nào mà không phải chờ tải toàn bộ tập tin đa phương tiện, đồng thời giảm thiểu tối đa tải băng thông máy chủ.
+
+\subsubsection{Server-Sent Events (SSE) cho Chatbot AI Tutor}
 Đối với trải nghiệm tương tác trực tiếp của chatbot AI Tutor, hệ thống sử
 dụng kiến trúc luồng dữ liệu một chiều liên tục bằng công nghệ Server-Sent
 Events (SSE) thay vì giao thức song công WebSockets cồng kềnh:

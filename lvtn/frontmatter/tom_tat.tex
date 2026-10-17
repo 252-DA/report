@@ -20,25 +20,29 @@ hỏi, nhưng thường thiếu quy trình kiểm duyệt học thuật, thiếu
 khó gắn kết câu hỏi với chuẩn đầu ra học phần.
 
 Luận văn đề xuất và hiện thực một hệ thống LMS mở rộng bằng Generative AI,
-cho phép giảng viên đưa tài liệu vào hệ thống, tự động phân tích tài liệu,
-chia nhỏ nội dung, sinh Micro-Content và Quiz, sau đó kiểm duyệt trước khi
-công bố cho học viên. Hệ thống sử dụng kiến trúc Hexagonal/DDD, backend Python
-gRPC, frontend Next.js, hàng đợi xử lý bất đồng bộ, PostgreSQL, MinIO, Qdrant
-Vector Database và Neo4j Knowledge Graph. Lớp Curriculum-Aware phân tích đề
-cương môn học, trích xuất chuẩn đầu ra học phần và liên kết chunk nội dung với
-Learning Outcome để hỗ trợ sinh câu hỏi theo mục tiêu học tập.
+tập trung vào giải pháp học tập vi mô tương tác (\textbf{Micro-Content}) kết
+hợp câu hỏi củng cố tức thì (\textbf{Quiz Checkpoints}). Hệ thống cho phép
+giảng viên tự động sản xuất bài học từ prompt văn bản thông qua \textbf{AI
+Video Studio} (tự động tạo kịch bản sư phạm, vẽ slide bài giảng chuẩn HD bằng
+Pillow, lồng tiếng thuyết minh tiếng Việt tự nhiên qua Edge-TTS và ghép nối
+video bằng FFmpeg), hoặc tải lên video bài giảng có sẵn. Nhằm đảm bảo chất lượng
+học tập thực chất, hệ thống tích hợp cơ chế \textbf{Chống gian lận thời gian xem
+(Anti-Cheat Heartbeat Tracking)} phía máy chủ, tự động gộp các khoảng thời gian
+xem thực tế và chỉ mở khóa nộp bài kiểm tra khi người học tích lũy đủ thời lượng
+quy định.
 
-Các thành phần AI cốt lõi gồm parser tài liệu, chunking theo heading, embedding
-đa ngôn ngữ, truy xuất vector, RAG, GraphRAG định hướng thiết kế và sinh Quiz
-theo Bloom taxonomy. Hệ thống được tích hợp với LMS thông qua LTI 1.3/OIDC,
-trong đó Canvas LMS đóng vai trò nền tảng học tập chính, còn hệ thống AI hoạt
-động như một External Tool độc lập. Vì hệ thống tuân thủ chuẩn IMS LTI,
-về mặt kỹ thuật kiến trúc có thể tương thích với các LMS hỗ trợ LTI 1.3
-khác, tuy nhiên việc mở rộng đó nằm ngoài phạm vi đồ án. Phần đánh giá
-bao gồm kiểm thử chức năng, kiểm thử tích hợp Canvas/LTI, kế hoạch
-đánh giá truy xuất, đánh giá chất lượng Quiz, hiệu năng và phân tích hạn chế.
-Các số liệu chưa đo thực nghiệm được đánh dấu rõ để bổ sung trong giai đoạn
-pilot.
+Hệ thống được thiết kế theo kiến trúc Microservices phân tán hướng sự kiện
+(Event-Driven Architecture) với Next.js App Router (BFF), NestJS Core API, các
+Worker AI bất đồng bộ qua BullMQ/Redis, lưu trữ đối tượng MinIO và cơ sở dữ liệu
+PostgreSQL. Hệ thống hỗ trợ 4 dạng câu hỏi tương tác (Trắc nghiệm đơn, Đúng/Sai,
+Điền khuyết, và Tự luận ngắn chấm điểm bằng LLM) theo triết lý học tập làm chủ
+kiến thức (Mastery Learning & Unlimited Retakes). Nền tảng được tích hợp sâu với
+Canvas LMS theo chuẩn quốc tế \textbf{LTI 1.3 Advantage} và \textbf{Deep Linking
+2.0}, hỗ trợ nhúng trực tiếp bài học vào cây Module học phần và vận hành an toàn
+trong iframe thông qua cơ chế phân vùng cookie \textbf{CHIPS}. Kết quả kiểm thử
+chức năng, kiểm thử đơn vị tự động (20/20 Jest tests) và triển khai thực tế trên
+hạ tầng Cloudflare Tunnel chứng minh tính khả thi, độ tin cậy và tiềm năng ứng
+dụng cao của giải pháp trong giáo dục đại học.
 
 \vspace{0.5cm}
 

@@ -889,6 +889,12 @@ US-IN-11 & Là giảng viên, tôi muốn xóa tài liệu kèm toàn bộ micro
 \hline
 US-IN-12 & Là giảng viên, tôi muốn upload video bài giảng và hệ thống tự động chia chương kèm micro-content theo timestamp. & Hỗ trợ video MP4 với dung lượng \(\leq 2\) GB; mỗi chương dài \(\leq 5\) phút; card có thời điểm bắt đầu/kết thúc khớp với video. \\
 \hline
+US-IN-13 & Là giảng viên, tôi muốn tạo bài học Micro Content kết hợp video ngắn và câu hỏi củng cố tương tác, để học viên nắm vững từng đơn vị kiến thức trước khi tiếp tục. & Cho phép tạo bài học; cấu hình điểm đạt \texttt{passing\_score} (\%) và tỷ lệ xem bắt buộc \texttt{required\_watch\_percent} (\%); quản lý trạng thái Draft/Published. \\
+\hline
+US-IN-14 & Là giảng viên, tôi muốn nhập prompt chủ đề bài giảng để AI Video Studio tự động sinh kịch bản, vẽ slide và dựng video bài giảng có giọng đọc tiếng Việt, giúp tiết kiệm tối đa thời gian biên soạn. & Tự động tạo kịch bản sư phạm 3--5 phân cảnh; sinh slide chuẩn HD 1280x720 qua Pillow; lồng tiếng thuyết minh tiếng Việt tự nhiên qua Edge-TTS; ghép nối video hoàn chỉnh $\leq 30$s. \\
+\hline
+US-IN-15 & Là giảng viên, tôi muốn nhúng trực tiếp bài học Micro Content vào các Module của Canvas LMS qua menu Deep Linking 2.0, để quản lý chương trình giảng dạy đồng bộ và tập trung. & Tích hợp vào menu External Tools của Canvas LMS; hỗ trợ lựa chọn bài Micro Content từ danh sách và tự động cấu hình liên kết LTI Resource Link vào khóa học. \\
+\hline
 \end{longtable}
 \endgroup
 
@@ -925,6 +931,10 @@ US-LE-07 & Là học viên, tôi muốn hỏi AI Tutor về nội dung khóa h�
 US-LE-08 & Là học viên, tôi muốn xem tiến độ học tập cá nhân và biết LO nào còn yếu, để biết cần ôn lại phần nào. & Dashboard cá nhân hiển thị: \% hoàn thành theo khóa, điểm quiz theo thời gian, top 3 LO yếu nhất dựa trên điểm quiz theo LO. \\
 \hline
 US-LE-09 & Là học viên, tôi muốn hệ thống lưu vị trí cuối tôi đã học, để lần sau quay lại đúng chỗ. & Tự động lưu vị trí cuối cùng đã học sau mỗi card; lần sau mở lại hiện ``Tiếp tục từ ...''; reset khi học xong section. \\
+\hline
+US-LE-10 & Là học viên, tôi muốn xem video bài giảng vi mô tải nhanh, tua mượt mà và câu hỏi củng cố hiển thị ngay bên cạnh video, để học tập trực quan và tiện lợi. & Video hỗ trợ chuẩn HTTP 206 Partial Content streaming; giao diện 2 cột responsive (bên trái video, bên phải bảng câu hỏi tương tác). \\
+\hline
+US-LE-11 & Là học viên, tôi muốn được làm lại bài kiểm tra củng cố không giới hạn (Unlimited Retakes) và nhận giải thích chi tiết cho từng câu hỏi (kể cả câu tự luận ngắn chấm bằng AI), để hiểu sâu và tự tin làm chủ kiến thức. & Nộp bài được mở khóa tự động khi tích lũy đủ thời lượng xem yêu cầu; hệ thống chấm tức thì trắc nghiệm và kích hoạt worker chấm tự luận theo rubric; lưu lại lịch sử làm bài. \\
 \hline
 \end{longtable}
 \endgroup
@@ -1161,6 +1171,40 @@ FR-SL-04 & Làm quiz và phản hồi & Học viên nhận phản hồi đúng /
 FR-SL-05 & Theo dõi tiến độ theo LO & Hệ thống tổng hợp điểm và trạng thái học theo Learning Outcome để gợi ý nội dung ôn tập. \\
 \hline
 FR-SL-06 & Đồng bộ điểm LMS & Khi activity có cấu hình chấm điểm, hệ thống gửi score về Canvas gradebook qua chuẩn tích hợp. \\
+\hline
+\end{longtable}
+
+\subsection{Module Micro Content (Video bài giảng \& Câu hỏi tương tác)}
+\label{subsec:module-micro-content}
+
+Module này quản lý gói học tập vi mô khép kín bao gồm một video bài giảng súc tích (3--5 phút) đi kèm bộ câu hỏi kiểm tra đánh giá nhanh (Formative Assessment). Điểm nổi bật của module là cơ chế giám sát thời gian học thực tế chống gian lận và quy trình sản xuất video tự động bằng Generative AI.
+
+\begin{longtable}{|p{2.4cm}|p{5.1cm}|p{6.9cm}|}
+\caption{Yêu cầu chức năng cho module Micro Content}
+\label{tab:fr-micro-content}\\
+\hline
+\textbf{Mã} & \textbf{Yêu cầu} & \textbf{Mô tả / tiêu chí} \\
+\hline
+\endfirsthead
+\hline
+\textbf{Mã} & \textbf{Yêu cầu} & \textbf{Mô tả / tiêu chí} \\
+\hline
+\endhead
+FR-MC-01 & Quản lý bài học Micro Content & Giảng viên tạo mới, cập nhật tiêu đề, mô tả, cấu hình ngưỡng điểm đạt (\texttt{passing\_score} \%), tỷ lệ xem bắt buộc (\texttt{required\_watch\_percent} \%), và trạng thái phát hành (Draft/Published). \\
+\hline
+FR-MC-02 & Đa nguồn video bài giảng & Hỗ trợ giảng viên tải lên video MP4/WebM trực tiếp ($\leq 500$ MB) hoặc kích hoạt quy trình AI Video Studio để sinh video tự động từ prompt. \\
+\hline
+FR-MC-03 & AI Video Studio tự động & Tự động tạo kịch bản sư phạm nhiều phân cảnh; vẽ slide HD (1280x720) bằng Pillow; lồng tiếng tiếng Việt tự nhiên qua Edge-TTS; ghép nối clip MP4 với codec H.264/AAC qua FFmpeg. \\
+\hline
+FR-MC-04 & Ngân hàng câu hỏi vi mô & Hỗ trợ 4 định dạng câu hỏi: Trắc nghiệm 1 đáp án (MCQ), Đúng/Sai (True/False), Điền khuyết (Fill-in-the-Blank), và Tự luận ngắn (Short Answer chấm bằng LLM). \\
+\hline
+FR-MC-05 & Chống gian lận Heartbeat & Định kỳ 5s client gửi tín hiệu heartbeat; máy chủ gộp các khoảng thời gian xem thực tế (\textit{interval merging}) để tính độ phủ; khóa nút submit bài kiểm tra nếu chưa xem đủ tỷ lệ yêu cầu. \\
+\hline
+FR-MC-06 & Chấm điểm tức thì & Tự động đối chiếu đáp án cho MCQ, True/False, Fill-in-Blank; phát sinh outbox event đẩy việc chấm câu tự luận cho worker AI; phản hồi điểm và giải thích chi tiết cho học viên. \\
+\hline
+FR-MC-07 & Mastery Learning & Cho phép học viên làm lại bài kiểm tra không giới hạn lượt (Unlimited Retakes); lưu lại lịch sử chi tiết tất cả các lần nộp bài để theo dõi tiến bộ. \\
+\hline
+FR-MC-08 & Tích hợp LTI Deep Linking & Cho phép giảng viên nhúng trực tiếp Micro Content vào cây Module của Canvas LMS qua chuẩn LTI Deep Linking 2.0; bảo mật phiên trong iframe với cookie CHIPS. \\
 \hline
 \end{longtable}
 

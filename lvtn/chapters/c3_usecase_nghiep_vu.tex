@@ -154,6 +154,8 @@ Quiz Question & Kiểm tra hiểu biết & Câu hỏi có đáp án, giải thí
 \hline
 Video Timestamp Card & Gắn nội dung với video & Liên kết card với mốc thời gian bắt đầu/kết thúc trong video hoặc transcript. \\
 \hline
+Interactive Micro Content & Gói học tập vi mô khép kín & Kết hợp video bài giảng súc tích (3--5 phút) với bộ 3--5 câu hỏi củng cố tức thì, cơ chế chống tua Heartbeat và hỗ trợ làm lại không giới hạn (Mastery Learning). \\
+\hline
 \end{longtable}
 
 Tất cả loại micro-content đều cần giữ metadata nguồn để hỗ trợ truy vết, review
@@ -1148,6 +1150,22 @@ Multimodal Learning Pipeline (Đường ống học đa phương thức) là ki�
     \item \textbf{Vai trò trong LMS:} Việc kết hợp đa phương thức giúp LLM không bị mất thông tin quan trọng khi giảng viên sử dụng các yếu tố trực quan để giải thích, đảm bảo độ chính xác của Micro-content và ngữ cảnh của các Quiz được tạo ra.
 \end{itemize}
 
+\subsection{Text-to-Speech (TTS) và Công nghệ Neural Voice}
+\label{subsec:edge-tts-theory}
+Bên cạnh bài toán nhận dạng giọng nói (ASR), công nghệ Chuyển văn bản thành giọng nói (Text-to-Speech - TTS) đóng vai trò quyết định trong việc tự động hóa khâu sản xuất bài giảng vi mô từ kịch bản AI \cite{microsoft_edgetts}.
+\begin{itemize}
+    \item \textbf{Cơ chế hoạt động:} Các mô hình Neural TTS hiện đại sử dụng kiến trúc học sâu (Deep Neural Networks) để mô phỏng ngữ điệu, nhịp điệu và trường độ của tiếng người thật. Trong hệ thống đề xuất, công nghệ \texttt{edge-tts} được tích hợp để khai thác giọng đọc nhân tạo tiên tiến của Microsoft. Đặc biệt, mô hình giọng đọc \texttt{vi-VN-HoaiMyNeural} và \texttt{vi-VN-NamMinhNeural} cung cấp khả năng phát âm tiếng Việt chuẩn, biểu cảm tự nhiên và hỗ trợ hoàn hảo các từ mượn học thuật tiếng Anh.
+    \item \textbf{Đo đạc và đồng bộ thời lượng (Audio Probing):} Sau khi file âm thanh MP3 được tổng hợp cho từng phân cảnh, hệ thống sử dụng công cụ \texttt{ffprobe} để trích xuất thời lượng chính xác đến cấp độ mili-giây (\texttt{duration\_ms}). Thông số này là tiền đề bắt buộc để tính toán thời gian hiển thị slide hình ảnh tương ứng, đảm bảo video không bị hiện tượng hình chạy trước tiếng hoặc ngược lại.
+\end{itemize}
+
+\subsection{Tự động hóa Dựng Slide và Biên dịch Video (Pillow \& FFmpeg)}
+\label{subsec:pillow-ffmpeg-pipeline}
+Để tạo ra video bài giảng hoàn chỉnh mà không cần sự can thiệp thủ công của kỹ thuật viên dựng phim, hệ thống kết hợp thư viện đồ họa Pillow và bộ công cụ xử lý đa phương tiện FFmpeg \cite{pillow2024, tomar2006converting}:
+\begin{itemize}
+    \item \textbf{Tạo Slide sư phạm tự động (Pillow Slide Generator):} Module nhận dữ liệu phân cảnh có cấu trúc từ LLM (tiêu đề, các gạch đầu dòng ý chính) và tiến hành vẽ động lên canvas độ phân giải chuẩn HD 1280x720 (tỷ lệ 16:9). Hệ thống tự động tính toán thuật toán ngắt dòng chữ (word-wrapping), phân cấp thị giác (visual hierarchy) giữa tiêu đề và nội dung, đồng thời gắn huy hiệu phân cảnh (scene badge) giúp người học định vị tiến trình bài học.
+    \item \textbf{Biên dịch và ghép nối video (FFmpeg Video Composer):} Mỗi phân cảnh bao gồm ảnh tĩnh PNG và file âm thanh MP3 được FFmpeg biên dịch thành clip ngắn MP4 với codec hình ảnh \texttt{libx264} (pixel format \texttt{yuv420p} để tương thích mọi trình duyệt) và codec âm thanh \texttt{aac 192k}. Sau đó, danh sách các clip phân cảnh được ghép nối nối tiếp (concatenate) thông qua \textit{FFmpeg concat demuxer}. Cuối cùng, cờ \texttt{-movflags +faststart} được áp dụng để di chuyển siêu dữ liệu moov atom lên đầu tệp, cho phép trình duyệt của học viên có thể phát ngay video (progressive playback / streaming) khi dữ liệu đang được tải về từ MinIO.
+\end{itemize}
+
 \section{AI Orchestration Frameworks và thư viện hỗ trợ}
 Trong các hệ thống ứng dụng AI tạo sinh phức tạp, Mô hình ngôn ngữ lớn (LLM) hiếm khi hoạt động độc lập. Để xây dựng luồng xử lý đa phương thức (Multimodal Pipeline) từ việc cắt video, đọc phiên mã đến sinh câu hỏi trắc nghiệm, hệ thống cần một "nhạc trưởng" để điều phối dữ liệu, quản lý bộ nhớ và liên kết các tác vụ. Các nền tảng điều phối (AI Orchestration Frameworks) ra đời để giải quyết bài toán này.
 
@@ -1224,16 +1242,29 @@ Sau khi các AI Agent (như LLM) đã phân tích ngữ nghĩa và quyết đị
 \section{Các công nghệ sử dụng}
 Để hiện thực hóa hệ thống LMS (Learning Management System) có khả năng tự động tạo Micro-content và Quiz từ video bài giảng, kiến trúc phần mềm cần sự kết hợp của nhiều công nghệ hiện đại. Việc lựa chọn công nghệ dựa trên các tiêu chí: hiệu năng xử lý đa phương tiện, khả năng tích hợp linh hoạt với các thư viện AI/ML (Python), lưu trữ dữ liệu đa phương thức và tính mở rộng cao.
 
-\subsection{FastAPI}
-FastAPI là một web framework hiện đại, hiệu năng cao dùng để xây dựng các API bằng Python dựa trên chuẩn gợi ý kiểu dữ liệu (type hints) \cite{ramirez2018fastapi}.
+\subsection{NestJS \& Prisma ORM (Core Business Layer)}
+NestJS là một framework Node.js tiến bộ được xây dựng bằng TypeScript, lấy cảm hứng từ kiến trúc hướng đối tượng của Angular \cite{nestjs2024}.
 \begin{itemize}
-    \item \textbf{Vai trò trong hệ thống:} Vì hầu hết các thư viện AI lõi (LangChain, Whisper, OpenCV) đều được viết bằng Python, FastAPI là lựa chọn lý tưởng để xây dựng Backend lõi. FastAPI hỗ trợ xử lý bất đồng bộ (Asynchronous) nguyên bản (qua \texttt{async/await}), rất phù hợp cho các tác vụ tốn thời gian như gọi API tới LLM, chờ trích xuất âm thanh từ video hay chạy pipeline RAG.
+    \item \textbf{Vai trò trong hệ thống:} NestJS đóng vai trò là Core API Service trung tâm, chịu trách nhiệm quản lý toàn bộ nghiệp vụ cốt lõi: xác thực LTI, quản lý khóa học, kiểm soát phân quyền (RBAC), theo dõi tiến độ xem video Heartbeat và cung cấp giao diện gRPC Contract-First cho Web BFF.
+    \item \textbf{Prisma ORM:} Được tích hợp trong NestJS để tương tác an toàn kiểu dữ liệu (type-safe) với PostgreSQL \cite{prisma2024}. Prisma quản lý toàn bộ vòng đời di trú schema (Migrations), tự động tạo client TypeScript và tối ưu hóa các truy vấn phức tạp (transactions, aggregations).
 \end{itemize}
 
-\subsection{React + Next.js}
+\subsection{Python AI Workers (FastAPI \& Async Services)}
+FastAPI là một web framework hiện đại, hiệu năng cao dùng để xây dựng các API bằng Python dựa trên chuẩn gợi ý kiểu dữ liệu (type hints) \cite{ramirez2018fastapi}.
+\begin{itemize}
+    \item \textbf{Vai trò trong hệ thống:} Vì hầu hết các thư viện AI lõi (LangChain, Whisper, Pillow, Edge-TTS) đều phát triển tối ưu trên Python, các Worker AI bất đồng bộ (như \texttt{video-worker}, \texttt{answer-grading-worker}) được viết bằng Python. Các worker này lắng nghe hàng đợi BullMQ/Redis, thực thi các tác vụ tính toán nặng và cập nhật kết quả về PostgreSQL/MinIO.
+\end{itemize}
+
+\subsection{React + Next.js (Presentation \& BFF Layer)}
 React là thư viện JavaScript dùng để xây dựng giao diện người dùng dựa trên component, trong khi Next.js là một framework bao bọc React, cung cấp các tính năng như Server-Side Rendering (SSR) và định tuyến (Routing) tối ưu \cite{vercel2024nextjs}.
 \begin{itemize}
-    \item \textbf{Vai trò trong hệ thống:} Next.js đóng vai trò xây dựng Frontend (trang web học tập). Nó xử lý giao diện người dùng cho các tính năng phức tạp như: Trình phát video tích hợp phụ đề tương tác (Interactive Video Player), hiển thị Pop-up Quiz ngay trên nền video, và giao diện Dashboard để giảng viên quản lý, chỉnh sửa Micro-content do AI tạo ra.
+    \item \textbf{Vai trò trong hệ thống:} Next.js đóng vai trò xây dựng Frontend và tầng Backend-for-Frontend (BFF). Nó tiếp nhận các launch request từ Canvas LMS, xử lý OIDC login, khởi tạo phiên làm việc bảo mật cookie CHIPS, chuyển tiếp Range request để stream video HTTP 206, và cung cấp giao diện tương tác 2 cột cho bài học Micro Content.
+\end{itemize}
+
+\subsection{BullMQ \& Redis Streams}
+BullMQ là thư viện quản lý hàng đợi tác vụ phân tán chuẩn công nghiệp trên nền tảng Node.js và Redis, hỗ trợ xử lý luồng công việc phức tạp với độ tin cậy cao \cite{bullmq2024}.
+\begin{itemize}
+    \item \textbf{Vai trò trong hệ thống:} Đảm bảo tính nhất quán cuối cùng (eventual consistency) thông qua Transactional Outbox Pattern. Khi Core API ghi nhận một bài tập cần chấm tự luận hoặc một yêu cầu render video AI, một bản ghi outbox được tạo trong Postgres cùng transaction. Outbox poller sẽ đẩy job vào BullMQ queue trên Redis để các Python worker xử lý song song và hỗ trợ retry tự động khi gặp sự cố.
 \end{itemize}
 
 \subsection{PostgreSQL}
